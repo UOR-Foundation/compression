@@ -78,6 +78,13 @@ fn samples() -> Vec<Vec<u8>> {
 
 /// The frame a scheduled strategy writes for `frame` on its own.
 fn strategy_frame(frame: &[u8], strategy: portfolio::Strategy) -> Option<Vec<u8>> {
+    if strategy.state > 0 {
+        let state = uorc::states::state(strategy.state)?;
+        let id = uorc::states::identity(strategy.state)?;
+        let payload = ncm::encode_warm(state, frame, strategy.profile)?;
+        let lengths = [frame.len() as u64];
+        return archive::state_archive(false, strategy.profile, &id, &lengths, &payload);
+    }
     let data = if strategy.x86 {
         x86::filter(frame, false, 0).0
     } else {
@@ -222,6 +229,9 @@ fn a_frame_coded_at_any_point_decodes_to_its_input_uc_perf_05() {
                 let info = uorc::inspect(&alone).unwrap();
                 let point = performance::CodecPoint::of(&info);
                 assert_eq!(point.profile & performance::POINT_X86 != 0, strategy.x86);
+                // and names the κ of the state the frame continues
+                let kappa = uorc::states::kappa_bytes(strategy.state).unwrap_or([0; 32]);
+                assert_eq!(point.state, kappa);
             }
         }
         let kept = uorc::compress_frame(&frame, 0).unwrap();
@@ -419,6 +429,20 @@ fn a_shared_pass_writes_each_twins_own_payload_uc_perf_11() {
             ncm::encode_pair_below(&[], &data, ncm::FULL, true, [usize::MAX, lb / 2]),
             (full.clone(), None)
         );
+    }
+    // both twins learning in one pass: each payload and learned profile is
+    // the one its own learning pass finds, in both directions, after a window
+    for (history, data) in [
+        (Vec::new(), text(30_000)),
+        (text(9_000), text(20_000)),
+        (Vec::new(), noise(30_000, 3)),
+    ] {
+        for profile in [ncm::FULL, mid] {
+            let own = |p: u32| ncm::encode_learn_below(&history, &data, p, usize::MAX);
+            let (a, b) = ncm::encode_pairs_learn_below(&history, &data, profile, [usize::MAX; 2]);
+            assert_eq!(a, own(profile), "{profile:#x}");
+            assert_eq!(b, own(profile ^ ncm::F_SEL), "{profile:#x}");
+        }
     }
     // the client codes twins in one pass when no core is spare: the archives
     // are the same at every thread count

@@ -39,7 +39,7 @@ def scalars(L, inp):
 # decoder
 BIG = ['T', 'H', 'MT', 'A2', 'M2T', 'M2S', 'RS']
 V03 = str(ncm_model.V03)
-dec = irlex.Lex(ncm_model.P, 'NcmDecode', ['decodeProfile'], BIG)
+dec = irlex.Lex(ncm_model.P, 'NcmDecode', ['decodeProfile', 'decodeWarm'], BIG)
 sizing(dec.D)
 n = ("(let n : Nat := (((prim multiply 16777216 (getAt 1 input 0) : Nat) + (prim multiply 65536 (getAt 1 input 1) : Nat)) + "
      "((prim multiply 256 (getAt 1 input 2) : Nat) + (getAt 1 input 3))); ")
@@ -51,10 +51,16 @@ body = (n + "(let h : Nat := (prim length history : Nat); "
 dec.D('runProfile', ['history : Bytes', 'input : Bytes', 'profile : Nat'], 'Bytes', f"(if ((prim length input : Nat) <? 4) then 0x else {body})")
 dec.D('runWith', ['history : Bytes', 'input : Bytes'], 'Bytes', f"(runProfile history input {V03})")
 dec.D('run', ['input : Bytes'], 'Bytes', "(runWith 0x input)")
+# from a kappa-named model state: H starts holding the state (w bytes), which the model codes first; the tables are
+# sized for w + n bytes and only the n bytes after the state are returned
+wbody = (n + "(let w : Nat := (prim length state : Nat); "
+         f"(let s0 : {dec.St} := {dec.L.make(tables(dec.L, '(w + n)', {}, 'state'), scalars(dec.L, 'input'))}; "
+         f"(let s1 : {dec.St} := (decodeWarm s0 w profile); (match (prim slice {dec.L.P('s1', 'H')} w n : (Option Bytes))\n    | Option.none => 0x\n    | Option.some b => b)))))")
+dec.D('runWarm', ['state : Bytes', 'input : Bytes', 'profile : Nat'], 'Bytes', f"(if ((prim length input : Nat) <? 4) then 0x else {wbody})")
 open(os.path.join(OUTDIR, 'NcmDecode.lex.tex'), 'w').write(dec.source([TB]))
 
 # encoder
-enc = irlex.Lex(ncm_model.P, 'NcmEncode', ['encodeProfile', 'encodeLearn'], BIG + ['OUT'])
+enc = irlex.Lex(ncm_model.P, 'NcmEncode', ['encodeProfile', 'encodeLearn', 'encodeWarm'], BIG + ['OUT'])
 sizing(enc.D)
 enc.D('start', ['history : Bytes', 'input : Bytes', 'n : Nat', 'cap : Nat'], enc.St,
       enc.L.make(tables(enc.L, 'n', {'OUT': '(zeros (depthFor 40 cap 0))'}, 'history'), scalars(enc.L, 'input')))
@@ -73,6 +79,10 @@ learn = ("(let n : Nat := (prim length input : Nat); (let cap : Nat := ((prim mu
          f"(let s1 : {enc.St} := (encodeLearn (start history input n cap) n cap (prim length history : Nat) profile); "
          f"(if (0 <? {enc.gread('s1', 'ovf')}) then profile else {enc.gread('s1', 'lmask')}))))")
 enc.D('learnProfile', ['history : Bytes', 'input : Bytes', 'profile : Nat'], 'Nat', f"(if ((prim length input : Nat) <? 4294967296) then {learn} else profile)")
+# encode `input` as the continuation of the kappa-named model state `state`, which the whole model codes first
+wenc = ("(let n : Nat := (prim length input : Nat); (let cap : Nat := ((prim multiply 2 n : Nat) + 64); (let w : Nat := (prim length state : Nat); "
+        "(finish (encodeWarm (start state input (w + n) cap) n cap w profile) n))))")
+enc.D('runWarm', ['state : Bytes', 'input : Bytes', 'profile : Nat'], 'Bytes', f"(if ((prim length input : Nat) <? 4294967296) then {wenc} else 0x)")
 enc.D('run', ['input : Bytes'], 'Bytes', "(runWith 0x input)")
 open(os.path.join(OUTDIR, 'NcmEncode.lex.tex'), 'w').write(enc.source([TB]))
 print('ok')

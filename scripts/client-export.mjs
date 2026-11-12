@@ -150,7 +150,12 @@ try {
   for (const f of ['src', 'lexlean.toml', 'lakefile.toml', 'lake-manifest.json', 'lean-toolchain']) fs.cpSync(path.join(root, f), path.join(stage, f), {recursive: true});
   fs.cpSync(path.join(root, 'client/src'), path.join(stage, 'src'), {recursive: true});
   const config = path.join(stage, 'lexlean.toml');
-  fs.writeFileSync(config, fs.readFileSync(config, 'utf8').replace(/^entrypoints = .*$/m, `entrypoints = ["${entry}"]`));
+  // The client closure outgrows two of the authority project's limits: its
+  // extraction passes 64 MiB of child output, and the compress root's Rust
+  // preservation certificate runs past 30 minutes on a 4-core machine.
+  fs.writeFileSync(config, fs.readFileSync(config, 'utf8').replace(/^entrypoints = .*$/m, `entrypoints = ["${entry}"]`)
+    .replace(/^max_child_output_bytes = .*$/m, 'max_child_output_bytes = 536870912')
+    .replace(/^child_timeout_ms = .*$/m, 'child_timeout_ms = 5400000'));
   const modules = closure(stage);
   for (const m of modules) markExecutable(moduleFile(stage, m));
   markRoots(moduleFile(stage, 'Uorc.Client'), ['compress', 'decompress']);

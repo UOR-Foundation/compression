@@ -43,6 +43,13 @@ pub fn inputs(profile: u32) -> u32 {
         + FEATURE_INPUTS * u32::from(profile & ncm::F_REP != 0)
 }
 
+/// Decode steps of an ncm trial coding `n` modelled bytes under `profile`
+/// (`Client.trialSteps`): 8 bits, each evaluating [`inputs`] model inputs.
+/// A state frame models n + |S| bytes (the reference measure).
+pub fn trial_steps(profile: u32, n: u64) -> u64 {
+    BITS_PER_BYTE * u64::from(inputs(profile)) * n
+}
+
 /// Steps to decode `n` output bytes of a frame of this representation and
 /// profile word; `None` for a representation the model states no measure for
 /// (the ulz decoders kept for earlier archives, and searched programs).
@@ -79,7 +86,8 @@ pub struct CodecPoint {
 }
 
 impl CodecPoint {
-    /// The point of the frame a header describes (no state, one lane).
+    /// The point of the frame a header describes: its basis, profile word,
+    /// the κ of the state it continues (zero for none) and one lane.
     pub fn of(info: &Info) -> CodecPoint {
         CodecPoint {
             basis: info.basis.unwrap_or([0; 32]),
@@ -89,7 +97,7 @@ impl CodecPoint {
                 } else {
                     0
                 },
-            state: [0; 32],
+            state: info.state.unwrap_or([0; 32]),
             lanes: 1,
         }
     }

@@ -1,14 +1,19 @@
 //! The strategy portfolio (`Uorc.Client.portfolio`): how the encoder picks
 //! the coding of a frame.
 //!
-//! A strategy is a transform (none, or the x86 branch filter) and an ncm
-//! model profile. A frame's family comes from cheap statistics of its bytes
-//! ([`family`]). Every (family, strategy) pair carries a bounded integer
-//! weight in 1..=16; the schedule of a family is every strategy ordered by
-//! weight (ties by portfolio order), so no strategy is ever unreachable. The
-//! encoder codes the first [`BUDGET`] strategies of the schedule and keeps
-//! the smallest archive (raw when that is smaller): the weights order the
-//! work, and the measured sizes decide.
+//! A strategy is a point of the codec space: a transform (none, or the x86
+//! branch filter), an ncm model profile, and a model state (none, or one of
+//! the κ-named states of the basis, [`crate::states`]). A frame's family
+//! comes from cheap statistics of its bytes ([`family`]). Every (family,
+//! strategy) pair carries a bounded integer weight in 1..=16; the schedule of
+//! a family is every strategy ordered by weight (ties by portfolio order), so
+//! no strategy is ever unreachable. The encoder codes the first [`budget`]
+//! strategies of the schedule and, after them, each strategy of the family's
+//! v0.4 pair ([`V04_PAIR`]) the schedule did not reach, and keeps the least
+//! archive in bytes, then in decode steps (raw when that is smaller). The
+//! coded strategies always include the ones v0.4 coded for the family, and
+//! every strategy without a state learns its context mask, so no frame is
+//! coded larger than v0.4 coded it, whatever the weights.
 //!
 //! The portfolio is data, a [`Table`] of strategy entries and weights in the
 //! byte form the model's `compress` reads. The shipped table ([`SHIPPED`],
@@ -22,13 +27,16 @@
 use crate::ncm;
 use crate::weights;
 
-/// A way to code a frame: over the x86 filter or not, and the ncm profile.
+/// A way to code a frame: over the x86 filter or not, the ncm profile, and
+/// the model state the frame continues (0 for none, `i` for state `i`).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Strategy {
     /// Coded over the x86 branch filter.
     pub x86: bool,
     /// The ncm model profile.
     pub profile: u32,
+    /// The κ-named model state the frame continues (0: none).
+    pub state: u8,
 }
 
 /// Every ncm feature but the match-state mixer selection: the profile that
@@ -47,8 +55,43 @@ pub const FAMILIES: usize = 5;
 /// The families' names, in order.
 pub const FAMILY_NAMES: [&str; FAMILIES] = ["tiny", "small", "x86", "text", "other"];
 
-/// Strategies the encoder codes per frame.
-pub const BUDGET: usize = 2;
+/// Scheduled strategies the encoder codes for a frame of `family`
+/// (`Client.budgetFor`): four for tiny and small frames, three for text,
+/// two for x86 and other frames.
+pub const fn budget(family: usize) -> usize {
+    match family {
+        0 | 1 => 4,
+        3 => 3,
+        _ => 2,
+    }
+}
+
+/// The most scheduled strategies any family codes ([`budget`]).
+pub const BUDGET: usize = 4;
+
+/// The most strategies the encoder codes for a frame: [`BUDGET`] scheduled
+/// ones and the two of the family's v0.4 pair.
+pub const MAX_PLAN: usize = BUDGET + 2;
+
+const fn plain(x86: bool, profile: u32) -> Strategy {
+    Strategy {
+        x86,
+        profile,
+        state: 0,
+    }
+}
+
+/// The two strategies v0.4 coded for each family (`Client.v04Pair`): tiny
+/// V03 and FULL, small V03 and MID, x86 MID over the filter and FULL, text
+/// and other FULL and MID. The encoder always codes them, so "no frame larger
+/// than v0.4" follows from keeping the least of a superset of v0.4's trials.
+pub const V04_PAIR: [[Strategy; 2]; FAMILIES] = [
+    [plain(false, ncm::V03), plain(false, ncm::FULL)],
+    [plain(false, ncm::V03), plain(false, MID)],
+    [plain(true, MID), plain(false, ncm::FULL)],
+    [plain(false, ncm::FULL), plain(false, MID)],
+    [plain(false, ncm::FULL), plain(false, MID)],
+];
 
 /// A portfolio: strategy entries and one weight per (family, strategy).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -71,10 +114,10 @@ impl Strategy {
         self.profile | if self.x86 { X86_BIT } else { 0 }
     }
 
-    /// The [`ENTRY`] bytes of this strategy (no state).
+    /// The [`ENTRY`] bytes of this strategy.
     pub fn entry(self) -> [u8; ENTRY] {
         let w = self.word().to_le_bytes();
-        [w[0], w[1], w[2], w[3], 0]
+        [w[0], w[1], w[2], w[3], self.state]
     }
 }
 
@@ -85,15 +128,18 @@ impl<'a> Table<'a> {
     }
 
     /// Entry `i`, when the coder can apply it: a valid profile word, no other
-    /// word bits, and no state (none is in the basis yet).
+    /// word bits, and no state or one the basis has.
     pub fn strategy(&self, i: usize) -> Option<Strategy> {
         let e = self.strategies.get(i * ENTRY..(i + 1) * ENTRY)?;
         let word = u32::from_le_bytes([e[0], e[1], e[2], e[3]]);
         let profile = word & !X86_BIT;
-        (ncm::valid_profile(profile) && e[4] == 0).then_some(Strategy {
-            x86: word & X86_BIT != 0,
-            profile,
-        })
+        let state = e[4];
+        (ncm::valid_profile(profile) && (state == 0 || crate::states::state(state).is_some()))
+            .then_some(Strategy {
+                x86: word & X86_BIT != 0,
+                profile,
+                state,
+            })
     }
 
     /// The weight of strategy `i` for `family` (0 when the table has none).
@@ -113,15 +159,22 @@ impl<'a> Table<'a> {
         s
     }
 
-    /// The strategies the encoder codes for `frame`, in schedule order: the
-    /// first [`BUDGET`] scheduled entries (an entry the coder cannot apply
-    /// keeps its place and yields no candidate).
+    /// The strategies the encoder codes for `frame`, in order
+    /// (`Client.planned`): the first [`budget`] scheduled entries (an entry
+    /// the coder cannot apply keeps its place and yields no candidate), then
+    /// each strategy of the family's [`V04_PAIR`] whose entry bytes no
+    /// scheduled entry has.
     pub fn plan(&self, frame: &[u8]) -> Vec<Option<Strategy>> {
-        self.schedule(family(frame))
-            .into_iter()
-            .take(BUDGET)
-            .map(|i| self.strategy(i))
-            .collect()
+        let f = family(frame);
+        let scheduled: Vec<usize> = self.schedule(f).into_iter().take(budget(f)).collect();
+        let entry = |i: usize| &self.strategies[i * ENTRY..(i + 1) * ENTRY];
+        let mut plan: Vec<Option<Strategy>> = scheduled.iter().map(|&i| self.strategy(i)).collect();
+        for s in V04_PAIR[f] {
+            if !scheduled.iter().any(|&i| entry(i) == s.entry()) {
+                plan.push(Some(s));
+            }
+        }
+        plan
     }
 }
 
@@ -130,10 +183,7 @@ const SHIPPED_COUNT: usize = weights::STRATEGIES.len() / ENTRY;
 
 /// The shipped table's strategies, in table order.
 pub const STRATEGIES: [Strategy; SHIPPED_COUNT] = {
-    let mut out = [Strategy {
-        x86: false,
-        profile: 0,
-    }; SHIPPED_COUNT];
+    let mut out = [plain(false, 0); SHIPPED_COUNT];
     let mut i = 0;
     while i < SHIPPED_COUNT {
         let e = &weights::STRATEGIES;
@@ -146,6 +196,7 @@ pub const STRATEGIES: [Strategy; SHIPPED_COUNT] = {
         out[i] = Strategy {
             x86: word & X86_BIT != 0,
             profile: word & !X86_BIT,
+            state: e[i * ENTRY + 4],
         };
         i += 1;
     }
@@ -153,7 +204,7 @@ pub const STRATEGIES: [Strategy; SHIPPED_COUNT] = {
 };
 
 /// The strategies the client codes for `frame` under the shipped table, in
-/// schedule order (see [`Table::plan`]).
+/// plan order (see [`Table::plan`]).
 pub fn plan(frame: &[u8]) -> Vec<Strategy> {
     SHIPPED.plan(frame).into_iter().flatten().collect()
 }
@@ -227,26 +278,73 @@ mod tests {
     }
 
     #[test]
-    fn the_shipped_entries_are_the_v04_portfolio() {
+    fn the_shipped_entries_extend_the_v04_portfolio() {
         let v04 = [ncm::FULL, MID, ncm::V03]
             .into_iter()
-            .flat_map(|profile| [false, true].map(|x86| Strategy { x86, profile }));
+            .flat_map(|profile| [false, true].map(|x86| plain(x86, profile)));
         for (i, s) in v04.enumerate() {
             assert_eq!(SHIPPED.strategy(i), Some(s));
             assert_eq!(SHIPPED.strategies[i * ENTRY..(i + 1) * ENTRY], s.entry());
+        }
+        // every further entry continues a state of the basis
+        for i in 6..SHIPPED.count() {
+            assert!(
+                SHIPPED.strategy(i).is_some_and(|s| s.state > 0),
+                "entry {i}"
+            );
+        }
+    }
+
+    /// Every plan holds the family's v0.4 pair, whatever the weights, and
+    /// codes no entry twice.
+    #[test]
+    fn every_plan_holds_the_v04_pair() {
+        let frames: [Vec<u8>; FAMILIES] = [
+            vec![b'a'; 100],
+            vec![b'a'; 10_000],
+            (0..400u32)
+                .flat_map(|k| [0xE8, (k % 200) as u8, 0, 0, 0, 0x90])
+                .collect(),
+            vec![b'a'; 100_000],
+            vec![0; 100_000],
+        ];
+        let flat = [1u8; 6 * FAMILIES];
+        let tables = [
+            SHIPPED,
+            Table {
+                strategies: &weights::STRATEGIES[..6 * ENTRY],
+                weights: &flat,
+            },
+        ];
+        for t in tables {
+            for (f, frame) in frames.iter().enumerate() {
+                assert_eq!(family(frame), f);
+                let plan = t.plan(frame);
+                assert!(plan.len() <= MAX_PLAN);
+                for s in V04_PAIR[f] {
+                    assert!(plan.contains(&Some(s)), "family {f}: {s:?}");
+                }
+                let coded: Vec<_> = plan.iter().flatten().collect();
+                for (k, s) in coded.iter().enumerate() {
+                    assert!(!coded[..k].contains(s), "family {f}: {s:?} twice");
+                }
+            }
         }
     }
 
     #[test]
     fn an_entry_the_coder_cannot_apply_is_skipped() {
         let bad = Table {
-            strategies: &[0xff, 0xff, 0xff, 0x00, 0x00, 0xff, 0xff, 0x0f, 0x00, 0x01],
+            strategies: &[0xff, 0xff, 0xff, 0x00, 0x00, 0xff, 0xff, 0x0f, 0x00, 0xee],
             weights: &[1; 10],
         };
         assert_eq!(bad.strategy(0), None);
         assert_eq!(bad.strategy(1), None);
         assert_eq!(bad.strategy(2), None);
-        assert_eq!(bad.plan(&[0; 10]), vec![None, None]);
+        // the skipped entries keep their place; the v0.4 pair follows
+        let plan = bad.plan(&[0; 10]);
+        assert_eq!(plan[..2], [None, None]);
+        assert_eq!(plan[2..], V04_PAIR[0].map(Some));
     }
 
     #[test]

@@ -77,14 +77,15 @@ function frameRequest(pieces, window, frame) {
   return out;
 }
 
-// The choice between a frame's two strategy archives (see choose_frame).
-function chooseRequest(pieces, frame, first, second) {
-  const out = new Uint8Array(4 + 8 * pieces.length + 24 + frame.length + first.length + second.length);
+// The choice among a frame's strategy archives, in `which` order (see choose_frame).
+function chooseRequest(pieces, frame, archives) {
+  const parts = [frame, ...archives];
+  const out = new Uint8Array(4 + 8 * pieces.length + 8 * parts.length + parts.reduce((n, p) => n + p.length, 0));
   const view = new DataView(out.buffer);
   let at = 0;
   view.setUint32(at, pieces.length, true); at += 4;
   for (const p of pieces) { view.setBigUint64(at, p, true); at += 8; }
-  for (const part of [frame, first, second]) {
+  for (const part of parts) {
     view.setBigUint64(at, BigInt(part.length), true); at += 8;
     out.set(part, at); at += part.length;
   }
@@ -193,10 +194,11 @@ export async function load(source) {
     };
     const job = (f, which) => ({ which, steps, pieces: f.pieces, window: f.window.map((r) => blob.slice(r.start, r.start + r.length)), frame: blob.slice(f.start, f.start + f.length) });
     const split = (f) => {
-      const parts = [0, 0];
-      const both = [0, 1].map((which) => pool.code(job(f, which), (share) => { parts[which] = share; shares.set(f.index, (f.length * (parts[0] + parts[1])) / 2); report(); }));
-      settle(f.index, f.length, Promise.all(both).then(async ([first, second]) =>
-        call(chooseRequest(f.pieces, await bytesOf(blob.slice(f.start, f.start + f.length)), first, second), () => x.choose_frame())));
+      const count = x.strategies();
+      const parts = new Array(count).fill(0);
+      const all = parts.map((_, which) => pool.code(job(f, which), (share) => { parts[which] = share; shares.set(f.index, (f.length * parts.reduce((n, v) => n + v, 0)) / count); report(); }));
+      settle(f.index, f.length, Promise.all(all).then(async (archives) =>
+        call(chooseRequest(f.pieces, await bytesOf(blob.slice(f.start, f.start + f.length)), archives), () => x.choose_frame())));
     };
     let index = 0;
     let position = 0;
@@ -261,11 +263,19 @@ export async function load(source) {
       return new Blob(parts);
     },
     // Decode in memory and check; with an original, also compare. Returns one
-    // description per archive in the stream; throws on any failure.
-    verify: (archive, original) => json(call(archive, () => {
-      if (original) put(x.original_buffer, original);
-      return x.verify(original ? 1 : 0);
-    })),
+    // description per archive in the stream; throws on any failure. `progress`
+    // hears the decoding passes as they run (bytes of the archive, an
+    // estimate that only grows).
+    verify: (archive, original, progress = () => {}) => {
+      const share = frameShare();
+      onPass = (done, total) => progress(Math.floor(archive.length * share(done, total)), archive.length);
+      try {
+        return json(call(archive, () => {
+          if (original) put(x.original_buffer, original);
+          return x.verify(original ? 1 : 0);
+        }));
+      } finally { onPass = () => {}; }
+    },
     // entries: [{ path: "dir/a.txt", kind: "file" | "executable" | "directory", data: Uint8Array }]
     compressFiles: (entries, steps = 0n) => call(packEntries(entries), () => x.compress_tree(BigInt(steps))),
     decompressFiles: (archive) => unpackEntries(call(archive, () => x.decompress_tree())),
@@ -408,7 +418,7 @@ async function serve() {
       return { kind: "table", input: archive.size, rows: uorc.inspect(await bytesOf(archive)) };
     },
     async verify({ archive, original }) {
-      const rows = uorc.verify(await bytesOf(archive), original ? await bytesOf(original) : undefined);
+      const rows = uorc.verify(await bytesOf(archive), original ? await bytesOf(original) : undefined, progress);
       return { kind: "verified", input: archive.size, compared: Boolean(original), rows };
     },
     async example({ input, bytes, seed }) {
