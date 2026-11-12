@@ -108,6 +108,52 @@ fn inspect_reads_the_header_without_decoding() {
     assert_eq!(code(&uorc(&["inspect", s(&input)])), 4);
 }
 
+/// UC-WEB-02: inspect names each frame's codec point and the exact steps its
+/// decode takes, as `uorc::performance` reads them from the header, in JSON
+/// and in text, for an ncm frame and a raw frame.
+#[test]
+fn inspect_names_each_frames_codec_point_uc_web_02() {
+    let dir = scratch("inspect-point");
+    let text: Vec<u8> = TEXT.iter().copied().cycle().take(20_000).collect();
+    let mut x = 0x9e37_79b9_7f4a_7c15u64;
+    let noise: Vec<u8> = (0..4000)
+        .map(|_| {
+            x ^= x << 13;
+            x ^= x >> 7;
+            x ^= x << 17;
+            (x >> 56) as u8
+        })
+        .collect();
+    for (name, data) in [("t.txt", &text), ("n.bin", &noise)] {
+        let input = dir.join(name);
+        fs::write(&input, data).unwrap();
+        assert_eq!(code(&uorc(&["compress", s(&input)])), 0);
+        let archive = dir.join(format!("{name}.uorc"));
+        let shown = uorc(&["inspect", "--json", s(&archive)]);
+        assert_eq!(code(&shown), 0, "{shown:?}");
+        let json = String::from_utf8(shown.stdout).unwrap();
+        let text = String::from_utf8(uorc(&["inspect", s(&archive)]).stdout).unwrap();
+        let coding = if name == "t.txt" { "ncm" } else { "raw" };
+        assert!(
+            json.contains(&format!("\"representation\":\"{coding}\"")),
+            "{json}"
+        );
+        for frame in uorc::frames(&fs::read(&archive).unwrap()).unwrap() {
+            let info = uorc::inspect(frame).unwrap();
+            let point = uorc::performance::CodecPoint::of(&info);
+            let kappa: String = point.kappa().iter().map(|b| format!("{b:02x}")).collect();
+            let steps = uorc::performance::frame_steps(&info).expect("modelled steps");
+            assert!(
+                json.contains(&format!("\"steps\":{steps},\"codec_point\":\"{kappa}\"")),
+                "{json}"
+            );
+            assert!(json.contains("\"state\":null,\"lanes\":1"), "{json}");
+            assert!(text.contains(&format!("codec point     {kappa}")), "{text}");
+            assert!(text.contains(&format!("steps           {steps}")), "{text}");
+        }
+    }
+}
+
 #[test]
 fn verify_checks_integrity_and_the_original() {
     let dir = scratch("verify");
