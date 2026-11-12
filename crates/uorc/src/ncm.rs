@@ -375,6 +375,12 @@ struct Bucket([u32; 16]);
 /// pieces, and the memory grew with the number of frames.
 struct Table<T: Spare>(Vec<T>);
 
+impl<T: Spare> Clone for Table<T> {
+    fn clone(&self) -> Self {
+        Table(self.0.clone())
+    }
+}
+
 trait Spare: Copy + 'static {
     fn spares() -> &'static std::thread::LocalKey<std::cell::RefCell<Vec<Vec<Self>>>>;
 }
@@ -429,12 +435,6 @@ impl<T: Spare> Drop for Table<T> {
     }
 }
 
-impl<T: Spare> Clone for Table<T> {
-    fn clone(&self) -> Table<T> {
-        Table(self.0.clone())
-    }
-}
-
 impl<T: Spare> std::ops::Deref for Table<T> {
     type Target = [T];
     #[inline(always)]
@@ -470,6 +470,8 @@ static WARMED: std::sync::Mutex<Warmed> = std::sync::Mutex::new(Vec::new());
 const WARMED_KEEP: usize = if cfg!(target_family = "wasm") { 0 } else { 2 };
 
 #[derive(Clone)]
+// streams of a frame keep their models side by side: no cache line spans two
+#[repr(align(128))]
 struct Model {
     t: &'static Tables,
     /// The profile's contexts, in order (`act[..na]`): the mixers read them as
@@ -495,6 +497,13 @@ struct Model {
     /// preceding outputs): the match model reaches into them.
     hoff: u32,
     pos: u32,
+    /// Bytes the model has learned from (its plasticity's clock): `pos` for
+    /// one stream; for a stream of a laned frame, every stream's bytes merged
+    /// into the shared state plus its own since.
+    seen: u32,
+    /// A stream of a laned frame: the shared state it reads and its own
+    /// changes since the epoch began (`None` for one stream).
+    lane: Option<Box<streams::Lane>>,
     c4: u32,
     c8: u32,
     wordh: u32,
@@ -603,9 +612,11 @@ impl Model {
             mask,
             mb,
             sl: Table::new((mask as usize + 1) / 16, Bucket([SLOT_FRESH; 16])),
-            hist: Vec::with_capacity(before + n as usize),
+            hist: vec![0; before + n as usize],
             hoff: before as u32,
             pos: 0,
+            seen: 0,
+            lane: None,
             c4: 0,
             c8: 0,
             wordh: 0,
@@ -662,8 +673,10 @@ impl Model {
             a2: Apm::new(1 << APM2_BITS),
             twin: None,
         };
+        let mut at = 0;
         for piece in history {
-            m.hist.extend_from_slice(piece);
+            m.hist[at..at + piece.len()].copy_from_slice(piece);
+            at += piece.len();
         }
         for p in 7..m.hoff {
             let k = m.match_key(p);
@@ -744,13 +757,51 @@ impl Model {
     /// The byte at coded position `i`.
     #[inline]
     fn at(&self, i: u32) -> u32 {
-        u32::from(self.hist[(self.hoff + i) as usize])
+        self.abs(self.hoff + i)
     }
 
     /// The byte at absolute position `i` (history first).
     #[inline]
     fn abs(&self, i: u32) -> u32 {
         u32::from(self.hist[i as usize])
+    }
+
+    /// The match table entry `k`.
+    #[inline]
+    fn mt(&self, k: usize) -> u32 {
+        match (&self.lane, self.mtab[k]) {
+            (Some(l), 0) => l.shared().mtab[k],
+            (_, v) => v,
+        }
+    }
+
+    #[inline]
+    fn set_mt(&mut self, k: usize, v: u32) {
+        if let Some(l) = &mut self.lane {
+            if self.mtab[k] == 0 {
+                l.mt.push(k as u32);
+            }
+        }
+        self.mtab[k] = v;
+    }
+
+    /// The short match table entry `k`.
+    #[inline]
+    fn mt2(&self, k: usize) -> u32 {
+        match (&self.lane, self.m2tab[k]) {
+            (Some(l), 0) => l.shared().m2tab[k],
+            (_, v) => v,
+        }
+    }
+
+    #[inline]
+    fn set_mt2(&mut self, k: usize, v: u32) {
+        if let Some(l) = &mut self.lane {
+            if self.m2tab[k] == 0 {
+                l.m2t.push(k as u32);
+            }
+        }
+        self.m2tab[k] = v;
     }
 
     /// The match-model key of absolute position `p`: the hash of the 7 bytes before it.
@@ -814,8 +865,10 @@ impl Model {
         if pa >= 7 {
             let k = self.match_key(pa);
             if self.mlen == 0 {
-                let cand = self.mtab[k];
-                if cand > 0 {
+                let cand = self.mt(k);
+                // a stream of a laned frame may read a later stream's
+                // position: a match points only into the past
+                if cand > 0 && cand < pa {
                     let l = self.agree(cand, pa);
                     if l >= 7 {
                         self.mptr = cand;
@@ -827,7 +880,7 @@ impl Model {
                     }
                 }
             }
-            self.mtab[k] = pa;
+            self.set_mt(k, pa);
         }
         if self.profile & F_SHORT != 0 {
             if self.m2len > 0 {
@@ -839,8 +892,8 @@ impl Model {
             if pa >= 4 {
                 let k = self.short_key(pa);
                 if self.m2len == 0 {
-                    let cand = self.m2tab[k];
-                    if cand > 0 {
+                    let cand = self.mt2(k);
+                    if cand > 0 && cand < pa {
                         let l = self.agree(cand, pa);
                         if l >= 4 {
                             self.m2ptr = cand;
@@ -852,7 +905,7 @@ impl Model {
                         }
                     }
                 }
-                self.m2tab[k] = pa;
+                self.set_mt2(k, pa);
             }
             if self.m2len > 0 {
                 self.m2exp = self.abs(self.m2ptr);
@@ -988,7 +1041,11 @@ impl Model {
             });
             self.prefetch_buckets(&hb, 0);
             if pa + 1 >= 7 {
-                prefetch(&self.mtab[self.match_key_by(pa + 1, abs)]);
+                let k = self.match_key_by(pa + 1, abs);
+                prefetch(&self.mtab[k]);
+                if let Some(l) = &self.lane {
+                    prefetch(&l.shared().mtab[k]);
+                }
             }
             self.spec_key = key;
             self.spec_hb = hb;
@@ -1024,6 +1081,10 @@ impl Model {
             let b = ((hh & self.mask) & !31) as usize;
             prefetch(&self.sl[b >> 4]);
             prefetch(&self.sl[(b >> 4) + 1]);
+            if let Some(l) = &self.lane {
+                prefetch(&l.shared().sl[b >> 4]);
+                prefetch(&l.shared().sl[(b >> 4) + 1]);
+            }
         }
     }
 
@@ -1032,6 +1093,9 @@ impl Model {
     /// (by slot 1's count), cleared and tagged.
     #[inline]
     fn bucket(&mut self, hh: u32) -> u32 {
+        if let Some(l) = &mut self.lane {
+            return l.bucket(hh, self.mask, &mut self.sl);
+        }
         let ck = ((hh >> 24) | 1) as u8;
         let b0 = (hh & self.mask) & !15;
         let alt = b0 ^ 16;
@@ -1274,7 +1338,7 @@ impl Model {
         if self.m2len > 0 {
             adapt(&mut self.m2sp[self.m2i], &mut self.m2sn[self.m2i], y, rate);
         }
-        let lr = standard::plasticity(self.pos);
+        let lr = standard::plasticity(self.seen);
         let yb = i32::from(y) << 12;
         // |err| <= 4096 and lr <= 128, so err * lr <= 2^19 and x * err * lr
         // (|x| <= 2047) stays inside i32 (`laneFitHolds`): the kernels learn
@@ -1304,8 +1368,15 @@ impl Model {
         self.bit += 1;
         if self.bit == 8 {
             let b = self.c0 & 255;
-            self.hist.push(b as u8);
+            // a laned stream writes its range of the frame in place; a model
+            // that codes past the length it was sized for (a warm state's
+            // continuation) grows its history
+            match self.hist.get_mut((self.hoff + self.pos) as usize) {
+                Some(at) => *at = b as u8,
+                None => self.hist.push(b as u8),
+            }
             self.pos += 1;
+            self.seen += 1;
             self.c8 = (self.c8 << 8) | (self.c4 >> 24);
             self.c4 = (self.c4 << 8) | b;
             if (b as u8).is_ascii_alphabetic() || b >= 128 {
@@ -1477,6 +1548,8 @@ macro_rules! dispatch {
         }
     }};
 }
+
+pub mod streams;
 
 #[cfg(target_arch = "x86_64")]
 mod x86 {

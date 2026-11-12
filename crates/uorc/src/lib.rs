@@ -190,6 +190,31 @@ fn compress_pieces(
     steps: u64,
     side_by_side: bool,
 ) -> Result<Vec<u8>, Error> {
+    let host = performance::declared_host();
+    compress_pieces_on(frame, lengths, window, steps, side_by_side, host)
+}
+
+/// The archive a frame gets when it is written for a decode host whose
+/// frame decoder runs on `threads` threads (otherwise the declared host,
+/// [`performance::declared_host`]): [`compress_frame_with`] at another point
+/// of the host facet (with `steps == 0`).
+pub fn compress_frame_for(frame: &[u8], window: &[&[u8]], threads: u64) -> Vec<u8> {
+    let host = performance::Host {
+        threads,
+        ..performance::declared_host()
+    };
+    compress_pieces_on(frame, &[frame.len() as u64], window, 0, true, host)
+        .unwrap_or_else(|_| archive::raw_objects(frame, &[frame.len() as u64]))
+}
+
+fn compress_pieces_on(
+    frame: &[u8],
+    lengths: &[u64],
+    window: &[&[u8]],
+    steps: u64,
+    side_by_side: bool,
+    host: performance::Host,
+) -> Result<Vec<u8>, Error> {
     if steps > 0 {
         let archive = on_reference_stack(|| reference_compress(frame, window, steps))?;
         return if lengths.len() == 1 {
@@ -214,11 +239,12 @@ fn compress_pieces(
         .into_iter()
         .rev()
         .fold(None, |kept, head| pick_trial(head, kept));
-    let host = performance::declared_host();
     match best {
         Some((linked, _)) if (linked.len() as u64) < raw => {
             let (stepped, k) = step_window(frame, lengths, reach, linked, host);
-            Ok(step_table(frame, lengths, &reach[reach.len() - k..], stepped, host))
+            let window = &reach[reach.len() - k..];
+            let stepped = step_table(frame, lengths, window, stepped, host);
+            Ok(step_streams(frame, lengths, window, stepped, host))
         }
         _ => Ok(archive::raw_objects(frame, lengths)),
     }
@@ -244,9 +270,14 @@ pub fn step_window(
     host: performance::Host,
 ) -> (Vec<u8>, usize) {
     let mut k = reach.len().min(archive::WINDOW);
+    let one = |w: u64| {
+        ncm::streams::split(w)
+            .filter(|(_, p)| p.streams == 1)
+            .map(|(m, _)| m)
+    };
     let (x86, mut word) = match archive::frame_codec(&chosen) {
-        Some(archive::Codec::Profile(w)) => (false, w),
-        Some(archive::Codec::ProfileX86(w)) => (true, w),
+        Some(archive::Codec::Profile(w)) if one(w).is_some() => (false, one(w).unwrap_or(0)),
+        Some(archive::Codec::ProfileX86(w)) if one(w).is_some() => (true, one(w).unwrap_or(0)),
         // the v0.3 entries code the V03 profile
         Some(archive::Codec::Ncm) => (false, ncm::V03),
         Some(archive::Codec::NcmX86) => (true, ncm::V03),
@@ -281,8 +312,10 @@ pub fn step_window(
         };
         let identity = (!window.is_empty()).then(|| archive::window_identity(window));
         let frame_of = |payload: &[u8]| match &identity {
-            None => archive::linked_archive_profile(codec, w, lengths, payload),
-            Some(id) => archive::window_archive_profile(codec, w, window, id, lengths, payload),
+            None => archive::linked_archive_profile(codec, u64::from(w), lengths, payload),
+            Some(id) => {
+                archive::window_archive_profile(codec, u64::from(w), window, id, lengths, payload)
+            }
         };
         let stop = best.len().saturating_sub(frame_of(&[])?.len());
         let a = frame_of(&ncm::encode_below(past, data, w, stop)?)?;
@@ -336,9 +369,16 @@ pub fn step_table(
     let (state, x86, word) = if let Some(f) = archive::state_frame(&chosen) {
         (f.state, f.x86, f.profile)
     } else {
+        let one = |w: u64| {
+            ncm::streams::split(w)
+                .filter(|(_, p)| p.streams == 1)
+                .map(|(m, _)| m)
+        };
         match archive::frame_codec(&chosen) {
-            Some(archive::Codec::Profile(w)) => (0, false, w),
-            Some(archive::Codec::ProfileX86(w)) => (0, true, w),
+            Some(archive::Codec::Profile(w)) if one(w).is_some() => (0, false, one(w).unwrap_or(0)),
+            Some(archive::Codec::ProfileX86(w)) if one(w).is_some() => {
+                (0, true, one(w).unwrap_or(0))
+            }
             _ => return chosen,
         }
     };
@@ -377,8 +417,10 @@ pub fn step_table(
             archive::Codec::Ncm
         };
         match &identity {
-            None => archive::linked_archive_profile(codec, w, lengths, payload),
-            Some(id) => archive::window_archive_profile(codec, w, window, id, lengths, payload),
+            None => archive::linked_archive_profile(codec, u64::from(w), lengths, payload),
+            Some(id) => {
+                archive::window_archive_profile(codec, u64::from(w), window, id, lengths, payload)
+            }
         }
     };
     let warm = state != 0;
@@ -408,6 +450,72 @@ pub fn step_table(
         }
     }
     best
+}
+
+/// The streams facet stepped last on the frame's chosen archive
+/// (`Client.stepStreams`): for a decode host whose frame decoder runs on
+/// more than one thread, the chosen coding is cut into streams over one
+/// shared state ([`ncm::streams::derive`]): the stream count steps while the
+/// counted longest chain of decode steps on the host falls, and the epoch is
+/// the least archive, then steps. On a one-thread host (the page's worker,
+/// the default) one stream is the derivation, so the chosen archive is kept
+/// byte for byte, as are raw frames, state frames and the fixed v0.3 entries.
+pub fn step_streams(
+    frame: &[u8],
+    lengths: &[u64],
+    window: &[&[u8]],
+    chosen: Vec<u8>,
+    host: performance::Host,
+) -> Vec<u8> {
+    if host.threads <= 1 || archive::state_frame(&chosen).is_some() {
+        return chosen;
+    }
+    let (x86, word) = match archive::frame_codec(&chosen) {
+        Some(archive::Codec::Profile(w)) => (false, w),
+        Some(archive::Codec::ProfileX86(w)) => (true, w),
+        _ => return chosen,
+    };
+    let Some((profile, ncm::streams::Plan { streams: 1, .. })) = ncm::streams::split(word) else {
+        return chosen;
+    };
+    let history = window.concat();
+    let filtered;
+    let (data, past) = if x86 {
+        filtered = (
+            x86::filter(frame, false, history.len() as u64).0,
+            x86::filter(&history, false, 0).0,
+        );
+        (&filtered.0[..], &filtered.1[..])
+    } else {
+        (frame, &history[..])
+    };
+    let n = frame.len() as u64;
+    let h = history.len() as u64;
+    let host_threads = usize::try_from(host.threads).unwrap_or(usize::MAX);
+    let threads = ncm::streams::threads(ncm::streams::Plan {
+        streams: host_threads,
+        epoch: 1,
+    });
+    let coding = performance::trial_steps(profile, n);
+    let holds = |k: usize| host.holds_streams(n, h, profile, k as u64);
+    let Some(d) = ncm::streams::derive(past, data, profile, host_threads, coding, threads, holds)
+    else {
+        return chosen;
+    };
+    let codec = if x86 {
+        archive::Codec::NcmX86
+    } else {
+        archive::Codec::Ncm
+    };
+    let Some(w) = ncm::streams::word(profile, d.plan) else {
+        return chosen;
+    };
+    let identity = (!window.is_empty()).then(|| archive::window_identity(window));
+    match &identity {
+        None => archive::linked_archive_profile(codec, w, lengths, &d.payload),
+        Some(id) => archive::window_archive_profile(codec, w, window, id, lengths, &d.payload),
+    }
+    .unwrap_or(chosen)
 }
 
 /// The trials of `plan` on `frame`, in plan order: each strategy's archive
@@ -640,10 +748,15 @@ impl Prepared<'_> {
     // decodes to its input, so a self-decode would only repeat its cost.
     fn frame_of(&self, profile: u32, payload: &[u8]) -> Option<(Vec<u8>, u64)> {
         match self.identity {
-            None => archive::linked_archive_profile(self.codec, profile, self.lengths, payload),
+            None => archive::linked_archive_profile(
+                self.codec,
+                u64::from(profile),
+                self.lengths,
+                payload,
+            ),
             Some(identity) => archive::window_archive_profile(
                 self.codec,
-                profile,
+                u64::from(profile),
                 self.window,
                 identity,
                 self.lengths,
@@ -2206,7 +2319,12 @@ mod tests {
         let deep = compress_frame_with(&a, &window, 0).expect("deep");
         let shallow = compress_frame_with(&a, &window[1..], 0).expect("shallow");
         assert_eq!(archive::window_len(&deep), Some(3));
-        assert!(deep.len() < shallow.len(), "{} {}", deep.len(), shallow.len());
+        assert!(
+            deep.len() < shallow.len(),
+            "{} {}",
+            deep.len(),
+            shallow.len()
+        );
         assert_eq!(decompress_frame_with(&deep, &window, 0).as_ref(), Ok(&a));
         // any other frame: the portfolio's archive, or a strictly shorter one
         let d: Vec<u8> = a.iter().rev().copied().collect();
@@ -2224,12 +2342,11 @@ mod tests {
     fn window_entry_is_one_form_for_every_depth_uc_perf_17() {
         for x86 in [false, true] {
             for k in 1..=2 {
-                let fixed = |c: archive::Codec| {
-                    archive::window_archive(c, k, &[0; 32], &[5], &[1, 2, 3])
-                };
+                let fixed =
+                    |c: archive::Codec| archive::window_archive(c, k, &[0; 32], &[5], &[1, 2, 3]);
                 let p = ncm::FULL;
                 let generic = archive::window_profile_template(k, x86);
-                let built = fixed(archive::Codec::profiled(p, x86)).expect("entry");
+                let built = fixed(archive::Codec::profiled(u64::from(p), x86)).expect("entry");
                 let body_at = built.len() - archive::SEAL;
                 let body = &built[..body_at];
                 assert!(body.windows(generic.0.len()).any(|w| w == &generic.0[..]));
@@ -2238,21 +2355,37 @@ mod tests {
         }
         let text = include_bytes!("../../../README.md");
         for k in 3..=6usize {
-            let frames: Vec<Vec<u8>> = (0..k).map(|i| text[i * 500..i * 500 + 3000].to_vec()).collect();
+            let frames: Vec<Vec<u8>> = (0..k)
+                .map(|i| text[i * 500..i * 500 + 3000].to_vec())
+                .collect();
             let window: Vec<&[u8]> = frames.iter().map(Vec::as_slice).collect();
             let frame = &text[100..2600];
             for x86 in [false, true] {
-                let codec = if x86 { archive::Codec::NcmX86 } else { archive::Codec::Ncm };
+                let codec = if x86 {
+                    archive::Codec::NcmX86
+                } else {
+                    archive::Codec::Ncm
+                };
                 let history = window.concat();
                 let (data, past) = if x86 {
-                    (x86::filter(frame, false, history.len() as u64).0, x86::filter(&history, false, 0).0)
+                    (
+                        x86::filter(frame, false, history.len() as u64).0,
+                        x86::filter(&history, false, 0).0,
+                    )
                 } else {
                     (frame.to_vec(), history.clone())
                 };
                 let payload = ncm::encode_profile(&past, &data, ncm::FULL).expect("payload");
                 let id = archive::window_identity(&window);
-                let a = archive::window_archive_profile(codec, ncm::FULL, &window, &id, &[frame.len() as u64], &payload)
-                    .expect("archive");
+                let a = archive::window_archive_profile(
+                    codec,
+                    u64::from(ncm::FULL),
+                    &window,
+                    &id,
+                    &[frame.len() as u64],
+                    &payload,
+                )
+                .expect("archive");
                 assert_eq!(archive::window_len(&a), Some(k));
                 assert_eq!(archive::window_decode(&a, &window).as_deref(), Some(frame));
             }
@@ -2936,6 +3069,30 @@ mod tests {
         assert_eq!(
             decompress_objects(&stream, DEFAULT_DECODE_WORK).expect("objects"),
             objects
+        );
+    }
+
+    #[test]
+    fn stream_frames_round_trip_natively() {
+        let text: Vec<u8> = (0..40_000u32)
+            .flat_map(|i| format!("line {} of {}\n", i % 977, i / 13).into_bytes())
+            .take(48_000)
+            .collect();
+        let one = compress_frame(&text, 0).expect("frame");
+        let coded = compress_frame_for(&text, &[], 4);
+        assert_ne!(coded, one, "streams name another frame word");
+        assert_eq!(
+            decompress_frame(&coded, DEFAULT_DECODE_WORK).expect("decodes"),
+            text
+        );
+        // the default host runs one thread: the frame compress_frame writes
+        assert_eq!(compress_frame_for(&text, &[], 1), one);
+        // a window frame of streams reads its window
+        let (a, b) = text.split_at(20_000);
+        let w = compress_frame_for(b, &[a], 4);
+        assert_eq!(
+            decompress_frame_with(&w, &[a], DEFAULT_DECODE_WORK).expect("decodes"),
+            b
         );
     }
 }

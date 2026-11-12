@@ -50,6 +50,12 @@ pub struct Host {
     pub keeps_tables: bool,
     /// Frames the host decodes at once, each holding its own decoder (one
     /// for a page worker: the page's pool gives each frame its own worker).
+    pub workers: u64,
+    /// Threads one frame's decoder runs on: a frame is cut into streams
+    /// ([`crate::ncm::streams`]) only for a host with more than one. Unlike
+    /// memory this boundary is not hard: a host with fewer threads still
+    /// decodes the frame, with more work, and one with more is not fully
+    /// used.
     pub threads: u64,
 }
 
@@ -72,7 +78,19 @@ impl Host {
     /// Whether this host holds the frame's decoder.
     pub fn holds(self, n: u64, history: u64, warm: bool, profile: u32) -> bool {
         self.footprint(n, history, warm, profile)
-            .saturating_mul(self.threads.max(1))
+            .saturating_mul(self.workers.max(1))
+            <= self.memory
+    }
+
+    /// Whether this host holds the decoder of a frame cut into `streams`
+    /// streams: [`Host::footprint`] and one set of working tables for each
+    /// thread the streams run on ([`crate::ncm::table_bytes`]).
+    pub fn holds_streams(self, n: u64, history: u64, profile: u32, streams: u64) -> bool {
+        let working = crate::ncm::table_bytes(n, history, false, profile)
+            .saturating_mul(streams.min(self.threads).max(1));
+        self.footprint(n, history, false, profile)
+            .saturating_add(working)
+            .saturating_mul(self.workers.max(1))
             <= self.memory
     }
 }
@@ -91,6 +109,8 @@ pub const WORKERS_PER_GIB: u64 = 2;
 pub const PAGE_WORKER: Host = Host {
     memory: (1 << 30) / WORKERS_PER_GIB,
     keeps_tables: true,
+    workers: 1,
+    // a WebAssembly worker runs one thread
     threads: 1,
 };
 
@@ -103,15 +123,34 @@ pub fn declare_host(memory: u64) {
     DECLARED.store(memory, std::sync::atomic::Ordering::Relaxed);
 }
 
+static DECLARED_THREADS: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+
+/// Declare that the archives this process writes are for a decode host whose
+/// frame decoder runs on `threads` threads (the CLI's `--host-threads`). The
+/// archive is a function of the input and the declared host only, never of
+/// the machine that compresses or of the threads it compresses on.
+pub fn declare_threads(threads: u64) {
+    DECLARED_THREADS.store(threads, std::sync::atomic::Ordering::Relaxed);
+}
+
 /// The decode host archives are written for: [`PAGE_WORKER`] unless the
-/// process declared a native decoder of some bytes ([`declare_host`]).
+/// process declared a native decoder of some bytes ([`declare_host`]) or
+/// of some threads ([`declare_threads`]).
 pub fn declared_host() -> Host {
+    let threads = match DECLARED_THREADS.load(std::sync::atomic::Ordering::Relaxed) {
+        0 => PAGE_WORKER.threads,
+        t => t,
+    };
     match DECLARED.load(std::sync::atomic::Ordering::Relaxed) {
-        0 => PAGE_WORKER,
+        0 => Host {
+            threads,
+            ..PAGE_WORKER
+        },
         memory => Host {
             memory,
             keeps_tables: false,
-            threads: 1,
+            workers: 1,
+            threads,
         },
     }
 }
