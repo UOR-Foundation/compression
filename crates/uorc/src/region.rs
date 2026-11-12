@@ -12,6 +12,9 @@
 //! Placement moves where a table's entries live, never their values, so an
 //! archive's bytes never depend on it (tests: `region_placement_keeps_bytes`).
 
+// WebAssembly memory has no pages to place: its tables stay plain vectors.
+#![cfg_attr(target_family = "wasm", allow(dead_code))]
+
 use std::sync::OnceLock;
 
 /// One cache level of the host, innermost first.
