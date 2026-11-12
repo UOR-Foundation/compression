@@ -228,6 +228,9 @@ impl Codec {
 
 /// The bytes around the payload of an entry that applies `codec` over `k`
 /// window frames in a basis of `era`: `prefix uleb(len) payload suffix`.
+/// An entry's prefix and tail: fixed bytes, or built for a deeper window.
+type Entry = (Cow<'static, [u8]>, Cow<'static, [u8]>);
+
 fn template(codec: Codec, k: usize, era: Era) -> Option<(Cow<'static, [u8]>, Vec<u8>)> {
     if let Codec::Profile(p) | Codec::ProfileX86(p) = codec {
         // A recorded table field is read by this library's ncm blocks only.
@@ -273,11 +276,7 @@ fn template(codec: Codec, k: usize, era: Era) -> Option<(Cow<'static, [u8]>, Vec
 /// `era` (profiled entries exist from v0.4 on). A current-basis entry reads
 /// any number of frames ([`window_profile_template`]); v0.4 entries read at
 /// most two.
-fn profile_template(
-    k: usize,
-    x86: bool,
-    era: Era,
-) -> Option<(Cow<'static, [u8]>, Cow<'static, [u8]>)> {
+fn profile_template(k: usize, x86: bool, era: Era) -> Option<Entry> {
     let current = era == Era::Current;
     if !current && era != Era::V04 {
         return None;
