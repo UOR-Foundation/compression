@@ -36,7 +36,6 @@ use std::path::Path;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use uorc::portfolio::{self, Strategy};
-use uorc::region::Host;
 
 /// The register's schema name.
 pub const SCHEMA: &str = "uorc/frontier/1";
@@ -528,6 +527,13 @@ pub enum Form {
     /// template and its parameter): recorded with no corpus, so its κ
     /// blocks the point everywhere without a run.
     Universal,
+    /// The distance of what codec point X does on corpus κ to a bound a
+    /// requirement of `Uorc.Performance` derives (`leastArchive`,
+    /// `wholeHost`, `hostCeiling`): what was observed, the bound, and the
+    /// distance between them. No threshold is stated; a distance of 0 is
+    /// the requirement met. Exact (`proved`) for bytes and steps; `measured`
+    /// on a named host for time.
+    Requirement,
 }
 
 /// A claim's status.
@@ -540,6 +546,8 @@ pub enum Status {
     Proved,
     /// Decided false.
     Refuted,
+    /// Measured on a named host (a time): recorded, not a decision.
+    Measured,
 }
 
 impl Status {
@@ -549,6 +557,7 @@ impl Status {
             Status::Minted => "minted",
             Status::Proved => "proved",
             Status::Refuted => "refuted",
+            Status::Measured => "measured",
         }
     }
 }
@@ -650,6 +659,175 @@ pub struct Claim {
     /// Per member results (closed).
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub members: Vec<MemberResult>,
+    /// The requirement of `Uorc.Performance` (requirement): `leastArchive`,
+    /// `wholeHost` or `hostCeiling`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub requirement: Option<String>,
+    /// What is measured against the requirement's bound (requirement).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub quantity: Option<String>,
+    /// The thread count the bound is taken at (requirement `wholeHost`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub threads: Option<u64>,
+    /// The host κ a time was measured on ([`Host`]).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub host: Option<String>,
+    /// The unit of `observed`, `derived` and `distance` (requirement).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub unit: Option<String>,
+    /// What the run observed (requirement).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub observed: Option<u64>,
+    /// The bound the requirement derives for this corpus (requirement).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub derived: Option<u64>,
+    /// How far `observed` is from `derived`, on the side the requirement
+    /// forbids; 0 is the requirement met (requirement).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub distance: Option<u64>,
+    /// The most threads at which every member's chain is within the bound
+    /// (requirement `wholeHost`); absent when there is no such limit.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub met_up_to: Option<u64>,
+    /// Per member: observed, derived and distance (requirement).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub parts: Vec<Part>,
+}
+
+/// One member's share of a requirement claim.
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
+pub struct Part {
+    /// The member's name.
+    pub name: String,
+    /// What the run observed.
+    pub observed: u64,
+    /// The bound.
+    pub derived: u64,
+    /// The distance.
+    pub distance: u64,
+}
+
+/// A host times were measured on: named by κ over what does not change
+/// between runs on it (the processor, its threads, its vector extensions,
+/// its memory), so two runs on the same kind of machine share it.
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
+pub struct Host {
+    /// [`host_kappa`] of the fields below.
+    pub kappa: String,
+    /// The processor's model name.
+    pub cpu: String,
+    /// Hardware threads.
+    pub threads: u64,
+    /// Vector extensions the client's kernels use, as detected (`avx2`,
+    /// `neon`, or `none`).
+    pub vector: String,
+    /// Memory in bytes.
+    pub memory: u64,
+    /// Bits of the vector the codec's kernel works on (`Uorc.Host`
+    /// `vectorBits`).
+    #[serde(default)]
+    pub vector_bits: u32,
+    /// Steps one core evaluates per second running the codec's exact mixer
+    /// contraction (`stepRate`), as measured on this run.
+    #[serde(default)]
+    pub step_rate: u64,
+    /// Bytes per second all threads read as independent cache lines
+    /// (`memoryRate`), as measured on this run.
+    #[serde(default)]
+    pub memory_rate: u64,
+    /// Bytes of a cache line.
+    #[serde(default)]
+    pub line: u64,
+    /// Bytes of the outermost cache level.
+    #[serde(default)]
+    pub outer_cache: u64,
+}
+
+/// The κ of a host: SHA-256 of `uorc/host/1` and its fields, one `key value`
+/// line each.
+pub fn host_kappa(h: &Host) -> String {
+    sha256_hex(
+        format!(
+            "uorc/host/1\ncpu {}\nthreads {}\nvector {}\nmemory {}\nvectorBits {}\nstepRate {}\nmemoryRate {}\nline {}\nouterCache {}\n",
+            h.cpu,
+            h.threads,
+            h.vector,
+            h.memory,
+            h.vector_bits,
+            h.step_rate,
+            h.memory_rate,
+            h.line,
+            h.outer_cache
+        )
+        .as_bytes(),
+    )
+}
+
+impl Host {
+    /// The machine this process runs on.
+    pub fn this() -> Host {
+        let cpuinfo = std::fs::read_to_string("/proc/cpuinfo").unwrap_or_default();
+        let cpu = cpuinfo
+            .lines()
+            .find_map(|l| {
+                let (k, v) = l.split_once(':')?;
+                matches!(k.trim(), "model name" | "Model" | "Hardware").then(|| v.trim().to_owned())
+            })
+            .unwrap_or_else(|| std::env::consts::ARCH.to_owned());
+        let memory = std::fs::read_to_string("/proc/meminfo")
+            .ok()
+            .and_then(|m| {
+                m.lines()
+                    .find_map(|l| l.strip_prefix("MemTotal:"))
+                    .and_then(|v| v.trim().trim_end_matches("kB").trim().parse::<u64>().ok())
+            })
+            .map_or(0, |kib| kib * 1024);
+        let threads = uorc::default_threads() as u64;
+        let vector = vector_extension().to_owned();
+        let measured = uorc::region::Host::measured();
+        let mut h = Host {
+            kappa: String::new(),
+            cpu,
+            threads,
+            vector,
+            memory,
+            vector_bits: measured.vector_bits,
+            step_rate: measured.step_rate,
+            memory_rate: measured.memory_rate,
+            line: measured.line,
+            outer_cache: measured.caches.last().map_or(0, |c| c.bytes),
+        };
+        h.kappa = host_kappa(&h);
+        h
+    }
+
+    /// The ceiling (`Uorc.Host::ceilingNanos`) in nanoseconds of `steps`
+    /// and `line_bytes` on this host: the slower of the steps over its
+    /// threads at its step rate and the line bytes over its memory rate.
+    pub fn ceiling_nanos(&self, steps: u64, line_bytes: u64) -> u64 {
+        uorc::region::Host {
+            threads: self.threads,
+            step_rate: self.step_rate,
+            memory_rate: self.memory_rate,
+            ..uorc::region::Host::default()
+        }
+        .ceiling_nanos(steps, line_bytes)
+    }
+}
+
+fn vector_extension() -> &'static str {
+    #[cfg(target_arch = "x86_64")]
+    {
+        if std::arch::is_x86_feature_detected!("avx2") {
+            return "avx2";
+        }
+    }
+    #[cfg(target_arch = "aarch64")]
+    {
+        return "neon";
+    }
+    #[allow(unreachable_code)]
+    "none"
 }
 
 impl Claim {
@@ -673,6 +851,16 @@ impl Claim {
             observed_bytes: None,
             observed_steps: None,
             members: Vec::new(),
+            requirement: None,
+            quantity: None,
+            threads: None,
+            host: None,
+            unit: None,
+            observed: None,
+            derived: None,
+            distance: None,
+            met_up_to: None,
+            parts: Vec::new(),
         }
     }
 
@@ -718,6 +906,10 @@ pub fn claim_kappa(claim: &Claim) -> String {
     line("parameter", claim.parameter.clone());
     line("against", claim.against.clone());
     line("bound", claim.bound.map(|b| b.to_string()));
+    line("requirement", claim.requirement.clone());
+    line("quantity", claim.quantity.clone());
+    line("threads", claim.threads.map(|t| t.to_string()));
+    line("host", claim.host.clone());
     sha256_hex(text.as_bytes())
 }
 
@@ -752,12 +944,12 @@ pub struct Register {
     /// Codec points.
     #[serde(default)]
     pub point: Vec<Point>,
+    /// Hosts times were measured on.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub host: Vec<Host>,
     /// Claims, in the order they were minted.
     #[serde(default)]
     pub claim: Vec<Claim>,
-    /// Distances to the host ceiling, one per (point, corpus, host κ).
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub ceiling: Vec<Ceiling>,
 }
 
 impl Default for Register {
@@ -767,8 +959,8 @@ impl Default for Register {
             corpus: Vec::new(),
             comparator: Vec::new(),
             point: Vec::new(),
+            host: Vec::new(),
             claim: Vec::new(),
-            ceiling: Vec::new(),
         }
     }
 }
@@ -816,25 +1008,14 @@ impl Register {
                 return bad(format!("corpus {} κ does not recompute", c.name));
             }
         }
+        for h in &self.host {
+            if host_kappa(h) != h.kappa {
+                return bad(format!("host {} κ does not recompute", h.kappa));
+            }
+        }
         for p in &self.point {
             if p.point()?.kappa() != p.kappa {
                 return bad(format!("point {} κ does not recompute", p.kappa));
-            }
-        }
-        for c in &self.ceiling {
-            if c.recomputed() != *c {
-                return bad(format!(
-                    "ceiling of {} on {}: host κ, ceiling or distance does not recompute",
-                    c.codec, c.corpus
-                ));
-            }
-            if self.corpus_by_kappa(&c.corpus).is_none()
-                || !self.point.iter().any(|q| q.kappa == c.codec)
-            {
-                return bad(format!(
-                    "ceiling names an unknown corpus or point {}",
-                    c.codec
-                ));
             }
         }
         let mut seen = BTreeMap::new();
@@ -856,6 +1037,11 @@ impl Register {
             }
             if !c.corpus.is_empty() && self.corpus_by_kappa(&c.corpus).is_none() {
                 return bad(format!("claim {} names an unknown corpus", c.id));
+            }
+            if let Some(h) = &c.host {
+                if !self.host.iter().any(|x| &x.kappa == h) {
+                    return bad(format!("claim {} names an unknown host {h}", c.id));
+                }
             }
             for p in [&c.codec, &c.candidate, &c.incumbent].into_iter().flatten() {
                 if !self.point.iter().any(|q| &q.kappa == p) {
@@ -953,77 +1139,288 @@ impl Register {
         files: &[Vec<u8>],
         by: &str,
     ) -> Result<Closed, Error> {
-        self.decide_timed(point, corpus, files, by).map(|(c, _)| c)
+        if let Some(closed) = self.settled(point, corpus, by) {
+            return Ok(closed);
+        }
+        let run = run(point, corpus, files, false)?;
+        self.decide_run(point, corpus, &run, by)?;
+        Ok(run.closed)
     }
 
-    /// [`Register::decide`], with the run's [`Timing`] when the codec ran
-    /// (`None` when the claim was known by κ).
-    pub fn decide_timed(
+    /// The closed answer for `point` on `corpus` when it needs no run for
+    /// `by`: decided by the factory, or decided locally and `by` is local.
+    pub fn settled(&self, point: &CodecPoint, corpus: &Corpus, by: &str) -> Option<Closed> {
+        let q = Register::closed_question(point, corpus);
+        let factory = by.starts_with("factory:");
+        let known = self.known(&q.id)?;
+        if !(known.final_() || (!factory && known.status != Status::Minted)) {
+            return None;
+        }
+        let mut closed = known.closed()?;
+        // a refuted statement answers with what was observed
+        closed.bytes = known.observed_bytes.unwrap_or(closed.bytes);
+        closed.steps = known.observed_steps.unwrap_or(closed.steps);
+        Some(closed)
+    }
+
+    /// Record the closed claim of `run` (see [`Register::decide`]); a claim
+    /// that is settled for `by` is kept as it is.
+    pub fn decide_run(
         &mut self,
         point: &CodecPoint,
         corpus: &Corpus,
-        files: &[Vec<u8>],
+        run: &Run,
         by: &str,
-    ) -> Result<(Closed, Option<Timing>), Error> {
-        let q = Register::closed_question(point, corpus);
-        let factory = by.starts_with("factory:");
-        if let Some(known) = self.known(&q.id) {
-            if known.final_() || (!factory && known.status != Status::Minted) {
-                if let Some(mut closed) = known.closed() {
-                    // a refuted statement answers with what was observed
-                    closed.bytes = known.observed_bytes.unwrap_or(closed.bytes);
-                    closed.steps = known.observed_steps.unwrap_or(closed.steps);
-                    return Ok((closed, None));
-                }
-            }
-        }
+    ) -> Result<(), Error> {
         self.add_corpus(corpus.clone())?;
         self.add_point(point, None);
-        let (run, timing) = measure_timed(point, corpus, files, Host::measured())?;
+        if self.settled(point, corpus, by).is_some() {
+            return Ok(());
+        }
+        let q = Register::closed_question(point, corpus);
+        let closed = &run.closed;
         let mut claim = self.known(&q.id).cloned().unwrap_or(q);
         match (claim.bytes, claim.steps) {
-            (Some(b), Some(s)) if (b, s) != (run.bytes, run.steps) => {
+            (Some(b), Some(s)) if (b, s) != (closed.bytes, closed.steps) => {
                 claim.status = Status::Refuted;
-                claim.observed_bytes = Some(run.bytes);
-                claim.observed_steps = Some(run.steps);
+                claim.observed_bytes = Some(closed.bytes);
+                claim.observed_steps = Some(closed.steps);
             }
             _ => {
                 claim.status = Status::Proved;
-                claim.bytes = Some(run.bytes);
-                claim.steps = Some(run.steps);
+                claim.bytes = Some(closed.bytes);
+                claim.steps = Some(closed.steps);
                 claim.observed_bytes = None;
                 claim.observed_steps = None;
             }
         }
-        claim.members = run.members.clone();
+        claim.members = closed.members.clone();
         claim.receipt = Some(by.to_owned());
         self.put(claim);
-        Ok((run, Some(timing)))
+        Ok(())
     }
 
-    /// Record the distance of `point` on `corpus` to the ceiling of the
-    /// host that ran it ([`Ceiling::of`]), replacing an earlier record of
-    /// the same point, corpus and host κ.
-    pub fn record_ceiling(
+    /// The requirement question: `point` on `corpus` against `requirement`'s
+    /// bound for `quantity` (one of [`REQUIREMENTS`]), at `threads` for
+    /// `wholeHost`, on host κ `host` for a time.
+    pub fn requirement_question(
+        point: &CodecPoint,
+        corpus: &Corpus,
+        (requirement, quantity, unit): (&str, &str, &str),
+        threads: Option<u64>,
+        host: Option<&str>,
+    ) -> Claim {
+        let mut q = Claim::question(Form::Requirement, &corpus.kappa);
+        q.codec = Some(point.kappa());
+        q.requirement = Some(requirement.to_owned());
+        q.quantity = Some(quantity.to_owned());
+        q.threads = threads;
+        q.host = host.map(str::to_owned);
+        q.unit = Some(unit.to_owned());
+        q.id = claim_kappa(&q);
+        q
+    }
+
+    /// The requirement questions a run of `point` on `corpus` answers: the
+    /// exact ones at `threads`, and with `host` the timed ones on it.
+    pub fn requirement_questions(
+        point: &CodecPoint,
+        corpus: &Corpus,
+        threads: u64,
+        host: Option<&Host>,
+    ) -> Vec<Claim> {
+        let mut qs = vec![
+            Register::requirement_question(point, corpus, REQUIREMENTS[0], None, None),
+            Register::requirement_question(point, corpus, REQUIREMENTS[1], Some(threads), None),
+        ];
+        if let Some(h) = host {
+            for r in &REQUIREMENTS[2..] {
+                qs.push(Register::requirement_question(
+                    point,
+                    corpus,
+                    *r,
+                    None,
+                    Some(&h.kappa),
+                ));
+            }
+        }
+        qs
+    }
+
+    /// Whether every requirement question of `point` on `corpus` is
+    /// answered for `by` (a factory answer, or any answer for a local run).
+    pub fn requirements_settled(
+        &self,
+        point: &CodecPoint,
+        corpus: &Corpus,
+        threads: u64,
+        host: Option<&Host>,
+        by: &str,
+    ) -> bool {
+        let factory = by.starts_with("factory:");
+        Register::requirement_questions(point, corpus, threads, host)
+            .iter()
+            .all(|q| {
+                self.known(&q.id)
+                    .is_some_and(|k| k.final_() || (!factory && k.status != Status::Minted))
+            })
+    }
+
+    /// Record the distance of `run` to each requirement's bound
+    /// ([`REQUIREMENTS`]):
+    ///
+    /// - `leastArchive`: the archive's bytes over the information the
+    ///   chosen model assigns to the input (the decoder's sum, rounded up to
+    ///   whole bytes, [`uorc::Schedule::information`]); what is left is the
+    ///   archive's form and the coder's rounding;
+    /// - `wholeHost`, at `threads`: per member, the longest chain of
+    ///   dependent decode steps ([`uorc::Schedule::chain`]) over its total
+    ///   divided by the threads, with the most threads at which every
+    ///   member's chain is within the bound ([`met_up_to`]);
+    /// - `hostCeiling`, with `host`: the decompressed and the compressed
+    ///   bytes per second under the input over the host's ceiling for the
+    ///   run's exact steps and moved lines (`Uorc.Host::ceilingNanos`, from
+    ///   the host's measured step and memory rates), measured, not decided.
+    ///   The compute term covers the step's mixer contraction only, so the
+    ///   distance includes the rest of each step.
+    ///
+    /// An exact answer the factory recorded is kept; one recorded locally
+    /// and reproduced by a factory run becomes the factory's. A stated exact
+    /// answer the run does not reproduce is refuted, keeping what it stated.
+    pub fn decide_requirements(
         &mut self,
         point: &CodecPoint,
         corpus: &Corpus,
-        steps: u64,
-        timing: &Timing,
-        label: Option<&str>,
-    ) -> &Ceiling {
-        let c = Ceiling::of(
-            &point.kappa(),
-            &corpus.kappa,
-            label,
-            Host::measured(),
-            steps,
-            timing,
-        );
-        self.ceiling
-            .retain(|e| !(e.codec == c.codec && e.corpus == c.corpus && e.host == c.host));
-        self.ceiling.push(c);
-        self.ceiling.last().expect("pushed")
+        run: &Run,
+        threads: u64,
+        host: Option<&Host>,
+        by: &str,
+    ) -> Vec<Claim> {
+        let names: Vec<&str> = corpus.members.iter().map(|m| m.name.as_str()).collect();
+        let part = |i: usize, observed: u64, derived: u64| Part {
+            name: names[i].to_owned(),
+            observed,
+            derived,
+            distance: observed.saturating_sub(derived),
+        };
+        let mut answers: Vec<(Claim, Vec<Part>, Option<u64>, Status)> = Vec::new();
+        // leastArchive: archive bytes against the information, in whole bytes
+        let parts: Vec<Part> = run
+            .closed
+            .members
+            .iter()
+            .zip(&run.schedules)
+            .enumerate()
+            .map(|(i, (m, s))| {
+                part(
+                    i,
+                    m.bytes,
+                    ceil_div(s.information, 8 << uorc::ncm::INFORMATION_BITS),
+                )
+            })
+            .collect();
+        answers.push((
+            Register::requirement_question(point, corpus, REQUIREMENTS[0], None, None),
+            parts,
+            None,
+            Status::Proved,
+        ));
+        // wholeHost: each member's chain against its total over the threads
+        let parts: Vec<Part> = run
+            .schedules
+            .iter()
+            .enumerate()
+            .map(|(i, s)| {
+                part(
+                    i,
+                    s.chain.max(ceil_div(s.total, threads)),
+                    ceil_div(s.total, threads),
+                )
+            })
+            .collect();
+        let limit = run
+            .schedules
+            .iter()
+            .filter_map(|s| met_up_to(s.total, s.chain))
+            .min();
+        answers.push((
+            Register::requirement_question(point, corpus, REQUIREMENTS[1], Some(threads), None),
+            parts,
+            limit,
+            Status::Proved,
+        ));
+        if let (Some(h), Some((compress_s, decode_s))) = (host, run.seconds) {
+            if !self.host.iter().any(|x| x.kappa == h.kappa) {
+                self.host.push(h.clone());
+            }
+            let input: u64 = run.inputs.iter().sum();
+            let per_second = |secs: f64| (input as f64 / secs.max(1e-9)) as u64;
+            // the input over the host's ceiling for the run's exact steps and
+            // the lines its tables move (Uorc.Host::ceilingNanos); the
+            // compress bound counts the archive's decode steps, a floor on
+            // any compression's
+            let ceiling = h.ceiling_nanos(run.closed.steps, run.line_bytes);
+            let second = std::time::Duration::from_secs(1).as_nanos();
+            let rate = u64::try_from(u128::from(input) * second / u128::from(ceiling.max(1)))
+                .unwrap_or(u64::MAX);
+            for (r, secs) in [(REQUIREMENTS[2], decode_s), (REQUIREMENTS[3], compress_s)] {
+                let observed = per_second(secs);
+                let q = Register::requirement_question(point, corpus, r, None, Some(&h.kappa));
+                answers.push((
+                    q,
+                    vec![Part {
+                        name: "corpus".to_owned(),
+                        observed,
+                        derived: rate,
+                        distance: rate.saturating_sub(observed),
+                    }],
+                    None,
+                    Status::Measured,
+                ));
+            }
+        }
+        let factory = by.starts_with("factory:");
+        let mut out = Vec::new();
+        for (q, parts, limit, status) in answers {
+            let timed = status == Status::Measured;
+            let (observed, derived, distance) = if timed {
+                (parts[0].observed, parts[0].derived, parts[0].distance)
+            } else {
+                (
+                    parts.iter().map(|p| p.observed).sum(),
+                    parts.iter().map(|p| p.derived).sum(),
+                    parts.iter().map(|p| p.distance).sum(),
+                )
+            };
+            if let Some(k) = self.known(&q.id) {
+                if k.final_() || (!factory && k.status != Status::Minted) {
+                    out.push(k.clone());
+                    continue;
+                }
+            }
+            let mut claim = self.known(&q.id).cloned().unwrap_or(q);
+            let stated = (claim.observed, claim.derived, claim.distance);
+            claim.status = if !timed
+                && claim.observed.is_some()
+                && stated != (Some(observed), Some(derived), Some(distance))
+            {
+                Status::Refuted
+            } else {
+                status
+            };
+            // a refuted statement keeps its totals; its parts are what the
+            // run observed
+            if claim.status != Status::Refuted {
+                claim.observed = Some(observed);
+                claim.derived = Some(derived);
+                claim.distance = Some(distance);
+                claim.met_up_to = limit;
+            }
+            claim.parts = if timed { Vec::new() } else { parts };
+            claim.receipt = Some(by.to_owned());
+            out.push(self.put(claim).clone());
+        }
+        out
     }
 
     /// Decide every bound claim of `point` on `corpus` against the pinned
@@ -1138,33 +1535,38 @@ impl Register {
 /// and decompress it back. Exact and deterministic: the result depends on
 /// the point and the bytes alone (not on the thread count or the machine).
 pub fn measure(point: &CodecPoint, corpus: &Corpus, files: &[Vec<u8>]) -> Result<Closed, Error> {
-    measure_timed(point, corpus, files, Host::current()).map(|(c, _)| c)
+    Ok(run(point, corpus, files, false)?.closed)
 }
 
-/// The wall time and transport of one [`measure`] run on the running host:
-/// what [`Ceiling::of`] compares with the host's ceiling. Times are what
-/// this host observed; the bytes and steps beside them are exact.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub struct Timing {
-    /// Nanoseconds compressing every member.
-    pub compress_ns: u64,
-    /// Nanoseconds decompressing every member.
-    pub decode_ns: u64,
+/// What one run of a codec point over a corpus observed: the closed answer,
+/// each member's decode schedule ([`uorc::Schedule`]), and, when timed, the
+/// wall time of compressing and decompressing each member on all of this
+/// host's threads.
+#[derive(Clone, Debug)]
+pub struct Run {
+    /// The closed answer.
+    pub closed: Closed,
+    /// Each member's input length, in corpus order.
+    pub inputs: Vec<u64>,
+    /// Each member's decode schedule, in corpus order.
+    pub schedules: Vec<uorc::Schedule>,
+    /// Seconds compressing and decompressing every member, when timed.
+    pub seconds: Option<(f64, f64)>,
     /// Bytes of cache lines the members' ncm frames move on this host
-    /// ([`Host::line_bytes`]).
+    /// (`Uorc.Host::moved`), when timed.
     pub line_bytes: u64,
 }
 
-/// [`measure`], timing the compression and the decompression on `host`
-/// (the running machine) and counting the lines the frames move there.
-pub fn measure_timed(
+/// [`measure`], keeping each member's decode schedule; with `timed`, also
+/// the wall time of the shipped client's compress and decompress on all of
+/// this host's threads. The shipped plan is coded by the shipped client
+/// itself ([`uorc::compress`]).
+pub fn run(
     point: &CodecPoint,
     corpus: &Corpus,
     files: &[Vec<u8>],
-    host: &Host,
-) -> Result<(Closed, Timing), Error> {
-    let mut timing = Timing::default();
-    let nanos = |t: std::time::Instant| u64::try_from(t.elapsed().as_nanos()).unwrap_or(u64::MAX);
+    timed: bool,
+) -> Result<Run, Error> {
     if point.state.is_some() || point.lanes != 1 {
         return Err(Error::Codec(
             "this client codes fresh models in one lane only".to_owned(),
@@ -1178,12 +1580,20 @@ pub fn measure_timed(
         )));
     }
     let threads = uorc::default_threads();
+    let shipped = point.plan == Plan::shipped();
     let mut members = Vec::with_capacity(files.len());
+    let mut schedules = Vec::with_capacity(files.len());
+    let (mut compress_s, mut decode_s) = (0f64, 0f64);
+    let mut line_bytes = 0u64;
     for (m, input) in corpus.members.iter().zip(files) {
         let fail = |what: &str| Error::Codec(format!("{}: {what}", m.name));
-        let started = std::time::Instant::now();
-        let stream = point.plan.compress(input, threads);
-        timing.compress_ns = timing.compress_ns.saturating_add(nanos(started));
+        let t = std::time::Instant::now();
+        let stream = if shipped {
+            uorc::compress(input, 0).map_err(|e| fail(&format!("compress: {e}")))?
+        } else {
+            point.plan.compress(input, threads)
+        };
+        compress_s += t.elapsed().as_secs_f64();
         let mut steps = 0u64;
         for frame in uorc::frames(&stream).map_err(|e| fail(&format!("frames: {e}")))? {
             let info = uorc::inspect(frame).map_err(|e| fail(&format!("inspect: {e}")))?;
@@ -1194,19 +1604,27 @@ pub fn measure_timed(
                 ))
             })?;
             steps = steps.checked_add(s).ok_or_else(|| fail("step overflow"))?;
-            if let Some(profile) = info.ncm_profile {
-                timing.line_bytes =
-                    timing
-                        .line_bytes
-                        .saturating_add(host.line_bytes(info.output_len, 0, profile));
+            if let (true, Some(profile)) = (timed, info.ncm_profile) {
+                line_bytes = line_bytes.saturating_add(uorc::region::Host::measured().line_bytes(
+                    info.output_len,
+                    0,
+                    profile,
+                ));
             }
         }
-        let started = std::time::Instant::now();
-        let back = uorc::decompress(&stream, uorc::DEFAULT_DECODE_WORK)
-            .map_err(|e| fail(&format!("decompress: {e}")))?;
-        timing.decode_ns = timing.decode_ns.saturating_add(nanos(started));
-        if back != *input {
+        let (back, schedule) = uorc::decode_schedule(&stream, uorc::DEFAULT_DECODE_WORK)
+            .map_err(|e| fail(&format!("decode: {e}")))?;
+        if back != *input || schedule.total != steps {
             return Err(fail("the archive does not round-trip"));
+        }
+        if timed {
+            let t = std::time::Instant::now();
+            let again = uorc::decompress(&stream, uorc::DEFAULT_DECODE_WORK)
+                .map_err(|e| fail(&format!("decompress: {e}")))?;
+            decode_s += t.elapsed().as_secs_f64();
+            if again != *input {
+                return Err(fail("the archive does not round-trip"));
+            }
         }
         let head = &input[..input.len().min(uorc::FRAME)];
         members.push(MemberResult {
@@ -1215,147 +1633,57 @@ pub fn measure_timed(
             bytes: stream.len() as u64,
             steps,
         });
+        schedules.push(schedule);
     }
-    Ok((
-        Closed {
+    Ok(Run {
+        closed: Closed {
             bytes: members.iter().map(|m| m.bytes).sum(),
             steps: members.iter().map(|m| m.steps).sum(),
             members,
         },
-        timing,
-    ))
+        inputs: files.iter().map(|f| f.len() as u64).collect(),
+        schedules,
+        seconds: timed.then_some((compress_s, decode_s)),
+        line_bytes,
+    })
 }
 
-/// Domain tag of a measured host's κ.
-pub const HOST_TAG: &str = "uorc/host/1";
+/// The requirements a run is held to, as (requirement, quantity, unit):
+/// the exact ones first, then the ones timed on a host.
+pub const REQUIREMENTS: [(&str, &str, &str); 4] = [
+    (
+        "leastArchive",
+        "archive bytes over the information the chosen model assigns",
+        "bytes",
+    ),
+    (
+        "wholeHost",
+        "longest chain of dependent decode steps over the total divided by the threads",
+        "steps",
+    ),
+    (
+        "hostCeiling",
+        "decompressed bytes per second under the host's ceiling (Uorc.Host::ceilingNanos)",
+        "bytes/s",
+    ),
+    (
+        "hostCeiling",
+        "compressed input bytes per second under the host's ceiling (Uorc.Host::ceilingNanos)",
+        "bytes/s",
+    ),
+];
 
-/// A codec point's distance to the ceiling of the host that ran it
-/// (`Uorc.Performance::hostCeiling`, `Uorc.Host::ceilingDerived`): the
-/// host's measured model, the point's exact decode steps on the corpus and
-/// the lines its frames move there, the ceiling `Uorc.Host::ceilingNanos`
-/// derives from them, the time observed, and the distance (observed less
-/// ceiling, `Uorc.Host::distance`). The compress ceiling counts the
-/// archive's decode steps, a floor on any compression's steps. Every
-/// derived field recomputes ([`Ceiling::recomputed`], `frontier check`).
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
-pub struct Ceiling {
-    /// The codec point's κ.
-    pub codec: String,
-    /// The corpus κ.
-    pub corpus: String,
-    /// The release (or other label) the run was for.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub label: Option<String>,
-    /// [`HOST_TAG`] κ of the host fields below.
-    pub host: String,
-    /// The host's threads.
-    pub threads: u64,
-    /// Bits of the vector the codec's kernel works on.
-    pub vector_bits: u32,
-    /// Steps per second one core evaluates.
-    pub step_rate: u64,
-    /// Bytes per second all threads read as independent lines.
-    pub memory_rate: u64,
-    /// Bytes of a cache line.
-    pub line: u64,
-    /// Bytes of the outermost cache level.
-    pub outer_cache: u64,
-    /// Exact decode steps of the corpus under the point.
-    pub steps: u64,
-    /// Bytes of cache lines the point's frames move on this host.
-    pub line_bytes: u64,
-    /// The decode ceiling, nanoseconds.
-    pub decode_ceiling_ns: u64,
-    /// Decode time observed, nanoseconds.
-    pub decode_ns: u64,
-    /// Observed less ceiling.
-    pub decode_distance_ns: u64,
-    /// The compress ceiling (the same steps and lines), nanoseconds.
-    pub compress_ceiling_ns: u64,
-    /// Compress time observed, nanoseconds.
-    pub compress_ns: u64,
-    /// Observed less ceiling.
-    pub compress_distance_ns: u64,
+/// ⌈a / b⌉ for b > 0.
+fn ceil_div(a: u64, b: u64) -> u64 {
+    a.div_ceil(b.max(1))
 }
 
-impl Ceiling {
-    /// The record for `steps` and `timing` on `host`.
-    pub fn of(
-        codec: &str,
-        corpus: &str,
-        label: Option<&str>,
-        host: &Host,
-        steps: u64,
-        timing: &Timing,
-    ) -> Ceiling {
-        Ceiling {
-            codec: codec.to_owned(),
-            corpus: corpus.to_owned(),
-            label: label.map(str::to_owned),
-            host: String::new(),
-            threads: host.threads,
-            vector_bits: host.vector_bits,
-            step_rate: host.step_rate,
-            memory_rate: host.memory_rate,
-            line: host.line,
-            outer_cache: host.caches.last().map_or(0, |c| c.bytes),
-            steps,
-            line_bytes: timing.line_bytes,
-            decode_ceiling_ns: 0,
-            decode_ns: timing.decode_ns,
-            decode_distance_ns: 0,
-            compress_ceiling_ns: 0,
-            compress_ns: timing.compress_ns,
-            compress_distance_ns: 0,
-        }
-        .recomputed()
-    }
-
-    /// The host κ: SHA-256 over [`HOST_TAG`] and the host's fields.
-    pub fn host_kappa(&self) -> String {
-        sha256_hex(
-            format!(
-                "{HOST_TAG}\nthreads {}\nvectorBits {}\nstepRate {}\nmemoryRate {}\nline {}\nouterCache {}\n",
-                self.threads,
-                self.vector_bits,
-                self.step_rate,
-                self.memory_rate,
-                self.line,
-                self.outer_cache
-            )
-            .as_bytes(),
-        )
-    }
-
-    /// This record with its host κ, ceilings and distances derived from its
-    /// other fields.
-    pub fn recomputed(&self) -> Ceiling {
-        let host = Host {
-            threads: self.threads,
-            step_rate: self.step_rate,
-            memory_rate: self.memory_rate,
-            ..Host::default()
-        };
-        let ceiling = host.ceiling_nanos(self.steps, self.line_bytes);
-        Ceiling {
-            host: self.host_kappa(),
-            decode_ceiling_ns: ceiling,
-            decode_distance_ns: self.decode_ns.saturating_sub(ceiling),
-            compress_ceiling_ns: ceiling,
-            compress_distance_ns: self.compress_ns.saturating_sub(ceiling),
-            ..self.clone()
-        }
-    }
-
-    /// Whether the run stood within the ceiling (no distance either way),
-    /// and whether the host stated both rates (a host that states none has
-    /// no ceiling: an unmet requirement, not a met one).
-    pub fn met(&self) -> bool {
-        self.step_rate > 0
-            && self.memory_rate > 0
-            && self.decode_distance_ns == 0
-            && self.compress_distance_ns == 0
-    }
+/// The most threads `t` at which a chain of `chain` steps is within the
+/// bound ⌈total / t⌉; `None` when every thread count is (a chain of at most
+/// one step).
+pub fn met_up_to(total: u64, chain: u64) -> Option<u64> {
+    // ⌈S / t⌉ >= C  <=>  S > (C - 1) t  <=>  t <= (S - 1) / (C - 1)
+    (chain > 1).then(|| (total.saturating_sub(1)) / (chain - 1))
 }
 
 /// The export identity recorded in `generated/rust/factory.identity` under
@@ -1453,6 +1781,49 @@ mod tests {
     }
 
     #[test]
+    fn requirement_claims_are_exact_and_decided_once() {
+        let (corpus, files) = tiny_corpus();
+        let point = CodecPoint::shipped("test-export");
+        let mut reg = Register::default();
+        let host = Host::this();
+        let run = run(&point, &corpus, &files, true).expect("run");
+        reg.decide_run(&point, &corpus, &run, "local")
+            .expect("closed");
+        let claims = reg.decide_requirements(&point, &corpus, &run, 4, Some(&host), "local");
+        assert_eq!(claims.len(), REQUIREMENTS.len());
+        let least = &claims[0];
+        assert_eq!(least.observed, Some(run.closed.bytes));
+        // the archive is the information plus its form: never below it
+        for p in &least.parts {
+            assert!(p.observed >= p.derived, "{p:?}");
+        }
+        // a one-frame member decodes as one chain: met on one thread only
+        let whole = &claims[1];
+        assert_eq!(whole.threads, Some(4));
+        assert_eq!(whole.met_up_to, Some(1));
+        assert_eq!(claims[2].status, Status::Measured);
+        assert!(reg.requirements_settled(&point, &corpus, 4, Some(&host), "local"));
+        assert!(!reg.requirements_settled(&point, &corpus, 4, Some(&host), "factory:x"));
+        // the factory reproduces the exact answers and proves them
+        let again = reg.decide_requirements(&point, &corpus, &run, 4, None, "factory:x");
+        assert!(again
+            .iter()
+            .all(|c| c.status == Status::Proved && c.final_()));
+        // a wrong statement is refuted
+        let mut wrong = again[0].clone();
+        wrong.distance = wrong.distance.map(|d| d + 1);
+        wrong.receipt = None;
+        reg.put(wrong);
+        let refuted = reg.decide_requirements(&point, &corpus, &run, 4, None, "factory:y");
+        assert_eq!(refuted[0].status, Status::Refuted);
+        // and the register's text recomputes every κ, the host's too
+        let text = reg.to_text().expect("text");
+        assert_eq!(Register::parse(&text).expect("parse"), reg);
+        assert_eq!(met_up_to(100, 25), Some(4));
+        assert_eq!(met_up_to(100, 1), None);
+    }
+
+    #[test]
     fn the_shipped_plan_is_the_shipped_client() {
         let (corpus, files) = tiny_corpus();
         let run = measure(&CodecPoint::shipped("e"), &corpus, &files).expect("measure");
@@ -1526,42 +1897,5 @@ mod tests {
             text,
             "frontier.toml is in canonical form"
         );
-    }
-
-    /// A ceiling record derives its host κ, ceilings and distances from its
-    /// other fields (`Uorc.Host::ceilingNanos`, `distance`): the slower term
-    /// binds, a rate of zero gives its term zero, and a tampered field fails
-    /// `check`.
-    #[test]
-    fn ceiling_recomputes() {
-        let host = Host {
-            threads: 4,
-            step_rate: 1_000_000_000,
-            memory_rate: 1_000_000_000,
-            line: 64,
-            ..Host::default()
-        };
-        let t = Timing {
-            compress_ns: 9_000_000_000,
-            decode_ns: 1_000_000_000,
-            line_bytes: 2_000_000_000,
-        };
-        let c = Ceiling::of("p", "c", Some("v"), &host, 8_000_000_000, &t);
-        // steps: 8e9 / (4 x 1e9) = 2 s; lines: 2e9 / 1e9 = 2 s
-        assert_eq!(c.decode_ceiling_ns, 2_000_000_000);
-        assert_eq!(c.decode_distance_ns, 0);
-        assert_eq!(c.compress_distance_ns, 7_000_000_000);
-        assert!(!c.met());
-        let compute = Ceiling::of("p", "c", None, &host, 16_000_000_000, &t);
-        assert_eq!(compute.decode_ceiling_ns, 4_000_000_000);
-        let unmeasured = Ceiling::of("p", "c", None, &Host::default(), 1, &t);
-        assert_eq!(unmeasured.decode_ceiling_ns, 0);
-        assert!(!unmeasured.met());
-        assert_eq!(c.recomputed(), c);
-        let tampered = Ceiling {
-            decode_distance_ns: 3,
-            ..c.clone()
-        };
-        assert_ne!(tampered.recomputed(), tampered);
     }
 }
