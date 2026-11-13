@@ -723,14 +723,43 @@ pub struct Host {
     pub vector: String,
     /// Memory in bytes.
     pub memory: u64,
+    /// Bits of the vector the codec's kernel works on (`Uorc.Host`
+    /// `vectorBits`).
+    #[serde(default)]
+    pub vector_bits: u32,
+    /// Steps one core evaluates per second running the codec's exact mixer
+    /// contraction (`stepRate`), as measured on this run.
+    #[serde(default)]
+    pub step_rate: u64,
+    /// Bytes per second all threads read as independent cache lines
+    /// (`memoryRate`), as measured on this run.
+    #[serde(default)]
+    pub memory_rate: u64,
+    /// Bytes of a cache line.
+    #[serde(default)]
+    pub line: u64,
+    /// Bytes of the outermost cache level.
+    #[serde(default)]
+    pub outer_cache: u64,
 }
 
 /// The κ of a host: SHA-256 of `uorc/host/1` and its fields, one `key value`
 /// line each.
-pub fn host_kappa(cpu: &str, threads: u64, vector: &str, memory: u64) -> String {
+pub fn host_kappa(h: &Host) -> String {
     sha256_hex(
-        format!("uorc/host/1\ncpu {cpu}\nthreads {threads}\nvector {vector}\nmemory {memory}\n")
-            .as_bytes(),
+        format!(
+            "uorc/host/1\ncpu {}\nthreads {}\nvector {}\nmemory {}\nvectorBits {}\nstepRate {}\nmemoryRate {}\nline {}\nouterCache {}\n",
+            h.cpu,
+            h.threads,
+            h.vector,
+            h.memory,
+            h.vector_bits,
+            h.step_rate,
+            h.memory_rate,
+            h.line,
+            h.outer_cache
+        )
+        .as_bytes(),
     )
 }
 
@@ -755,13 +784,34 @@ impl Host {
             .map_or(0, |kib| kib * 1024);
         let threads = uorc::default_threads() as u64;
         let vector = vector_extension().to_owned();
-        Host {
-            kappa: host_kappa(&cpu, threads, &vector, memory),
+        let measured = uorc::region::Host::measured();
+        let mut h = Host {
+            kappa: String::new(),
             cpu,
             threads,
             vector,
             memory,
+            vector_bits: measured.vector_bits,
+            step_rate: measured.step_rate,
+            memory_rate: measured.memory_rate,
+            line: measured.line,
+            outer_cache: measured.caches.last().map_or(0, |c| c.bytes),
+        };
+        h.kappa = host_kappa(&h);
+        h
+    }
+
+    /// The ceiling (`Uorc.Host::ceilingNanos`) in nanoseconds of `steps`
+    /// and `line_bytes` on this host: the slower of the steps over its
+    /// threads at its step rate and the line bytes over its memory rate.
+    pub fn ceiling_nanos(&self, steps: u64, line_bytes: u64) -> u64 {
+        uorc::region::Host {
+            threads: self.threads,
+            step_rate: self.step_rate,
+            memory_rate: self.memory_rate,
+            ..uorc::region::Host::default()
         }
+        .ceiling_nanos(steps, line_bytes)
     }
 }
 
@@ -959,7 +1009,7 @@ impl Register {
             }
         }
         for h in &self.host {
-            if host_kappa(&h.cpu, h.threads, &h.vector, h.memory) != h.kappa {
+            if host_kappa(h) != h.kappa {
                 return bad(format!("host {} κ does not recompute", h.kappa));
             }
         }
@@ -1227,9 +1277,12 @@ impl Register {
     ///   dependent decode steps ([`uorc::Schedule::chain`]) over its total
     ///   divided by the threads, with the most threads at which every
     ///   member's chain is within the bound ([`met_up_to`]);
-    /// - `hostCeiling`, with `host` and its copy rate: the decompressed and
-    ///   the compressed bytes per second under the rate the host copies
-    ///   memory at, measured, not decided.
+    /// - `hostCeiling`, with `host`: the decompressed and the compressed
+    ///   bytes per second under the input over the host's ceiling for the
+    ///   run's exact steps and moved lines (`Uorc.Host::ceilingNanos`, from
+    ///   the host's measured step and memory rates), measured, not decided.
+    ///   The compute term covers the step's mixer contraction only, so the
+    ///   distance includes the rest of each step.
     ///
     /// An exact answer the factory recorded is kept; one recorded locally
     /// and reproduced by a factory run becomes the factory's. A stated exact
@@ -1240,7 +1293,7 @@ impl Register {
         corpus: &Corpus,
         run: &Run,
         threads: u64,
-        host: Option<(&Host, u64)>,
+        host: Option<&Host>,
         by: &str,
     ) -> Vec<Claim> {
         let names: Vec<&str> = corpus.members.iter().map(|m| m.name.as_str()).collect();
@@ -1296,12 +1349,20 @@ impl Register {
             limit,
             Status::Proved,
         ));
-        if let (Some((h, rate)), Some((compress_s, decode_s))) = (host, run.seconds) {
+        if let (Some(h), Some((compress_s, decode_s))) = (host, run.seconds) {
             if !self.host.iter().any(|x| x.kappa == h.kappa) {
                 self.host.push(h.clone());
             }
             let input: u64 = run.inputs.iter().sum();
             let per_second = |secs: f64| (input as f64 / secs.max(1e-9)) as u64;
+            // the input over the host's ceiling for the run's exact steps and
+            // the lines its tables move (Uorc.Host::ceilingNanos); the
+            // compress bound counts the archive's decode steps, a floor on
+            // any compression's
+            let ceiling = h.ceiling_nanos(run.closed.steps, run.line_bytes);
+            let second = std::time::Duration::from_secs(1).as_nanos();
+            let rate = u64::try_from(u128::from(input) * second / u128::from(ceiling.max(1)))
+                .unwrap_or(u64::MAX);
             for (r, secs) in [(REQUIREMENTS[2], decode_s), (REQUIREMENTS[3], compress_s)] {
                 let observed = per_second(secs);
                 let q = Register::requirement_question(point, corpus, r, None, Some(&h.kappa));
@@ -1491,6 +1552,9 @@ pub struct Run {
     pub schedules: Vec<uorc::Schedule>,
     /// Seconds compressing and decompressing every member, when timed.
     pub seconds: Option<(f64, f64)>,
+    /// Bytes of cache lines the members' ncm frames move on this host
+    /// (`Uorc.Host::moved`), when timed.
+    pub line_bytes: u64,
 }
 
 /// [`measure`], keeping each member's decode schedule; with `timed`, also
@@ -1520,6 +1584,7 @@ pub fn run(
     let mut members = Vec::with_capacity(files.len());
     let mut schedules = Vec::with_capacity(files.len());
     let (mut compress_s, mut decode_s) = (0f64, 0f64);
+    let mut line_bytes = 0u64;
     for (m, input) in corpus.members.iter().zip(files) {
         let fail = |what: &str| Error::Codec(format!("{}: {what}", m.name));
         let t = std::time::Instant::now();
@@ -1539,6 +1604,13 @@ pub fn run(
                 ))
             })?;
             steps = steps.checked_add(s).ok_or_else(|| fail("step overflow"))?;
+            if let (true, Some(profile)) = (timed, info.ncm_profile) {
+                line_bytes = line_bytes.saturating_add(uorc::region::Host::measured().line_bytes(
+                    info.output_len,
+                    0,
+                    profile,
+                ));
+            }
         }
         let (back, schedule) = uorc::decode_schedule(&stream, uorc::DEFAULT_DECODE_WORK)
             .map_err(|e| fail(&format!("decode: {e}")))?;
@@ -1572,6 +1644,7 @@ pub fn run(
         inputs: files.iter().map(|f| f.len() as u64).collect(),
         schedules,
         seconds: timed.then_some((compress_s, decode_s)),
+        line_bytes,
     })
 }
 
@@ -1590,12 +1663,12 @@ pub const REQUIREMENTS: [(&str, &str, &str); 4] = [
     ),
     (
         "hostCeiling",
-        "decompressed bytes per second under the host's copy rate",
+        "decompressed bytes per second under the host's ceiling (Uorc.Host::ceilingNanos)",
         "bytes/s",
     ),
     (
         "hostCeiling",
-        "compressed input bytes per second under the host's copy rate",
+        "compressed input bytes per second under the host's ceiling (Uorc.Host::ceilingNanos)",
         "bytes/s",
     ),
 ];
@@ -1611,23 +1684,6 @@ fn ceil_div(a: u64, b: u64) -> u64 {
 pub fn met_up_to(total: u64, chain: u64) -> Option<u64> {
     // ⌈S / t⌉ >= C  <=>  S > (C - 1) t  <=>  t <= (S - 1) / (C - 1)
     (chain > 1).then(|| (total.saturating_sub(1)) / (chain - 1))
-}
-
-/// The host's copy rate in bytes per second: the most of 5 copies of
-/// 256 MiB. No decoder writes its output faster than the host copies it, so
-/// this is the memory term of the host's ceiling.
-pub fn copy_rate() -> u64 {
-    let n = 256usize << 20;
-    let src: Vec<u8> = (0..n).map(|i| (i as u8).wrapping_mul(31)).collect();
-    let mut dst = vec![0u8; n];
-    let mut best = f64::MAX;
-    for _ in 0..5 {
-        let t = std::time::Instant::now();
-        dst.copy_from_slice(std::hint::black_box(&src));
-        std::hint::black_box(&dst);
-        best = best.min(t.elapsed().as_secs_f64());
-    }
-    (n as f64 / best.max(1e-9)) as u64
 }
 
 /// The export identity recorded in `generated/rust/factory.identity` under
@@ -1733,8 +1789,7 @@ mod tests {
         let run = run(&point, &corpus, &files, true).expect("run");
         reg.decide_run(&point, &corpus, &run, "local")
             .expect("closed");
-        let claims =
-            reg.decide_requirements(&point, &corpus, &run, 4, Some((&host, 1 << 30)), "local");
+        let claims = reg.decide_requirements(&point, &corpus, &run, 4, Some(&host), "local");
         assert_eq!(claims.len(), REQUIREMENTS.len());
         let least = &claims[0];
         assert_eq!(least.observed, Some(run.closed.bytes));

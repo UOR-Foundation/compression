@@ -41,8 +41,10 @@ strips a .uorc suffix (or writes <input>.out). '-' reads stdin or writes
 stdout.
 
 uorc host prints the machine as the client reads it: threads, memory, base
-and large page, cache line and cache levels. Each model table is placed on
-large pages when its working set spans one; placement never changes an
+and large page, cache line, cache levels and its store (the user's cache
+directory). Each model table is placed on large pages when its working set
+spans one, and a warmed model state is replayed once per host and kept in
+the store when reading it back is faster there; neither changes an
 archive's bytes.
 
 Given a directory or several paths, compress stores them as one archive of
@@ -926,7 +928,7 @@ fn main() -> ExitCode {
             return ExitCode::SUCCESS;
         }
         Some("host") => {
-            println!("{}", uorc::region::Host::current().json());
+            println!("{}", uorc::region::Host::measured().json());
             return ExitCode::SUCCESS;
         }
         Some("--help" | "-h") | None => {
