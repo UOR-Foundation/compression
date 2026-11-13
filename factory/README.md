@@ -120,3 +120,47 @@ on the default branch's head:
 
 Only a run that is not itself a release starts a rehearsal, so a failing
 rehearsal is not retried in a loop. Pushing a `v*` tag by hand still works.
+
+## Merge train
+
+Branch protection on the default branch is strict: a request merges only when
+its head contains the default branch and `acceptance / ubuntu-24.04` and
+`acceptance / ubuntu-24.04-arm` passed on that head. Every merge therefore
+makes every other request stale. The merge train keeps the order and does the
+merges, so no one watches checks to merge by hand.
+
+To ride it, add the `merge-train` label to a non-draft request into the default
+branch. Riders go in the order their label was applied (re-labelling joins at
+the back), then by number. A draft waits until it is ready; a stacked request
+(based on another branch) waits until it is retargeted. Only same-repository
+branches can ride.
+
+factory.yml's `merge-train` job runs `factory.mjs merge-train` after each
+bootstrap run completes, when a request is labelled, and on dispatch. Its first
+run creates the label when the repository has none. It looks only at the head
+of the train:
+
+- **behind**: the head lacks commits of the default branch. The train comments
+  once per head commit asking for the default branch to be merged into the
+  request's branch and pushed. That push runs the request's own checks.
+- **wait**: a bootstrap run or a required check on the head is still going, or
+  none has started yet. Its completion moves the train again.
+- **merge**: the head contains the default branch and every required check
+  passed. It squash-merges the request (`<title> (#<number>)`, the description
+  as the body), dispatches bootstrap on the default branch, and moves on to the
+  next rider.
+- **drop**: a required check failed, the request conflicts, the merge was
+  refused, or bootstrap ran on the head without reporting the checks. It takes
+  the label off, comments once with the reason, and moves on. Fix it and label
+  it again.
+
+The train never pushes to a rider. A push made with the workflow token holds
+the request's pull_request run for approval, and branch protection reads the
+required checks from that held run, so a head the train updated itself could
+not merge even after a dispatched bootstrap passed on it (#150 on 561fd0f).
+A merge made with the workflow token starts no push run, so the train
+dispatches bootstrap on the default branch after each merge; that run yields
+the receipts the release step decides on, so merging a version bump by train
+still releases it. The workflow token has no `workflows` permission, so GitHub
+may refuse it a merge that changes `.github/workflows/`; the train drops such a
+request with GitHub's message, and it is merged by hand.
