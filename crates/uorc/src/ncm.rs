@@ -26,6 +26,10 @@
 //! (`src/Uorc/Neuromorphic.lex.tex`) states, with its bounds kernel-checked
 //! there; [`standard`] holds its constants.
 
+mod staged;
+
+pub use staged::{Cores, Held, Idle};
+
 /// ncm's plasticity as `Uorc.Neuromorphic` states it. A test holds every
 /// constant here equal to the model's, and the coder reads them from here.
 pub mod standard {
@@ -142,6 +146,25 @@ struct Tables {
     /// `cost[p]` = 256 log2(4096 / p), the cost in 1/256 bit of coding a bit
     /// at probability p / 4096 (`cost_table`).
     cost: [u16; 4096],
+    /// [`Tables::squash`] and [`Tables::cost`] widened to 32 bits, for the
+    /// kernels that gather them.
+    #[cfg_attr(not(target_arch = "x86_64"), allow(dead_code))]
+    squash32: [i32; 4096],
+    #[cfg_attr(not(target_arch = "x86_64"), allow(dead_code))]
+    cost32: [i32; 4096],
+}
+
+impl Tables {
+    /// The cost of coding bit `y` at the mean of the three mixers whose dot
+    /// products are `d` (the mean [`Model::predict`] takes): what
+    /// [`Kernel::gains`] counts in.
+    #[inline(always)]
+    fn mean_cost(&self, d: [i64; 3], y: bool) -> i32 {
+        let c = |d: i64| (d >> 16).clamp(-2047, 2047);
+        let m = ((((c(d[0]) + c(d[1]) + c(d[2]) + 6144) * 21846) >> 16) - 2048).clamp(-2047, 2047);
+        let p = i32::from(self.squash[(m + 2048) as usize]).clamp(1, 4095);
+        i32::from(self.cost[if y { p } else { 4096 - p } as usize])
+    }
 }
 
 /// The integer log the encoder's context gains are counted in
@@ -189,11 +212,14 @@ fn tables() -> &'static Tables {
         for (i, v) in sq.iter_mut().enumerate() {
             *v = squash(i as i32 - 2048) as i16;
         }
+        let cost = cost_table();
         Tables {
             stretch,
             squash: sq,
             rate,
-            cost: cost_table(),
+            cost,
+            squash32: sq.map(i32::from),
+            cost32: cost.map(i32::from),
         }
     })
 }
@@ -543,6 +569,32 @@ pub fn warmed_bytes(n: u64, state: u64, profile: u32) -> u64 {
     table_bytes(n, state, true, profile).saturating_add(state)
 }
 
+/// [`Model::bucket`] on the buckets `sl` that hold the table's slots from
+/// `base` on (a multiple of 32: a site range holds whole neighbouring pairs),
+/// for a context hash whose pair lies in the range.
+#[inline(always)]
+fn bucket_in(sl: &mut [Bucket], base: u32, mask: u32, hh: u32) -> u32 {
+    let ck = ((hh >> 24) | 1) as u8;
+    let b0 = (hh & mask) & !15;
+    let alt = b0 ^ 16;
+    let count = |s: u32| (s >> 16) as u8;
+    let (x0, xa) = (
+        &sl[(b0 - base) as usize >> 4].0,
+        &sl[(alt - base) as usize >> 4].0,
+    );
+    if count(x0[0]) == ck {
+        return b0;
+    }
+    if count(xa[0]) == ck {
+        return alt;
+    }
+    let b = if count(x0[1]) > count(xa[1]) { alt } else { b0 };
+    let mut fresh = [SLOT_FRESH; 16];
+    fresh[0] |= u32::from(ck) << 16;
+    sl[(b - base) as usize >> 4].0 = fresh;
+    b
+}
+
 #[derive(Clone)]
 // streams of a frame keep their models side by side: no cache line spans two
 #[repr(align(128))]
@@ -832,12 +884,12 @@ impl Model {
             None => {
                 #[cfg(not(target_family = "wasm"))]
                 let t = std::time::Instant::now();
-                let mut m = Model::new(total, &[], profile);
-                if m.stride == NINP_NARROW {
-                    m.warm::<K, NINP_NARROW>(state);
+                let m = Model::new(total, &[], profile);
+                let m = if m.stride == NINP_NARROW {
+                    m.warm::<K, NINP_NARROW>(state)
                 } else {
-                    m.warm::<K, NINP>(state);
-                }
+                    m.warm::<K, NINP>(state)
+                };
                 #[cfg(not(target_family = "wasm"))]
                 image::write::<K>(&m, state, profile, (m.mask, m.mb), 0, t.elapsed());
                 m
@@ -850,17 +902,11 @@ impl Model {
     }
 
     /// Codes `state`'s bits through the whole model without a coder: a pass
-    /// over the state that reports progress like any other.
-    fn warm<K: Kernel, const W: usize>(&mut self, state: &[u8]) {
-        for (i, &byte) in state.iter().enumerate() {
-            if i % TICK == 0 {
-                tick(i, state.len());
-            }
-            for k in (0..8).rev() {
-                self.predict::<K, W>();
-                self.update::<K, W>((byte >> k) & 1 == 1);
-            }
-        }
+    /// over the state that reports progress like any other, on this core or
+    /// with the input side on spare cores as an encode runs ([`run_bits`]).
+    fn warm<K: Kernel, const W: usize>(self, state: &[u8]) -> Model {
+        let mut idle = [Coder::idle(), Coder::new(0, 0, false)];
+        run_bits::<K, W>(self, state, &mut idle, false).expect("an idle coder is never abandoned")
     }
 
     /// (table mask, match table bits) for `n` coded bytes.
@@ -1101,8 +1147,17 @@ impl Model {
     #[inline(always)]
     fn prefetch_next(&mut self, p: u32) {
         let y = u32::from(p >= 2048);
+        let (c4, c0) = self.prefetch_inputs(y);
+        self.prefetch_mixers(c4, c0);
+    }
+
+    /// The input side of [`Model::prefetch_next`] for next bit `y`: the
+    /// buckets and match table entry the next bit reads; the last four bytes
+    /// and the partial byte the next bit sees.
+    #[inline(always)]
+    fn prefetch_inputs(&mut self, y: u32) -> (u32, u32) {
         let c0 = (self.c0 << 1) | y;
-        let (c4, c0) = if self.bit == 7 {
+        if self.bit == 7 {
             let b = c0 & 255;
             let (mut wordh, mut word1) = (self.wordh, self.word1);
             if (b as u8).is_ascii_alphabetic() || b >= 128 {
@@ -1173,7 +1228,13 @@ impl Model {
                 self.prefetch_buckets(&self.hb, (c0 & 15) | 16);
             }
             (self.c4, c0)
-        };
+        }
+    }
+
+    /// The mixing side of [`Model::prefetch_next`]: the mixer rows and APM
+    /// row the next bit reads, which sees last bytes `c4` and partial byte `c0`.
+    #[inline(always)]
+    fn prefetch_mixers(&self, c4: u32, c0: u32) {
         let bit = (self.bit + 1) & 7;
         for (w, s) in [
             (&self.w1, c0 as usize),
@@ -1214,26 +1275,31 @@ impl Model {
         if let Some(l) = &mut self.lane {
             return l.bucket(hh, self.mask, &mut self.sl);
         }
-        let ck = ((hh >> 24) | 1) as u8;
-        let b0 = (hh & self.mask) & !15;
-        let alt = b0 ^ 16;
-        let count = |s: u32| (s >> 16) as u8;
-        let (x0, xa) = (&self.sl[b0 as usize >> 4].0, &self.sl[alt as usize >> 4].0);
-        if count(x0[0]) == ck {
-            return b0;
-        }
-        if count(xa[0]) == ck {
-            return alt;
-        }
-        let b = if count(x0[1]) > count(xa[1]) { alt } else { b0 };
-        let mut fresh = [SLOT_FRESH; 16];
-        fresh[0] |= u32::from(ck) << 16;
-        self.sl[b as usize >> 4].0 = fresh;
-        b
+        bucket_in(&mut self.sl, 0, self.mask, hh)
     }
 
     #[inline(always)]
     fn predict<K: Kernel, const W: usize>(&mut self) -> u32 {
+        let mstate = self.sense();
+        let pr = self.mix::<K, W>(mstate);
+        self.prefetch_next(pr);
+        pr
+    }
+
+    /// The input side of [`Model::predict`]: the context slots, the match,
+    /// short match and repeat models read into the mixer inputs `st`, and the
+    /// match state that selects mixer 1's row. Every value here is a function
+    /// of the bytes coded before this bit alone (the coded bit `y` is the data
+    /// bit), so an encoder may compute it ahead of the mixers.
+    #[inline(always)]
+    fn sense(&mut self) -> u32 {
+        self.sense_slots();
+        self.sense_models()
+    }
+
+    /// The context slots' part of [`Model::sense`]: the inputs `st[..na]`.
+    #[inline(always)]
+    fn sense_slots(&mut self) {
         let t = self.t;
         if self.bit == 0 || self.bit == 4 {
             let nc = if self.bit == 0 {
@@ -1258,6 +1324,14 @@ impl Model {
             let p = self.sl[i as usize >> 4].0[i as usize & 15] & 0xffff;
             self.st[j] = i32::from(t.stretch[(p >> 4) as usize]);
         }
+    }
+
+    /// The match, short match and repeat models' part of [`Model::sense`]:
+    /// the inputs from `st[na]` on, and the match state.
+    #[inline(always)]
+    fn sense_models(&mut self) -> u32 {
+        let t = self.t;
+        let na = self.na;
         let mut eb = 0;
         if self.mlen > 0 {
             let bp = 7 - self.bit;
@@ -1329,8 +1403,15 @@ impl Model {
             };
         }
         // mixer 1 and the first APM: the partial byte and the two match states
-        let mstate =
-            (if self.m2len > 0 { 1 + eb2 } else { 0 }) + 3 * (if self.ra { 1 + ebr } else { 0 });
+        (if self.m2len > 0 { 1 + eb2 } else { 0 }) + 3 * (if self.ra { 1 + ebr } else { 0 })
+    }
+
+    /// The mixing side of [`Model::predict`]: the three mixers over the
+    /// inputs [`Model::sense`] read, the two APMs, and the shared pass's twin;
+    /// the probability of a 1 for the bit, in 4096ths.
+    #[inline(always)]
+    fn mix<K: Kernel, const W: usize>(&mut self, mstate: u32) -> u32 {
+        let t = self.t;
         let msel = if self.profile & F_SEL == 0 { 0 } else { mstate };
         let c1 = (self.c0 + 256 * msel) as usize;
         self.s1 = c1 * W;
@@ -1371,46 +1452,29 @@ impl Model {
             let q2 = tw.a2.refine(&t.stretch, p, cx2 as usize);
             tw.pr = ((p as i32 + q1 + 2 * q2) / 4).clamp(1, 4095) as u32;
         }
-        self.prefetch_next(pr);
         pr
     }
 
     /// Charge each kept context the cost of coding bit `y` with its term left
     /// out of the three mixers (the mean of their outputs, as `predict` takes
     /// it), less the cost with it: what the context saved on this bit.
-    fn learn<const W: usize>(&mut self, y: bool) {
+    fn learn<K: Kernel, const W: usize>(&mut self, y: bool) {
         let t = self.t;
-        let sq = |d: i64| i32::from(t.squash[(d.clamp(-2047, 2047) + 2048) as usize]);
-        let mean = |d: [i64; 3]| {
-            let c = |d: i64| (d >> 16).clamp(-2047, 2047);
-            sq((((c(d[0]) + c(d[1]) + c(d[2]) + 6144) * 21846) >> 16) - 2048).clamp(1, 4095)
-        };
-        let cost = |p: i32| i64::from(t.cost[if y { p } else { 4096 - p } as usize]);
+        let x = row::<W>(&self.st, 0);
+        let (w2, w3) = (row::<W>(&self.w2, self.s2), row::<W>(&self.w3, self.s3));
         if let Some(gain) = self.gain.as_mut() {
-            let base = cost(mean(self.dots));
+            let d = K::gains::<W>(t, x, [row(&self.w1, self.s1), w2, w3], self.dots, y);
             for j in 0..self.na {
-                let x = i64::from(self.st[j]);
-                let without = [
-                    self.dots[0] - i64::from(self.w1[self.s1 + j]) * x,
-                    self.dots[1] - i64::from(self.w2[self.s2 + j]) * x,
-                    self.dots[2] - i64::from(self.w3[self.s3 + j]) * x,
-                ];
-                gain[self.act[j]] += cost(mean(without)) - base;
+                gain[self.act[j]] += i64::from(d[j]);
             }
         }
         // the twin's mixer 1 in place of this profile's, mixers 2 and 3 shared
         if let Some(tw) = self.twin.as_deref_mut() {
             if let Some(gain) = tw.gain.as_mut() {
                 let dots = [tw.dot1, self.dots[1], self.dots[2]];
-                let base = cost(mean(dots));
+                let d = K::gains::<W>(t, x, [row(&tw.w1, tw.s1), w2, w3], dots, y);
                 for j in 0..self.na {
-                    let x = i64::from(self.st[j]);
-                    let without = [
-                        dots[0] - i64::from(tw.w1[tw.s1 + j]) * x,
-                        dots[1] - i64::from(self.w2[self.s2 + j]) * x,
-                        dots[2] - i64::from(self.w3[self.s3 + j]) * x,
-                    ];
-                    gain[self.act[j]] += cost(mean(without)) - base;
+                    gain[self.act[j]] += i64::from(d[j]);
                 }
             }
         }
@@ -1440,13 +1504,27 @@ impl Model {
 
     #[inline(always)]
     fn update<K: Kernel, const W: usize>(&mut self, y: bool) {
-        self.a1.learn(y);
-        self.a2.learn(y);
+        self.mix_update::<K, W>(y);
+        self.sense_update(y);
+    }
+
+    /// The input side of [`Model::update`]: the slots and the match, short
+    /// match and repeat models learn bit `y`, then the byte advances.
+    #[inline(always)]
+    fn sense_update(&mut self, y: bool) {
         let rate = &self.t.rate;
         for j in 0..self.na {
             let i = self.ix[j] as usize;
             adapt_slot(&mut self.sl[i >> 4].0[i & 15], y, rate);
         }
+        self.models_update(y);
+    }
+
+    /// [`Model::sense_update`] past the slots: the match, short match and
+    /// repeat models learn bit `y`, then the byte advances.
+    #[inline(always)]
+    fn models_update(&mut self, y: bool) {
+        let rate = &self.t.rate;
         if self.mlen > 0 {
             adapt(&mut self.msp[self.mi], &mut self.msn[self.mi], y, rate);
         }
@@ -1456,6 +1534,16 @@ impl Model {
         if self.m2len > 0 {
             adapt(&mut self.m2sp[self.m2i], &mut self.m2sn[self.m2i], y, rate);
         }
+        self.advance(y);
+    }
+
+    /// The mixing side of [`Model::update`]: the APMs and the mixers (and the
+    /// twin's) learn bit `y`. It reads the byte count, so it runs before the
+    /// byte advances.
+    #[inline(always)]
+    fn mix_update<K: Kernel, const W: usize>(&mut self, y: bool) {
+        self.a1.learn(y);
+        self.a2.learn(y);
         let lr = standard::plasticity(self.seen);
         let yb = i32::from(y) << 12;
         // |err| <= 4096 and lr <= 128, so err * lr <= 2^19 and x * err * lr
@@ -1482,6 +1570,12 @@ impl Model {
                 (yb - tw.pm1) * lr,
             );
         }
+    }
+
+    /// Bit `y` joins the partial byte; a whole byte joins the history and
+    /// moves every byte-level model on ([`Model::new_byte`]).
+    #[inline(always)]
+    fn advance(&mut self, y: bool) {
         self.c0 = (self.c0 << 1) | u32::from(y);
         self.bit += 1;
         if self.bit == 8 {
@@ -1584,6 +1678,32 @@ trait Kernel {
         a
     }
 
+    /// What each input saved on bit `y`: the cost of coding it at the mean of
+    /// the three mixers with the input's term left out, less the cost with it
+    /// ([`Tables::mean_cost`] over the dot products `dots` of the inputs `x`
+    /// with the rows `w`). An input that is 0 (past the profile's) saves 0.
+    #[inline(always)]
+    fn gains<const W: usize>(
+        t: &Tables,
+        x: &[i32; W],
+        w: [&[i32; W]; 3],
+        dots: [i64; 3],
+        y: bool,
+    ) -> [i32; W] {
+        let base = t.mean_cost(dots, y);
+        let mut out = [0; W];
+        for (j, o) in out.iter_mut().enumerate() {
+            let x = i64::from(x[j]);
+            let without = [
+                dots[0] - i64::from(w[0][j]) * x,
+                dots[1] - i64::from(w[1][j]) * x,
+                dots[2] - i64::from(w[2][j]) * x,
+            ];
+            *o = t.mean_cost(without, y) - base;
+        }
+        out
+    }
+
     /// The bounded Hebbian step on one weight row, as [`Kernel::train`].
     #[inline(always)]
     fn train1<const W: usize>(x: &[i32; W], w: &mut [i32; W], e: i32) {
@@ -1673,7 +1793,7 @@ pub mod streams;
 
 #[cfg(target_arch = "x86_64")]
 mod x86 {
-    use super::{Kernel, WEIGHT_LIMIT};
+    use super::{Kernel, Tables, WEIGHT_LIMIT};
     use std::arch::x86_64::*;
 
     pub(super) struct Avx2;
@@ -1821,7 +1941,85 @@ mod x86 {
         }
     }
 
+    /// # Safety
+    /// AVX2 must be available.
+    #[target_feature(enable = "avx2")]
+    #[inline]
+    unsafe fn gains<const W: usize>(
+        t: &Tables,
+        x: &[i32; W],
+        w: [&[i32; W]; 3],
+        dots: [i64; 3],
+        y: bool,
+    ) -> [i32; W] {
+        let base = _mm256_set1_epi32(t.mean_cost(dots, y));
+        // a dot product past these bounds clamps like the bound (>> 16, then
+        // clamped to ±2047), and inside them it fits 32 bits
+        let lo = _mm256_set1_epi64x(-(2047i64 << 16));
+        let hi = _mm256_set1_epi64x((2047i64 << 16) + 65535);
+        let clamp = |v: __m256i| {
+            let v = _mm256_blendv_epi8(v, lo, _mm256_cmpgt_epi64(lo, v));
+            _mm256_blendv_epi8(v, hi, _mm256_cmpgt_epi64(v, hi))
+        };
+        let mut out = [0i32; W];
+        for i in 0..W / 8 {
+            // SAFETY: AVX2 is available and i < W / 8.
+            unsafe {
+                let xe = lanes(x, i);
+                let xo = _mm256_srli_epi64::<32>(xe);
+                let mut sum = _mm256_set1_epi32(6144);
+                for m in 0..3 {
+                    let wv = lanes(w[m], i);
+                    let d = _mm256_set1_epi64x(dots[m]);
+                    let even = clamp(_mm256_sub_epi64(d, _mm256_mul_epi32(xe, wv)));
+                    let odd = clamp(_mm256_sub_epi64(
+                        d,
+                        _mm256_mul_epi32(xo, _mm256_srli_epi64::<32>(wv)),
+                    ));
+                    let c = _mm256_blend_epi32::<0b1010_1010>(even, _mm256_slli_epi64::<32>(odd));
+                    sum = _mm256_add_epi32(sum, _mm256_srai_epi32::<16>(c));
+                }
+                let mean = _mm256_sub_epi32(
+                    _mm256_srai_epi32::<16>(_mm256_mullo_epi32(sum, _mm256_set1_epi32(21846))),
+                    _mm256_set1_epi32(2048),
+                );
+                let at = _mm256_add_epi32(
+                    _mm256_max_epi32(mean, _mm256_set1_epi32(-2047)),
+                    _mm256_set1_epi32(2048),
+                );
+                let p = _mm256_i32gather_epi32::<4>(t.squash32.as_ptr(), at);
+                let p = _mm256_max_epi32(
+                    _mm256_min_epi32(p, _mm256_set1_epi32(4095)),
+                    _mm256_set1_epi32(1),
+                );
+                let p = if y {
+                    p
+                } else {
+                    _mm256_sub_epi32(_mm256_set1_epi32(4096), p)
+                };
+                let cost = _mm256_i32gather_epi32::<4>(t.cost32.as_ptr(), p);
+                _mm256_storeu_si256(
+                    out.as_mut_ptr().add(i * 8).cast(),
+                    _mm256_sub_epi32(cost, base),
+                );
+            }
+        }
+        out
+    }
+
     impl Kernel for Avx2 {
+        #[inline(always)]
+        fn gains<const W: usize>(
+            t: &Tables,
+            x: &[i32; W],
+            w: [&[i32; W]; 3],
+            dots: [i64; 3],
+            y: bool,
+        ) -> [i32; W] {
+            // SAFETY: `Avx2` is only used once AVX2 has been detected.
+            unsafe { gains(t, x, w, dots, y) }
+        }
+
         #[inline(always)]
         fn dot<const W: usize>(
             x: &[i32; W],
@@ -2290,11 +2488,11 @@ fn encoder_pair<K: Kernel>(
         gain: learn[1].then(|| Box::new([0; NC])),
     }));
     if !state.is_empty() {
-        if m.stride == NINP_NARROW {
-            m.warm::<K, NINP_NARROW>(state);
+        m = if m.stride == NINP_NARROW {
+            m.warm::<K, NINP_NARROW>(state)
         } else {
-            m.warm::<K, NINP>(state);
-        }
+            m.warm::<K, NINP>(state)
+        };
         #[cfg(not(target_family = "wasm"))]
         image::write::<K>(&m, state, profile, (m.mask, m.mb), form, t.elapsed());
     }
@@ -2337,6 +2535,19 @@ impl Coder {
         }
     }
 
+    /// A coder that writes nothing and is never abandoned: a pass that only
+    /// moves the model (warming a state) keeps the encoder's loop live.
+    fn idle() -> Coder {
+        Coder {
+            x1: 0,
+            x2: u32::MAX,
+            // the length word every payload opens with
+            out: vec![0; 4],
+            cap: usize::MAX,
+            live: true,
+        }
+    }
+
     /// Codes bit `y` at probability `p` (of a 1, in 4096ths); a coder whose
     /// output reaches its cap is abandoned.
     #[inline(always)]
@@ -2371,39 +2582,84 @@ impl Coder {
 }
 
 #[inline(always)]
-fn encode_bits<K: Kernel, const W: usize>(mut m: Model, data: &[u8], stops: [usize; 2]) -> Pairs {
+fn encode_bits<K: Kernel, const W: usize>(m: Model, data: &[u8], stops: [usize; 2]) -> Pairs {
     let twin = m.twin.is_some();
     let learning = m.gain.is_some() || m.twin.as_ref().is_some_and(|t| t.gain.is_some());
-    let mut main = Coder::new(data.len(), stops[0], true);
-    let mut other = Coder::new(data.len(), stops[1], twin);
-    for (i, &byte) in data.iter().enumerate() {
-        if i % TICK == 0 {
-            tick(i, data.len());
-        }
-        if !main.live && !other.live {
-            return (None, None);
-        }
-        for k in (0..8).rev() {
-            let y = (byte >> k) & 1 == 1;
-            let p = m.predict::<K, W>();
-            if main.live {
-                main.code(y, p);
-            }
-            if other.live {
-                let q = m.twin.as_deref().map_or(2048, |t| t.pr);
-                other.code(y, q);
-            }
-            if learning {
-                m.learn::<W>(y);
-            }
-            m.update::<K, W>(y);
-        }
-    }
+    let mut coders = [
+        Coder::new(data.len(), stops[0], true),
+        Coder::new(data.len(), stops[1], twin),
+    ];
+    let Some(m) = run_bits::<K, W>(m, data, &mut coders, learning) else {
+        return (None, None);
+    };
     let (learned, twin_learned) = (m.learned(), m.twin_learned());
+    let [main, other] = coders;
     (
         main.finish().map(|p| (p, learned)),
         other.finish().map(|p| (p, twin_learned)),
     )
+}
+
+/// Codes `data`'s bits through model `m` onto `coders` (learning the context
+/// gains with `learning`): the model after them, or `None` once both coders
+/// are abandoned.
+#[inline(always)]
+fn run_bits<K: Kernel, const W: usize>(
+    mut m: Model,
+    data: &[u8],
+    coders: &mut [Coder; 2],
+    learning: bool,
+) -> Option<Model> {
+    // Each stretch codes on this core alone, or with its input side on cores
+    // the compression has spare ([`Cores`]), lent again at every stretch: the
+    // coded bits, the learned gains and the model are the same either way.
+    let mut lent = None;
+    let mut at = 0;
+    while at < data.len() {
+        // a stream of a laned frame shares its tables with the frame's other
+        // streams, which a split would move
+        let cores = if m.lane.is_some() {
+            0
+        } else {
+            staged::lend(&mut lent)
+        };
+        // as many batches as the stretch has stages, so that every stage holds one
+        let batch = staged::batch(m.na, W, cores).min((data.len() - at).div_ceil(cores + 1));
+        // a stretch of one batch would run its stages one after another
+        if cores > 0 && data.len() - at > batch {
+            (m, at) = staged::stretch::<K, W>(m, data, at, coders, learning, cores, batch)?;
+            continue;
+        }
+        lent = None;
+        let end = (at / TICK + 1) * TICK;
+        for (i, &byte) in data.iter().enumerate().take(end).skip(at) {
+            if i % TICK == 0 {
+                tick(i, data.len());
+            }
+            if !coders[0].live && !coders[1].live {
+                return None;
+            }
+            for k in (0..8).rev() {
+                let y = (byte >> k) & 1 == 1;
+                let p = m.predict::<K, W>();
+                let [main, other] = &mut *coders;
+                if main.live {
+                    main.code(y, p);
+                }
+                if other.live {
+                    let q = m.twin.as_deref().map_or(2048, |t| t.pr);
+                    other.code(y, q);
+                }
+                if learning {
+                    m.learn::<K, W>(y);
+                }
+                m.update::<K, W>(y);
+            }
+        }
+        at = end.min(data.len());
+    }
+    drop(lent);
+    Some(m)
 }
 
 /// [`encode_profile`] from the κ-named model state `state` (`Ncm.runWarm`):
@@ -2678,6 +2934,106 @@ mod tests {
         );
     }
 
+    /// Input past a few batches, of every kind the models see: text, a
+    /// repeat run, a binary-looking stretch, noise.
+    fn staged_input() -> Vec<u8> {
+        let mut x = Vec::new();
+        let mut r = 0x2545_f491_u32;
+        let most = (1..6).map(|l| staged::batch(1, NINP, l)).max().unwrap_or(0);
+        while x.len() < 3 * most + 777 {
+            x.extend_from_slice(b"fn sense(&mut self) -> u32 { self.sense_slots(); }\n");
+            let at = x.len() / 2;
+            x.extend_from_within(at..x.len().min(at + 300));
+            for _ in 0..200 {
+                r ^= r << 13;
+                r ^= r >> 17;
+                r ^= r << 5;
+                x.push((r >> 24) as u8);
+                x.extend_from_slice(&r.to_le_bytes()[..(r & 3) as usize]);
+            }
+        }
+        x
+    }
+
+    /// Every way the input side runs on lent cores (whole on one core, or the
+    /// byte models on one and the slot table cut into 1, 2 or 4 site ranges)
+    /// writes the payloads, learned profiles and twin the one-core loop
+    /// writes, for plain, window, warm and shared-pass encodes.
+    #[test]
+    fn lent_cores_code_the_same_bytes() {
+        let x = staged_input();
+        let history = &x[..2000];
+        let state = &x[5000..9000];
+        let runs = || -> Vec<Pairs> {
+            let mut out = Vec::new();
+            for profile in [V03, FULL, FULL ^ F_SEL, FULL & !(1 << 3) & !F_REP] {
+                out.push((encode_learn(&[], &x, profile), None));
+                out.push((encode_learn(history, &x, profile), None));
+                out.push((encode_warm(state, &x, profile).map(|p| (p, profile)), None));
+            }
+            out.push(encode_pairs_learn_below(&[], &x, FULL, [usize::MAX; 2]));
+            out
+        };
+        let one = runs();
+        assert!(one.iter().all(|r| r.0.is_some()));
+        for spare in [1, 2, 3, 5] {
+            let pool = Cores::new(spare);
+            assert_eq!(pool.enter(runs), one, "{spare} spare cores");
+            assert_eq!(pool.balance(), spare as isize, "every lent core comes back");
+        }
+    }
+
+    /// Warming a state (an encode with no coder) on lent cores leaves the
+    /// model the one-core warm leaves: what codes after it is the same.
+    #[test]
+    fn warming_on_lent_cores_is_the_same_model() {
+        let x = staged_input();
+        let (state, data) = x.split_at(x.len() / 2);
+        let n = x.len() as u32;
+        let code = || {
+            let m = Model::new(n, &[], FULL).warm::<Scalar, NINP>(state);
+            encode_bits::<Scalar, NINP>(m, data, [usize::MAX; 2]).0
+        };
+        let one = code();
+        assert!(one.is_some());
+        for spare in [1, 3] {
+            let pool = Cores::new(spare);
+            assert_eq!(pool.enter(code), one, "{spare} spare cores");
+            assert_eq!(pool.balance(), spare as isize);
+        }
+    }
+
+    /// Cores that come and go while an encoder codes (other strategies
+    /// starting and ending) change where its stretches start, never its bytes;
+    /// an abandoned encoder gives back what it held.
+    #[test]
+    fn cores_coming_and_going_change_no_byte() {
+        let x = staged_input();
+        let one = encode_learn(&[], &x, FULL);
+        let pool = Cores::new(3);
+        let done = std::sync::atomic::AtomicBool::new(false);
+        let coded = std::thread::scope(|s| {
+            s.spawn(|| {
+                while !done.load(std::sync::atomic::Ordering::Acquire) {
+                    let held: Vec<_> = (0..2).map(|_| pool.hold()).collect();
+                    std::thread::yield_now();
+                    drop(held);
+                    let idle = pool.idle();
+                    std::thread::yield_now();
+                    drop(idle);
+                }
+            });
+            let coded = pool.enter(|| encode_learn(&[], &x, FULL));
+            done.store(true, std::sync::atomic::Ordering::Release);
+            coded
+        });
+        assert_eq!(coded, one);
+        assert_eq!(pool.balance(), 3);
+        let small = one.as_ref().map_or(0, |p| p.0.len()) / 2;
+        assert_eq!(pool.enter(|| encode_below(&[], &x, FULL, small)), None);
+        assert_eq!(pool.balance(), 3);
+    }
+
     #[test]
     fn round_trips() {
         let text = b"the quick brown fox jumps over the lazy dog; ".repeat(50);
@@ -2739,6 +3095,48 @@ mod tests {
                     Some(data)
                 );
             }
+        }
+    }
+
+    /// The vector gains kernel counts the integers the scalar one does, for
+    /// inputs and weights at and past their bounds, and the learning encoder
+    /// on it learns the scalar encoder's profiles.
+    #[test]
+    fn gains_kernels_agree() {
+        let mut r = 0x9E37_79B9_7F4A_7C15_u64;
+        let mut next = || {
+            r ^= r << 13;
+            r ^= r >> 7;
+            r ^= r << 17;
+            r
+        };
+        let t = tables();
+        for _ in 0..20_000 {
+            let mut x = [0i32; NINP];
+            let mut w = [[0i32; NINP]; 3];
+            for j in 0..NINP {
+                x[j] = (next() % 4095) as i32 - 2047;
+                for row in &mut w {
+                    row[j] = (next() % (2 * WEIGHT_LIMIT as u64 + 1)) as i64 as i32 - WEIGHT_LIMIT;
+                }
+            }
+            let scale = next() % 44;
+            let dots = [0; 3].map(|_: i64| (next() as i64) >> (20 + scale));
+            let y = next() & 1 == 1;
+            let want = Scalar::gains::<NINP>(t, &x, [&w[0], &w[1], &w[2]], dots, y);
+            #[cfg(target_arch = "x86_64")]
+            if std::is_x86_feature_detected!("avx2") {
+                let got = x86::Avx2::gains::<NINP>(t, &x, [&w[0], &w[1], &w[2]], dots, y);
+                assert_eq!(got, want, "x {x:?} dots {dots:?} y {y}");
+            }
+            let _ = want;
+        }
+        let text = b"Sing, O goddess, the anger of Achilles son of Peleus. ".repeat(300);
+        for profile in [FULL, V03, 0x1059e | F_REP] {
+            assert_eq!(
+                encode_learn(&[], &text, profile),
+                encoder::<Scalar>(&[], &[], &text, profile, true, usize::MAX)
+            );
         }
     }
 

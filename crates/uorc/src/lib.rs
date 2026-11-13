@@ -664,11 +664,28 @@ fn portfolio_trials(
     if side_by_side && cfg!(not(target_family = "wasm")) {
         // each group on its own core, bounded by the raw archive
         let coded: Vec<(Trial, Trial)> = std::thread::scope(|s| {
+            // each group's thread holds a core of the compression's pool
+            // (taken before any starts), so its encoders borrow only cores
+            // no group runs on
+            let pool = ncm::Cores::current();
+            let held: Vec<_> = leads[1..]
+                .iter()
+                .map(|_| pool.as_ref().map(ncm::Cores::hold))
+                .collect();
             let others: Vec<_> = leads[1..]
                 .iter()
-                .map(|&k| s.spawn(move || group(k, raw)))
+                .zip(held)
+                .map(|(&k, held)| {
+                    s.spawn(move || match held {
+                        Some(h) => h.run(|| group(k, raw)),
+                        None => group(k, raw),
+                    })
+                })
                 .collect();
-            std::iter::once(group(leads[0], raw))
+            let first = group(leads[0], raw);
+            // this thread only waits from here: its core is spare
+            let _idle = pool.as_ref().map(ncm::Cores::idle);
+            std::iter::once(first)
                 .chain(
                     others
                         .into_iter()
@@ -1347,15 +1364,19 @@ fn compress_frames(
             .collect();
         // a frame codes its two strategies side by side when the batch leaves a core free
         let spare = 2 * jobs.len() <= threads;
+        // the cores no frame's worker holds, lent to the encoders as they start
+        let cores = ncm::Cores::new(threads.saturating_sub(jobs.len().max(1)));
         let mut coded = parallel(&jobs, threads, |&k| {
             let frame = &batch[k - before.len()];
-            compress_pieces(
-                all[k],
-                &frame.pieces,
-                &all[k - frame.window..k],
-                steps,
-                spare,
-            )
+            cores.enter(|| {
+                compress_pieces(
+                    all[k],
+                    &frame.pieces,
+                    &all[k - frame.window..k],
+                    steps,
+                    spare,
+                )
+            })
         })
         .into_iter();
         drop(all);
@@ -1652,6 +1673,9 @@ fn decode_stream(
     // Cores decoding coded frames: a block whose reference frame waits for a
     // frame of another block holds none, so other blocks run meanwhile.
     let cores = &Cores::new(threads);
+    // The same cores as the encoder's pool: a decoder holds one, and the
+    // model states it warms (an encode without a coder) borrow the rest.
+    let lend = &ncm::Cores::new(threads);
     let mut totals = Totals::default();
     let mut carry = Vec::new();
     std::thread::scope(|scope| {
@@ -1691,14 +1715,23 @@ fn decode_stream(
                         for (at, archive) in inbox {
                             let core = archive::reference_of(&archive)
                                 .is_none()
-                                .then(|| cores.take());
-                            let decoded = object_lengths(&archive).and_then(|lengths| {
-                                Ok((
-                                    lengths,
-                                    decode_into(&mut window, &archive, at, store, work)?,
-                                ))
-                            });
-                            drop(core);
+                                .then(|| (cores.take(), lend.hold()));
+                            let mut decode = || {
+                                object_lengths(&archive).and_then(|lengths| {
+                                    Ok((
+                                        lengths,
+                                        decode_into(&mut window, &archive, at, store, work)?,
+                                    ))
+                                })
+                            };
+                            let decoded = match core {
+                                Some((core, held)) => {
+                                    let decoded = held.run(decode);
+                                    drop(core);
+                                    decoded
+                                }
+                                None => decode(),
+                            };
                             let failed = decoded.is_err();
                             if send.send(decoded).is_err() || failed {
                                 // Frames after this one will not be offered.

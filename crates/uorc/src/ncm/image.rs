@@ -591,11 +591,11 @@ mod tests {
                 gain: Some(Box::new([0; NC])),
             }));
         }
-        if m.stride == NINP_NARROW {
-            m.warm::<Scalar, NINP_NARROW>(state);
+        m = if m.stride == NINP_NARROW {
+            m.warm::<Scalar, NINP_NARROW>(state)
         } else {
-            m.warm::<Scalar, NINP>(state);
-        }
+            m.warm::<Scalar, NINP>(state)
+        };
         let mut img = Vec::new();
         super::save(&m, &mut img).expect("saves");
         let back = super::load(&img[..], img.len() as u64).expect("loads");
