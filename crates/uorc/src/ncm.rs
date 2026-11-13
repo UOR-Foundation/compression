@@ -54,10 +54,14 @@ pub mod standard {
     /// The plasticity above the floor at the first byte.
     pub const PLASTICITY_GAIN: i64 = 104;
     /// Bytes after which the plasticity above the floor has halved.
+    ///
+    /// Facet: plasticityHalfLife
     pub const PLASTICITY_HALF_LIFE: i64 = 4096;
     /// A weight's largest change in one bit (`laneFitHolds`).
     pub const STEP_LIMIT: i32 = 16376;
     /// A slot's count saturates here: the slot is consolidated.
+    ///
+    /// Facet: observationCountLimit
     pub const COUNT_LIMIT: u8 = 127;
     /// A slot adapts by `RATE_NUMERATOR / (2 * count + 3)` / 65536 of its gap.
     pub const RATE_NUMERATOR: i32 = 131_072;
@@ -74,6 +78,9 @@ pub mod standard {
     }
 }
 
+/// Hashed contexts of the full profile.
+///
+/// Facet: contextCount
 const NC: usize = 17;
 /// Profile bit: the short match model (keyed on 4 bytes, found from 4).
 pub const F_SHORT: u32 = 1 << 17;
@@ -95,6 +102,8 @@ const NINP_NARROW: usize = 16;
 /// The largest table [`Model::sized`] gives by length alone: index bits plus
 /// the 8-bit check byte span the 32-bit context hash, so a larger table is
 /// a facet the frame records ([`TABLE_SHIFT`]) once stepping it pays.
+///
+/// Facet: contextTableSlots
 const TB_MAX: u32 = 24;
 /// Where a profile word's table field starts: bits 0-19 name the contexts and
 /// features, bits 20-25 the context table's bits when the frame records them
@@ -119,6 +128,9 @@ const WEIGHT_LIMIT: i32 = standard::WEIGHT_LIMIT;
 /// Adaptive probability map rows: 33 interpolation points over the stretch domain.
 const APM_ROW: usize = 33;
 const APM_RATE: i32 = standard::REFINEMENT_SHIFT;
+/// Index bits of the second probability map.
+///
+/// Facet: refinementMapRows
 const APM2_BITS: u32 = 16;
 
 fn squash(d: i32) -> i32 {

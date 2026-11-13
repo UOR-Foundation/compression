@@ -179,6 +179,8 @@ impl Era {
 /// entries, and the v0.4 profiled ones): the portfolio codes a frame over at
 /// most this many, and a current profiled entry reads any number
 /// ([`window_profile_template`]), up to every earlier frame of its block.
+///
+/// Facet: windowFrames
 pub const WINDOW: usize = 2;
 
 /// A decoder of the standard basis that a linked archive applies.

@@ -73,6 +73,8 @@ pub mod x86;
 pub use frame::{frame_length, frames, inspect, object_lengths, Info, Representation, HEADER_HINT};
 
 /// Input bytes per frame. Each frame becomes one self-contained archive.
+///
+/// Facet: frameBytes
 pub const FRAME: usize = 8 << 20;
 
 /// Coded frames per block, the encoder's schedule: the first frame of every
@@ -82,6 +84,8 @@ pub const FRAME: usize = 8 << 20;
 /// decoder finds blocks from the frame headers alone (a frame that reads no
 /// window starts one) and decodes them on separate cores, so any block
 /// length decodes, including a v0.2 stream, which is one block.
+///
+/// Facet: blockFrames
 pub const BLOCK: usize = 4;
 
 /// Most frames a window frame reads: every earlier frame of its block.
