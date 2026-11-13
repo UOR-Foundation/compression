@@ -280,9 +280,9 @@ pub fn count(history: &[u8], data: &[u8], profile: u32, k: usize) -> Option<Coun
     let mut base = Model::new(n, &[history], profile);
     let before = base.hoff as usize;
     base.hist[before..].copy_from_slice(data);
-    let mut sl = std::mem::replace(&mut base.sl, Table(Vec::new()));
-    let mut mtab = std::mem::replace(&mut base.mtab, Table(Vec::new()));
-    let mut m2tab = std::mem::replace(&mut base.m2tab, Table(Vec::new()));
+    let mut sl = std::mem::replace(&mut base.sl, Table(Default::default()));
+    let mut mtab = std::mem::replace(&mut base.mtab, Table(Default::default()));
+    let mut m2tab = std::mem::replace(&mut base.m2tab, Table(Default::default()));
     let mut hist = std::mem::take(&mut base.hist);
     let rows = row_counts(&base);
     let sites = [
@@ -408,73 +408,6 @@ pub fn count(history: &[u8], data: &[u8], profile: u32, k: usize) -> Option<Coun
         })
         .collect();
     Some(Counts { streams: k, levels })
-}
-
-/// The plan of `data` after `history` under `profile` for a decode host of
-/// `host` threads, from one-pass counts ([`count`]) instead of trial
-/// encodes: of the stream counts `2..=host` whose streams each hold a
-/// [`Plan::stride`] unit and the power-of-two epochs up to one per stream,
-/// the one whose counted longest chain, coding steps `coding` plus the
-/// counted merge steps over `k` threads, is least (then the longer epoch:
-/// fewer synchronization points). A count past the host's threads is not
-/// considered: its chain's divisor stays the host's while its merge can
-/// only gain sites. The counts run on up to `threads` threads; the plan
-/// does not depend on them. `None` when one stream is the derivation (a
-/// one-thread host, or an input too short for two streams).
-#[must_use]
-pub fn derive_counted(
-    history: &[u8],
-    data: &[u8],
-    profile: u32,
-    host: usize,
-    coding: u64,
-    threads: usize,
-) -> Option<(Plan, u64)> {
-    if host <= 1 || !super::valid_profile(profile) {
-        return None;
-    }
-    let n = data.len();
-    let ks: Vec<usize> = (2..=host.min(1 << 16))
-        .take_while(|&k| {
-            Plan {
-                streams: k,
-                epoch: 1,
-            }
-            .stride(n)
-                * (k - 1)
-                < n
-        })
-        .collect();
-    let mut counts: Vec<Option<Counts>> = vec![None; ks.len()];
-    let threads = threads.max(1);
-    for (batch, out) in ks.chunks(threads).zip(counts.chunks_mut(threads)) {
-        std::thread::scope(|s| {
-            for (&k, o) in batch.iter().zip(out.iter_mut()) {
-                s.spawn(move || *o = count(history, data, profile, k));
-            }
-        });
-    }
-    // the least chain (coding + merge) / k, as a fraction, then the longer epoch
-    let mut best: Option<(Plan, u64)> = None;
-    for c in counts.into_iter().flatten() {
-        let k = c.streams;
-        for l in 0..c.levels.len() {
-            let steps = c.steps(l);
-            let plan = Plan {
-                streams: k,
-                epoch: 1 << l,
-            };
-            let better = best.is_none_or(|(b, bs)| {
-                let x = (u128::from(coding) + u128::from(steps)) * b.streams as u128;
-                let y = (u128::from(coding) + u128::from(bs)) * k as u128;
-                x < y || (x == y && plan.epoch > b.epoch)
-            });
-            if better {
-                best = Some((plan, steps));
-            }
-        }
-    }
-    best
 }
 
 /// Threads a frame's streams run on: one per stream, at most the host's.
@@ -1800,11 +1733,9 @@ mod tests {
         assert_eq!(encode(&w, &d, FULL, plan, 1), Some(serial));
     }
 
-    /// One stream shares no site; the counted derivation is the serial
-    /// coder on a one-thread host and otherwise a plan the host runs, the
-    /// same on any thread count.
+    /// One stream shares no site; two streams share some.
     #[test]
-    fn counted_derivation() {
+    fn counted_sites() {
         let d = sample(70_001, 0x2545_F491);
         let one = count(&[], &d, FULL, 1).expect("counts");
         assert!(one
@@ -1813,13 +1744,6 @@ mod tests {
             .all(|l| l.iter().all(|k| k[1] == 0 && k[2] == 0)));
         let two = count(&[], &d, FULL, 2).expect("counts");
         assert!((0..two.levels.len()).any(|l| two.steps(l) > 0));
-        assert_eq!(derive_counted(&[], &d, FULL, 1, 1 << 30, 4), None);
-        let (plan, _) = derive_counted(&[], &d, FULL, 3, 1 << 30, 4).expect("a plan");
-        assert!(plan.streams <= 3 && plan.epoch.is_power_of_two());
-        assert_eq!(
-            derive_counted(&[], &d, FULL, 3, 1 << 30, 1).map(|p| p.0),
-            Some(plan)
-        );
     }
 
     /// Streams round-trip, and neither the payload nor the output depends on
