@@ -119,8 +119,9 @@ reproducibility:
 varint-proofs:
     node scripts/varint-validation.mjs
 
-# Numbers in the shipped implementation, held against the Prism model
-# (crates/figures): a numeric literal that is not an identity (0, 1) or a value
+# Numbers in what the release ships (the client crates, the page's JavaScript
+# and the LexLean model the client is exported from), held against the Prism
+# model (crates/figures): a numeral that is not an identity (0, 1) or a value
 # a wire module states is a fixed figure, an unmet facet of
 # Uorc.Performance::implementationFigures. A change that adds one fails; the
 # register (model/figures.toml) lists those already there, and only falls.

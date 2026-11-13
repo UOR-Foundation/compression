@@ -19,7 +19,7 @@ that orders remaining work. Here the decisions are a small Node host
 | `varint` | hermetic | the import closure of `Uorc.Varint`, `Uorc.VarintContract`; the project files, xtask, scripts | bootstrap `template-gate` |
 | `integrity` | hermetic | the import closure of every `Uorc.Integrity` module (SHA-256, the bounded chain and their contract); `standards/`; the project files, xtask, scripts | bootstrap `template-gate` |
 | `claims`, `reproducibility` | hermetic | the formal set | bootstrap `template-gate` |
-| `figures` | hermetic | the shipped crates' `src/` (`crates/uorc/`, `crates/uorc-wasm/`), `crates/figures/`, `model/figures.toml`, `factory/graph.json`, `Uorc.Performance` and the wire modules; the workspace manifests | bootstrap `template-gate`: `just figures` (seconds) |
+| `figures` | hermetic | what the release ships: the shipped crates (`crates/uorc/`, `crates/uorc-wasm/`), the page (`web/`, the brand manifest), the import closure of `Uorc.Client`; `crates/figures/`, `model/figures.toml`, `factory/graph.json`, `Uorc.Performance`, the wire modules; the workspace manifests | bootstrap `template-gate`: `just figures` (seconds) |
 | `offline` | fetch | the formal set | offline-validation |
 | `export` | fetch, host | the import closure of `Uorc.Client` (client/src over src), the LexLean project files, the export scripts | `node scripts/client-export.mjs` on a workstation |
 | `pages` | fetch | the client set, `crates/uorc-wasm/`, `web/`, the brand files, `scripts/site.mjs`, `scripts/page-acceptance.mjs`, its workflow | pages-client `acceptance` (UC-WEB-01) |
