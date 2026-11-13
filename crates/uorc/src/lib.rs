@@ -2500,6 +2500,50 @@ mod tests {
         }
     }
 
+    /// The exported model decodes every frame word the native client
+    /// writes: recorded context table bits, recorded match table bits, and
+    /// the 16-bit probability field, alone and together (v0.5.0's model
+    /// refused any profile word of 2^20 or more, so every frame with recorded
+    /// table bits, which the table facet writes from about 8 KiB on). The
+    /// client's own frame of a text input records its table bits too.
+    #[test]
+    fn model_decodes_every_frame_word_native_writes() {
+        let text: Vec<u8> = (0..3000u32)
+            .flat_map(|i| format!("row {} of {}\n", i % 97, i / 7).into_bytes())
+            .take(12_000)
+            .collect();
+        let n = text.len() as u64;
+        let tables = ncm::with_table_bits(ncm::FULL, 22);
+        let both = ncm::with_match_bits(tables, 20);
+        let mut words = Vec::new();
+        for profile in [ncm::FULL, tables, both] {
+            for bits in [12, 16] {
+                words.push((profile, bits));
+            }
+        }
+        for (profile, bits) in words {
+            let plan = ncm::streams::Plan {
+                bits,
+                ..ncm::streams::Plan::ONE
+            };
+            let word = ncm::streams::word(profile, plan).expect("word");
+            let payload =
+                ncm::encode_bits_below(&[], &text, profile, bits, usize::MAX).expect("payload");
+            let a = archive::linked_archive_profile(archive::Codec::Ncm, word, &[n], &payload)
+                .expect("archive");
+            assert_eq!(decompress_frame(&a, DEFAULT_DECODE_WORK).expect("native"), text);
+            assert_eq!(
+                model_decompress_frame(&a).expect("model"),
+                text,
+                "model decode of word {word:#x}"
+            );
+        }
+        let own = compress_frame(&text, 0).expect("compress");
+        let info = frame::inspect(&own).expect("inspect");
+        assert!(ncm::records_tables(info.ncm_profile.expect("profile")));
+        assert_eq!(model_decompress_frame(&own).expect("model"), text);
+    }
+
     /// UC-PERF-08: the shipped compress keeps exactly `performance::chosen`
     /// over the raw archive and the trials it coded: least in bytes, then in
     /// decode steps.

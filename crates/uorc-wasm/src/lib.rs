@@ -630,6 +630,33 @@ mod tests {
         })
     }
 
+    /// The page's frames decode through the exported model: a text frame
+    /// the page writes records its context table bits (the table facet), and
+    /// v0.5.0's model refused every such frame word.
+    #[test]
+    fn page_frames_decode_through_the_model() {
+        let text: Vec<u8> = (0..3000u32)
+            .flat_map(|i| format!("row {} of {}\n", i % 97, i / 7).into_bytes())
+            .take(12_000)
+            .collect();
+        window_reset();
+        let (code, mut stream) = run(&text, || compress_frame(0));
+        assert_eq!(code, OK);
+        let (code, tail) = run(&[], || compress_end(0));
+        assert_eq!(code, OK);
+        stream.extend(tail);
+        let archives = uorc::frames(&stream).expect("frames");
+        let mut back = Vec::new();
+        let mut recorded = false;
+        for a in &archives {
+            let info = uorc::inspect(a).expect("inspect");
+            recorded |= info.ncm_profile.is_some_and(uorc::ncm::records_tables);
+            back.extend(uorc::model_decompress_frame(a).expect("model decode"));
+        }
+        assert!(recorded, "the page's frame records its table bits");
+        assert_eq!(back, text);
+    }
+
     /// The page's exports run the library's compress and decompress unchanged.
     #[test]
     fn wasm_exports_match_the_library_uc_api_01() {
