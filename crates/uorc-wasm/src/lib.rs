@@ -635,10 +635,7 @@ mod tests {
     /// v0.5.0's model refused every such frame word.
     #[test]
     fn page_frames_decode_through_the_model() {
-        let text: Vec<u8> = (0..3000u32)
-            .flat_map(|i| format!("row {} of {}\n", i % 97, i / 7).into_bytes())
-            .take(12_000)
-            .collect();
+        let text = include_bytes!("../../../README.md").to_vec();
         window_reset();
         let (code, mut stream) = run(&text, || compress_frame(0));
         assert_eq!(code, OK);

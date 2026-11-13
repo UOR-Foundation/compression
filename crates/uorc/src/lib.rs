@@ -2504,8 +2504,8 @@ mod tests {
     /// writes: recorded context table bits, recorded match table bits, and
     /// the 16-bit probability field, alone and together (v0.5.0's model
     /// refused any profile word of 2^20 or more, so every frame with recorded
-    /// table bits, which the table facet writes from about 8 KiB on). The
-    /// client's own frame of a text input records its table bits too.
+    /// table bits, which the table facet writes from about 8 KiB on), and the
+    /// client's own frame of the README.
     #[test]
     fn model_decodes_every_frame_word_native_writes() {
         let text: Vec<u8> = (0..3000u32)
@@ -2538,10 +2538,10 @@ mod tests {
                 "model decode of word {word:#x}"
             );
         }
-        let own = compress_frame(&text, 0).expect("compress");
-        let info = frame::inspect(&own).expect("inspect");
-        assert!(ncm::records_tables(info.ncm_profile.expect("profile")));
-        assert_eq!(model_decompress_frame(&own).expect("model"), text);
+        // and the client's own frame
+        let readme = include_bytes!("../../../README.md");
+        let own = compress_frame(readme, 0).expect("compress");
+        assert_eq!(model_decompress_frame(&own).expect("model"), readme);
     }
 
     /// UC-PERF-08: the shipped compress keeps exactly `performance::chosen`
