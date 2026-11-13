@@ -2531,7 +2531,9 @@ mod tests {
                     .collect();
             let want = performance::chosen(raw, &trials);
             let got = compress_frame(frame, 0).expect("compress");
-            assert_eq!(got.len() as u64, want.bytes);
+            // the chosen trial, or the same coding at 16-bit probabilities
+            // when that is shorter (`step_probability`; the steps are the same)
+            assert!(got.len() as u64 <= want.bytes);
             let info = frame::inspect(&got).expect("inspect");
             let steps = match info.state {
                 Some(_) => performance::trial_steps(
