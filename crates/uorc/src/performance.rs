@@ -136,7 +136,7 @@ pub fn declare_host(memory: u64) {
 
 /// The decode host archives are written for: [`PAGE_WORKER`] unless the
 /// process declared a native decoder of some bytes ([`declare_host`]).
-/// Its frame decoder runs on one thread: in v0.5 a frame is one stream
+/// Its frame decoder runs on one thread: a frame is one stream
 /// (the frame word's streams and epoch fields are reserved).
 pub fn declared_host() -> Host {
     let threads = PAGE_WORKER.threads;
