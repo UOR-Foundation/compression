@@ -395,6 +395,21 @@ fn adapt(p: &mut u16, n: &mut u8, y: bool, rate: &[i32; 128]) {
 #[repr(C, align(64))]
 struct Bucket([u32; 16]);
 
+/// The buckets as one run of slots: slot `i` is `sl[i >> 4].0[i & 15]`.
+#[inline(always)]
+fn slots(sl: &[Bucket]) -> &[u32] {
+    // SAFETY: a Bucket is 16 u32 and nothing else (repr(C)), so `sl` is
+    // `16 * sl.len()` u32 in a row, borrowed for as long as `sl` is.
+    unsafe { std::slice::from_raw_parts(sl.as_ptr().cast(), sl.len() * 16) }
+}
+
+/// [`slots`] to write.
+#[inline(always)]
+fn slots_mut(sl: &mut [Bucket]) -> &mut [u32] {
+    // SAFETY: as in `slots`, borrowed mutably for as long as `sl` is.
+    unsafe { std::slice::from_raw_parts_mut(sl.as_mut_ptr().cast(), sl.len() * 16) }
+}
+
 /// A model table. In WebAssembly, whose memory never shrinks, a dropped
 /// table is kept, as many as one model holds, and the next model's table of
 /// that size or smaller uses it: allocating ~100 MiB of fresh tables per
@@ -551,6 +566,22 @@ fn adapt_slot(s: &mut u32, y: bool, rate: &[i32; 128]) {
     *s = (p & 0xffff) | ((n + u32::from(n < 127)) << 16);
 }
 
+/// The buckets `bb[..na]` in five rows of four lanes for the 4-lane
+/// kernels' [`Kernel::distinct`]: lanes past `na` take odd values, which no
+/// bucket start (a multiple of 16) equals.
+#[cfg_attr(
+    not(any(target_arch = "aarch64", target_arch = "wasm32")),
+    allow(dead_code)
+)]
+#[inline(always)]
+fn rows4(bb: &[u32; NC], na: usize) -> [u32; 20] {
+    let mut r = [0u32; 20];
+    for (k, v) in r.iter_mut().enumerate() {
+        *v = if k < na { bb[k] } else { 2 * k as u32 + 1 };
+    }
+    r
+}
+
 /// Warmed models kept for reuse (state bytes, profile, (table mask, match
 /// table bits), bytes
 /// held, model): the most recently used last. What the process keeps is the
@@ -670,6 +701,11 @@ struct Model {
     spec_key: [u32; 9],
     spec_hb: [u32; NC],
     bb: [u32; NC],
+    /// Whether the kept contexts' buckets `bb[..na]` are all different for
+    /// this nibble, so their slots are too and adapt side by side
+    /// ([`Kernel::adapt_slots`]); else they adapt one after another.
+    distinct: bool,
+    sv: [u32; NC],
     ix: [u32; NC],
     st: [i32; NINP],
     mi: usize,
@@ -788,6 +824,8 @@ impl Model {
             spec_key: [u32::MAX; 9],
             spec_hb: [0; NC],
             bb: [0; NC],
+            distinct: false,
+            sv: [0; NC],
             ix: [0; NC],
             st: [0; NINP],
             mi: 0,
@@ -1280,7 +1318,7 @@ impl Model {
 
     #[inline(always)]
     fn predict<K: Kernel, const W: usize>(&mut self) -> u32 {
-        let mstate = self.sense();
+        let mstate = self.sense::<K>();
         let pr = self.mix::<K, W>(mstate);
         self.prefetch_next(pr);
         pr
@@ -1292,15 +1330,14 @@ impl Model {
     /// of the bytes coded before this bit alone (the coded bit `y` is the data
     /// bit), so an encoder may compute it ahead of the mixers.
     #[inline(always)]
-    fn sense(&mut self) -> u32 {
-        self.sense_slots();
+    fn sense<K: Kernel>(&mut self) -> u32 {
+        self.sense_slots::<K>();
         self.sense_models()
     }
 
     /// The context slots' part of [`Model::sense`]: the inputs `st[..na]`.
     #[inline(always)]
-    fn sense_slots(&mut self) {
-        let t = self.t;
+    fn sense_slots<K: Kernel>(&mut self) {
         if self.bit == 0 || self.bit == 4 {
             let nc = if self.bit == 0 {
                 0
@@ -1311,19 +1348,23 @@ impl Model {
                 let hh = h(self.hb[self.act[j]].wrapping_add(nc.wrapping_mul(0x2F0B_4C27)));
                 self.bb[j] = self.bucket(hh);
             }
+            self.distinct = K::distinct(&self.bb, self.na);
         }
         let part = if self.bit < 4 {
             self.c0
         } else {
             (self.c0 & ((1 << (self.bit - 4)) - 1)) | (1 << (self.bit - 4))
         };
-        let na = self.na;
-        for j in 0..na {
-            let i = self.bb[j] + part;
-            self.ix[j] = i;
-            let p = self.sl[i as usize >> 4].0[i as usize & 15] & 0xffff;
-            self.st[j] = i32::from(t.stretch[(p >> 4) as usize]);
-        }
+        K::sense_slots(
+            slots(&self.sl),
+            &self.bb,
+            part,
+            self.na,
+            self.t,
+            &mut self.ix,
+            &mut self.sv,
+            &mut self.st,
+        );
     }
 
     /// The match, short match and repeat models' part of [`Model::sense`]:
@@ -1505,17 +1546,18 @@ impl Model {
     #[inline(always)]
     fn update<K: Kernel, const W: usize>(&mut self, y: bool) {
         self.mix_update::<K, W>(y);
-        self.sense_update(y);
+        self.sense_update::<K>(y);
     }
 
     /// The input side of [`Model::update`]: the slots and the match, short
     /// match and repeat models learn bit `y`, then the byte advances.
     #[inline(always)]
-    fn sense_update(&mut self, y: bool) {
-        let rate = &self.t.rate;
-        for j in 0..self.na {
-            let i = self.ix[j] as usize;
-            adapt_slot(&mut self.sl[i >> 4].0[i & 15], y, rate);
+    fn sense_update<K: Kernel>(&mut self, y: bool) {
+        let sl = slots_mut(&mut self.sl);
+        if self.distinct {
+            K::adapt_slots(sl, &self.ix, &self.sv, self.na, y, &self.t.rate);
+        } else {
+            Scalar::adapt_slots(sl, &self.ix, &self.sv, self.na, y, &self.t.rate);
         }
         self.models_update(y);
     }
@@ -1711,6 +1753,100 @@ trait Kernel {
             w[i] = (w[i] + ((x[i] * e) >> 16)).clamp(-WEIGHT_LIMIT, WEIGHT_LIMIT);
         }
     }
+
+    /// The kept contexts' slots for the bit: slot `ix[j] = bb[j] + part` of
+    /// the slot run `sl` ([`slots`]), its word kept in `sv[j]` for
+    /// [`Kernel::adapt_slots`], and its probability stretched into the input
+    /// `st[j]`, for `j < na`. Nothing past `na` is written.
+    #[inline(always)]
+    #[allow(clippy::too_many_arguments)]
+    fn sense_slots(
+        sl: &[u32],
+        bb: &[u32; NC],
+        part: u32,
+        na: usize,
+        t: &Tables,
+        ix: &mut [u32; NC],
+        sv: &mut [u32; NC],
+        st: &mut [i32; NINP],
+    ) {
+        for j in 0..na {
+            let i = bb[j] + part;
+            let w = sl[i as usize];
+            (ix[j], sv[j]) = (i, w);
+            st[j] = i32::from(t.stretch[((w & 0xffff) >> 4) as usize]);
+        }
+    }
+
+    /// Whether the buckets `bb[..na]` are all different. A kernel that
+    /// adapts slots one after another ([`Kernel::adapt_slots`] as given
+    /// here) does not need to know, and answers yes.
+    #[inline(always)]
+    fn distinct(_bb: &[u32; NC], _na: usize) -> bool {
+        true
+    }
+
+    /// Every kept context's slot `ix[j]` (`j < na`) learns bit `y`
+    /// ([`adapt_slot`]), one after another, each read again. A kernel that
+    /// overrides this adapts the words `sv` that [`Kernel::sense_slots`]
+    /// read, side by side, and writes each back once: the same only for
+    /// different slots, so [`Model`] calls it only when [`Kernel::distinct`]
+    /// said so (and nothing writes a slot between the sensing and the update).
+    #[inline(always)]
+    fn adapt_slots(
+        sl: &mut [u32],
+        ix: &[u32; NC],
+        _sv: &[u32; NC],
+        na: usize,
+        y: bool,
+        rate: &[i32; 128],
+    ) {
+        for &i in &ix[..na] {
+            adapt_slot(&mut sl[i as usize], y, rate);
+        }
+    }
+}
+
+/// [`Kernel::sense_slots`] for the SIMD kernels: the slot word and stretch
+/// loads stay scalar, one independent pair per context, the shortest path
+/// from the coded bit to the mixers' inputs (a gather's latency sits on that
+/// path and measured no faster); the bounds were checked where
+/// [`Model::bucket`] gave each bucket.
+///
+/// # Safety
+/// Every `bb[j] + part` (`j < na`) is a slot of `sl`: a bucket start that
+/// [`Model::bucket`] gave plus a partial nibble below 16.
+#[cfg_attr(
+    not(any(
+        target_arch = "x86_64",
+        target_arch = "aarch64",
+        all(target_arch = "wasm32", target_feature = "simd128")
+    )),
+    allow(dead_code)
+)]
+#[inline(always)]
+#[allow(clippy::too_many_arguments)]
+unsafe fn sense_read_once(
+    sl: &[u32],
+    bb: &[u32; NC],
+    part: u32,
+    na: usize,
+    t: &Tables,
+    ix: &mut [u32; NC],
+    sv: &mut [u32; NC],
+    st: &mut [i32; NINP],
+) {
+    for j in 0..na {
+        let i = bb[j] + part;
+        // SAFETY: the caller vouches for the slot; stretch takes a 12-bit
+        // index.
+        let (w, s) = unsafe {
+            let w = *sl.get_unchecked(i as usize);
+            (w, *t.stretch.get_unchecked(((w & 0xffff) >> 4) as usize))
+        };
+        (ix[j], sv[j]) = (i, w);
+        st[j] = i32::from(s);
+    }
 }
 
 /// The portable kernel (x86_64 without AVX2, and wasm without simd128).
@@ -1793,7 +1929,7 @@ pub mod streams;
 
 #[cfg(target_arch = "x86_64")]
 mod x86 {
-    use super::{Kernel, Tables, WEIGHT_LIMIT};
+    use super::{adapt_slot, Kernel, Tables, NC, NINP, WEIGHT_LIMIT};
     use std::arch::x86_64::*;
 
     pub(super) struct Avx2;
@@ -2007,7 +2143,159 @@ mod x86 {
         out
     }
 
+    /// Lanes `base..base + 8` that hold kept contexts (below `na`), as a
+    /// gather mask.
+    #[target_feature(enable = "avx2")]
+    #[inline]
+    fn kept(base: usize, na: usize) -> __m256i {
+        let lane = _mm256_setr_epi32(0, 1, 2, 3, 4, 5, 6, 7);
+        _mm256_cmpgt_epi32(_mm256_set1_epi32(na as i32 - base as i32), lane)
+    }
+
+    /// [`Kernel::distinct`] by comparing lanes: each row of eight against its
+    /// rotations by 1 to 4 (every distance within the row), the first row
+    /// against every rotation of the second, and both against the last.
+    /// Lanes past `na` take odd values, which no bucket start (a multiple of
+    /// 16) equals.
+    #[target_feature(enable = "avx2")]
+    #[inline]
+    fn distinct(bb: &[u32; NC], na: usize) -> bool {
+        // SAFETY: both loads lie inside bb (NC = 17).
+        let (a, b) = unsafe {
+            (
+                _mm256_loadu_si256(bb.as_ptr().cast()),
+                _mm256_loadu_si256(bb.as_ptr().add(8).cast()),
+            )
+        };
+        let odd = _mm256_setr_epi32(1, 3, 5, 7, 9, 11, 13, 15);
+        let a = _mm256_blendv_epi8(odd, a, kept(0, na));
+        let b = _mm256_blendv_epi8(_mm256_add_epi32(odd, _mm256_set1_epi32(16)), b, kept(8, na));
+        let rot = |k: i32| {
+            let r = _mm256_setr_epi32(k, k + 1, k + 2, k + 3, k + 4, k + 5, k + 6, k + 7);
+            _mm256_and_si256(r, _mm256_set1_epi32(7))
+        };
+        let mut dup = _mm256_cmpeq_epi32(a, b);
+        for k in 1..8 {
+            let r = rot(k);
+            if k <= 4 {
+                dup = _mm256_or_si256(
+                    dup,
+                    _mm256_cmpeq_epi32(a, _mm256_permutevar8x32_epi32(a, r)),
+                );
+                dup = _mm256_or_si256(
+                    dup,
+                    _mm256_cmpeq_epi32(b, _mm256_permutevar8x32_epi32(b, r)),
+                );
+            }
+            dup = _mm256_or_si256(
+                dup,
+                _mm256_cmpeq_epi32(a, _mm256_permutevar8x32_epi32(b, r)),
+            );
+        }
+        if na > 16 {
+            let c = _mm256_set1_epi32(bb[16] as i32);
+            dup = _mm256_or_si256(dup, _mm256_cmpeq_epi32(a, c));
+            dup = _mm256_or_si256(dup, _mm256_cmpeq_epi32(b, c));
+        }
+        _mm256_testz_si256(dup, dup) == 1
+    }
+
+    /// [`Kernel::adapt_slots`] eight different slots at a time: the words
+    /// sensing read, their rates gathered by count, the probabilities adapted
+    /// in exact 32-bit lanes, each word written back once. With `u` the gap
+    /// to the bit's end (`65535 - p` for a 1, `p` for a 0) and
+    /// `r = rate[n] <= 43690`, `u * r + 65535 < 2^32`, so the unsigned shift
+    /// is the floor the scalar's 64-bit shift takes for a 1 and its negated
+    /// ceiling for a 0.
+    ///
+    /// # Safety
+    /// AVX2 must be available, and `ix[..na]` different slots of `sl` whose
+    /// words are `sv[..na]`, each a probability and a count up to 127 (as
+    /// [`adapt_slot`] keeps them).
+    #[target_feature(enable = "avx2")]
+    #[inline]
+    unsafe fn adapt_slots(
+        sl: &mut [u32],
+        ix: &[u32; NC],
+        sv: &[u32; NC],
+        na: usize,
+        y: bool,
+        rate: &[i32; 128],
+    ) {
+        let low = _mm256_set1_epi32(0xffff);
+        let top = _mm256_set1_epi32(127);
+        let mut out = [0u32; 8];
+        let mut base = 0;
+        // SAFETY: lanes below 16 lie inside ix and sv (NC = 17); the masked
+        // gather reads kept lanes' rates, at counts below 128; each store
+        // writes a kept lane's own slot, which the caller vouches for.
+        unsafe {
+            while base < na.min(16) {
+                let w = _mm256_loadu_si256(sv.as_ptr().add(base).cast());
+                let (p, n) = (_mm256_and_si256(w, low), _mm256_srli_epi32::<16>(w));
+                let z = _mm256_setzero_si256();
+                let r = _mm256_mask_i32gather_epi32::<4>(z, rate.as_ptr(), n, kept(base, na));
+                let p = if y {
+                    let u = _mm256_sub_epi32(low, p);
+                    _mm256_add_epi32(p, _mm256_srli_epi32::<16>(_mm256_mullo_epi32(u, r)))
+                } else {
+                    let c = _mm256_add_epi32(_mm256_mullo_epi32(p, r), low);
+                    _mm256_sub_epi32(p, _mm256_srli_epi32::<16>(c))
+                };
+                // n + 1 below the limit: the compare is -1 there
+                let n = _mm256_sub_epi32(n, _mm256_cmpgt_epi32(top, n));
+                _mm256_storeu_si256(
+                    out.as_mut_ptr().cast(),
+                    _mm256_or_si256(p, _mm256_slli_epi32::<16>(n)),
+                );
+                for k in 0..(na - base).min(8) {
+                    *sl.get_unchecked_mut(ix[base + k] as usize) = out[k];
+                }
+                base += 8;
+            }
+        }
+        for &i in &ix[16.min(na)..na] {
+            adapt_slot(&mut sl[i as usize], y, rate);
+        }
+    }
+
     impl Kernel for Avx2 {
+        #[inline(always)]
+        #[allow(clippy::too_many_arguments)]
+        fn sense_slots(
+            sl: &[u32],
+            bb: &[u32; NC],
+            part: u32,
+            na: usize,
+            t: &Tables,
+            ix: &mut [u32; NC],
+            sv: &mut [u32; NC],
+            st: &mut [i32; NINP],
+        ) {
+            // SAFETY: the model hands over the buckets Model::bucket gave.
+            unsafe { super::sense_read_once(sl, bb, part, na, t, ix, sv, st) }
+        }
+
+        #[inline(always)]
+        fn distinct(bb: &[u32; NC], na: usize) -> bool {
+            // SAFETY: `Avx2` is only used once AVX2 has been detected.
+            unsafe { distinct(bb, na) }
+        }
+
+        #[inline(always)]
+        fn adapt_slots(
+            sl: &mut [u32],
+            ix: &[u32; NC],
+            sv: &[u32; NC],
+            na: usize,
+            y: bool,
+            rate: &[i32; 128],
+        ) {
+            // SAFETY: `Avx2` is only used once AVX2 has been detected; the model calls this for the words
+            // sense_slots read, of slots all different.
+            unsafe { adapt_slots(sl, ix, sv, na, y, rate) }
+        }
+
         #[inline(always)]
         fn gains<const W: usize>(
             t: &Tables,
@@ -2047,12 +2335,125 @@ mod x86 {
 
 #[cfg(target_arch = "aarch64")]
 mod arm {
-    use super::{Kernel, WEIGHT_LIMIT};
+    use super::{adapt_slot, rows4, Kernel, Tables, NC, NINP, WEIGHT_LIMIT};
     use std::arch::aarch64::*;
 
     pub(super) struct Neon;
 
+    /// [`Kernel::distinct`] on five rows of four ([`rows4`]): each row
+    /// against its rotations by 1 and 2, each pair of rows at all four.
+    #[inline(always)]
+    fn distinct(bb: &[u32; NC], na: usize) -> bool {
+        let r = rows4(bb, na);
+        // SAFETY: NEON is part of aarch64; every load lies inside r.
+        unsafe {
+            let v: [uint32x4_t; 5] = std::array::from_fn(|i| vld1q_u32(r.as_ptr().add(4 * i)));
+            let mut dup = vdupq_n_u32(0);
+            for i in 0..5 {
+                dup = vorrq_u32(dup, vceqq_u32(v[i], vextq_u32::<1>(v[i], v[i])));
+                dup = vorrq_u32(dup, vceqq_u32(v[i], vextq_u32::<2>(v[i], v[i])));
+                for b in &v[i + 1..] {
+                    dup = vorrq_u32(dup, vceqq_u32(v[i], *b));
+                    dup = vorrq_u32(dup, vceqq_u32(v[i], vextq_u32::<1>(*b, *b)));
+                    dup = vorrq_u32(dup, vceqq_u32(v[i], vextq_u32::<2>(*b, *b)));
+                    dup = vorrq_u32(dup, vceqq_u32(v[i], vextq_u32::<3>(*b, *b)));
+                }
+            }
+            vmaxvq_u32(dup) == 0
+        }
+    }
+
+    /// [`Kernel::adapt_slots`] four different slots at a time, from the words
+    /// sensing read, in the exact 32-bit lanes the AVX2 kernel uses
+    /// (`u * r + 65535 < 2^32`); NEON has no gather, so each lane looks up
+    /// its rate.
+    ///
+    /// # Safety
+    /// As the AVX2 kernel's: `ix[..na]` different slots of `sl` whose words
+    /// are `sv[..na]`, each a probability and a count up to 127.
+    #[inline(always)]
+    unsafe fn adapt_slots(
+        sl: &mut [u32],
+        ix: &[u32; NC],
+        sv: &[u32; NC],
+        na: usize,
+        y: bool,
+        rate: &[i32; 128],
+    ) {
+        let mut base = 0;
+        // SAFETY: NEON is part of aarch64; lanes below 16 lie inside ix and sv; each
+        // rate is at a count below 128; each store writes a kept lane's own
+        // slot, which the caller vouches for.
+        unsafe {
+            let low = vdupq_n_u32(0xffff);
+            while base < na.min(16) {
+                let kept = (na - base).min(4);
+                let mut r = [0u32; 4];
+                for k in 0..kept {
+                    r[k] = *rate.get_unchecked((sv[base + k] >> 16) as usize) as u32;
+                }
+                let wv = vld1q_u32(sv.as_ptr().add(base));
+                let (p, n, r) = (
+                    vandq_u32(wv, low),
+                    vshrq_n_u32::<16>(wv),
+                    vld1q_u32(r.as_ptr()),
+                );
+                let p = if y {
+                    vaddq_u32(p, vshrq_n_u32::<16>(vmulq_u32(vsubq_u32(low, p), r)))
+                } else {
+                    vsubq_u32(p, vshrq_n_u32::<16>(vaddq_u32(vmulq_u32(p, r), low)))
+                };
+                // n + 1 below the limit: the compare is all ones there
+                let n = vsubq_u32(n, vcltq_u32(n, vdupq_n_u32(127)));
+                let mut w = [0u32; 4];
+                vst1q_u32(w.as_mut_ptr(), vorrq_u32(p, vshlq_n_u32::<16>(n)));
+                for k in 0..kept {
+                    *sl.get_unchecked_mut(ix[base + k] as usize) = w[k];
+                }
+                base += 4;
+            }
+        }
+        for &i in &ix[16.min(na)..na] {
+            adapt_slot(&mut sl[i as usize], y, rate);
+        }
+    }
+
     impl Kernel for Neon {
+        #[inline(always)]
+        #[allow(clippy::too_many_arguments)]
+        fn sense_slots(
+            sl: &[u32],
+            bb: &[u32; NC],
+            part: u32,
+            na: usize,
+            t: &Tables,
+            ix: &mut [u32; NC],
+            sv: &mut [u32; NC],
+            st: &mut [i32; NINP],
+        ) {
+            // SAFETY: the model hands over the buckets Model::bucket gave.
+            unsafe { super::sense_read_once(sl, bb, part, na, t, ix, sv, st) }
+        }
+
+        #[inline(always)]
+        fn distinct(bb: &[u32; NC], na: usize) -> bool {
+            distinct(bb, na)
+        }
+
+        #[inline(always)]
+        fn adapt_slots(
+            sl: &mut [u32],
+            ix: &[u32; NC],
+            sv: &[u32; NC],
+            na: usize,
+            y: bool,
+            rate: &[i32; 128],
+        ) {
+            // SAFETY: the model calls this for the words
+            // sense_slots read, of slots all different.
+            unsafe { adapt_slots(sl, ix, sv, na, y, rate) }
+        }
+
         #[inline(always)]
         fn dot<const W: usize>(
             x: &[i32; W],
@@ -2106,14 +2507,130 @@ mod arm {
 
 #[cfg(all(target_arch = "wasm32", target_feature = "simd128"))]
 mod wasm {
-    use super::{Kernel, WEIGHT_LIMIT};
+    use super::{adapt_slot, rows4, Kernel, Tables, NC, NINP, WEIGHT_LIMIT};
     use std::arch::wasm32::*;
 
     /// The WebAssembly SIMD128 kernel: 4 lanes of i32, products widened to
     /// i64 pairs exactly as the scalar kernel computes them.
     pub(super) struct Simd128;
 
+    /// [`Kernel::distinct`] on five rows of four ([`rows4`]): each row
+    /// against its rotations by 1 and 2, each pair of rows at all four.
+    #[inline(always)]
+    fn distinct(bb: &[u32; NC], na: usize) -> bool {
+        let r = rows4(bb, na);
+        // SAFETY: simd128 is enabled for this module; every load lies
+        // inside r.
+        let v: [v128; 5] =
+            std::array::from_fn(|i| unsafe { v128_load(r.as_ptr().add(4 * i).cast()) });
+        let r1 = |b: v128| i32x4_shuffle::<1, 2, 3, 0>(b, b);
+        let r2 = |b: v128| i32x4_shuffle::<2, 3, 0, 1>(b, b);
+        let r3 = |b: v128| i32x4_shuffle::<3, 0, 1, 2>(b, b);
+        let mut dup = u32x4_splat(0);
+        for i in 0..5 {
+            dup = v128_or(dup, i32x4_eq(v[i], r1(v[i])));
+            dup = v128_or(dup, i32x4_eq(v[i], r2(v[i])));
+            for &b in &v[i + 1..] {
+                dup = v128_or(dup, i32x4_eq(v[i], b));
+                dup = v128_or(dup, i32x4_eq(v[i], r1(b)));
+                dup = v128_or(dup, i32x4_eq(v[i], r2(b)));
+                dup = v128_or(dup, i32x4_eq(v[i], r3(b)));
+            }
+        }
+        !v128_any_true(dup)
+    }
+
+    /// [`Kernel::adapt_slots`] four different slots at a time, from the words
+    /// sensing read, in the exact 32-bit lanes the AVX2 kernel uses
+    /// (`u * r + 65535 < 2^32`); WebAssembly SIMD has no gather, so each lane looks up
+    /// its rate.
+    ///
+    /// # Safety
+    /// As the AVX2 kernel's: `ix[..na]` different slots of `sl` whose words
+    /// are `sv[..na]`, each a probability and a count up to 127.
+    #[inline(always)]
+    unsafe fn adapt_slots(
+        sl: &mut [u32],
+        ix: &[u32; NC],
+        sv: &[u32; NC],
+        na: usize,
+        y: bool,
+        rate: &[i32; 128],
+    ) {
+        let mut base = 0;
+        // SAFETY: simd128 is enabled for this module; lanes below 16 lie inside ix and sv; each
+        // rate is at a count below 128; each store writes a kept lane's own
+        // slot, which the caller vouches for.
+        unsafe {
+            let low = u32x4_splat(0xffff);
+            while base < na.min(16) {
+                let kept = (na - base).min(4);
+                let mut r = [0u32; 4];
+                for k in 0..kept {
+                    r[k] = *rate.get_unchecked((sv[base + k] >> 16) as usize) as u32;
+                }
+                let wv = v128_load(sv.as_ptr().add(base).cast());
+                let (p, n, r) = (
+                    v128_and(wv, low),
+                    u32x4_shr(wv, 16),
+                    v128_load(r.as_ptr().cast()),
+                );
+                let p = if y {
+                    i32x4_add(p, u32x4_shr(i32x4_mul(i32x4_sub(low, p), r), 16))
+                } else {
+                    i32x4_sub(p, u32x4_shr(i32x4_add(i32x4_mul(p, r), low), 16))
+                };
+                // n + 1 below the limit: the compare is all ones there
+                let n = i32x4_sub(n, u32x4_lt(n, u32x4_splat(127)));
+                let mut w = [0u32; 4];
+                v128_store(w.as_mut_ptr().cast(), v128_or(p, i32x4_shl(n, 16)));
+                for k in 0..kept {
+                    *sl.get_unchecked_mut(ix[base + k] as usize) = w[k];
+                }
+                base += 4;
+            }
+        }
+        for &i in &ix[16.min(na)..na] {
+            adapt_slot(&mut sl[i as usize], y, rate);
+        }
+    }
+
     impl Kernel for Simd128 {
+        #[inline(always)]
+        #[allow(clippy::too_many_arguments)]
+        fn sense_slots(
+            sl: &[u32],
+            bb: &[u32; NC],
+            part: u32,
+            na: usize,
+            t: &Tables,
+            ix: &mut [u32; NC],
+            sv: &mut [u32; NC],
+            st: &mut [i32; NINP],
+        ) {
+            // SAFETY: the model hands over the buckets Model::bucket gave.
+            unsafe { super::sense_read_once(sl, bb, part, na, t, ix, sv, st) }
+        }
+
+        #[inline(always)]
+        fn distinct(bb: &[u32; NC], na: usize) -> bool {
+            distinct(bb, na)
+        }
+
+        #[inline(always)]
+        fn adapt_slots(
+            sl: &mut [u32],
+            ix: &[u32; NC],
+            sv: &[u32; NC],
+            na: usize,
+            y: bool,
+            rate: &[i32; 128],
+        ) {
+            // SAFETY: the model calls this for the words
+            // sense_slots read, of slots all different.
+            unsafe { adapt_slots(sl, ix, sv, na, y, rate) }
+        }
+
         #[inline(always)]
         fn dot<const W: usize>(
             x: &[i32; W],
@@ -2898,6 +3415,82 @@ fn decode_bits<K: Kernel, const W: usize>(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// The slot kernel `K` against the scalar one: every slot word adapts
+    /// to the same word for both bits, the same buckets are found distinct,
+    /// and sensing reads the same slots and inputs, for every kept count.
+    fn slot_kernel_is_the_scalar<K: Kernel>() {
+        let t = tables();
+        let mut r = 0x9e37_79b9_u32;
+        let mut next = move || {
+            r ^= r << 13;
+            r ^= r >> 17;
+            r ^= r << 5;
+            r
+        };
+        // every probability and count, NC slots of distinct buckets at a time
+        let words: Vec<u32> = (0..128u32)
+            .flat_map(|n| (0..65536u32).step_by(7).map(move |p| p | (n << 16)))
+            .chain([0, 65535, 127 << 16, 65535 | (127 << 16)])
+            .collect();
+        let mut sl = vec![0u32; 1 << 21];
+        for (c, chunk) in words.chunks(NC).enumerate() {
+            for na in [chunk.len(), chunk.len().min(1 + c % NC)] {
+                let mut bb = [0u32; NC];
+                for (j, b) in bb.iter_mut().enumerate() {
+                    *b = 16 * (j as u32 * 37 + (next() & 1023) * 64 + 3);
+                }
+                let part = 1 + next() % 15;
+                for (j, &w) in chunk.iter().enumerate() {
+                    sl[(bb[j] + part) as usize] = w;
+                }
+                assert!(K::distinct(&bb, na));
+                let (mut ix, mut sv, mut st) = ([0u32; NC], [0u32; NC], [7i32; NINP]);
+                let (mut ix0, mut sv0, mut st0) = ([0u32; NC], [0u32; NC], [7i32; NINP]);
+                K::sense_slots(&sl, &bb, part, na, t, &mut ix, &mut sv, &mut st);
+                Scalar::sense_slots(&sl, &bb, part, na, t, &mut ix0, &mut sv0, &mut st0);
+                assert_eq!((&ix[..na], &sv[..na], st), (&ix0[..na], &sv0[..na], st0));
+                for y in [false, true] {
+                    let at =
+                        |sl: &[u32]| ix[..na].iter().map(|&i| sl[i as usize]).collect::<Vec<_>>();
+                    let was = at(&sl);
+                    K::adapt_slots(&mut sl, &ix, &sv, na, y, &t.rate);
+                    let a = at(&sl);
+                    for (j, &i) in ix[..na].iter().enumerate() {
+                        sl[i as usize] = was[j];
+                    }
+                    Scalar::adapt_slots(&mut sl, &ix, &sv, na, y, &t.rate);
+                    let b = at(&sl);
+                    for (j, &i) in ix[..na].iter().enumerate() {
+                        sl[i as usize] = was[j];
+                    }
+                    assert!(a == b, "slot words {chunk:x?}, bit {y}");
+                }
+                // a repeated bucket is found, by a kernel that looks
+                if na > 1 && !K::distinct(&[0; NC], 2) {
+                    let (j, k) = (next() as usize % na, next() as usize % na);
+                    if j != k {
+                        let mut bd = bb;
+                        bd[k] = bd[j];
+                        assert!(!K::distinct(&bd, na));
+                    }
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn slot_kernel_matches_the_scalar() {
+        #[cfg(target_arch = "x86_64")]
+        if std::arch::is_x86_feature_detected!("avx2") {
+            slot_kernel_is_the_scalar::<x86::Avx2>();
+        }
+        #[cfg(target_arch = "aarch64")]
+        slot_kernel_is_the_scalar::<arm::Neon>();
+        #[cfg(all(target_arch = "wasm32", target_feature = "simd128"))]
+        slot_kernel_is_the_scalar::<wasm::Simd128>();
+        slot_kernel_is_the_scalar::<Scalar>();
+    }
 
     #[test]
     fn warm_state_is_the_model_coder() {

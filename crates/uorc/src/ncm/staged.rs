@@ -319,13 +319,13 @@ fn two_sides<K: Kernel, const W: usize>(
                 for &byte in chunk {
                     for k in (0..8).rev() {
                         let y = (byte >> k) & 1;
-                        let ms = m.sense();
+                        let ms = m.sense::<K>();
                         // every input is a stretched probability (±2047),
                         // a match vote (±1024) or the bias (256)
                         b.rows.extend(m.st[..W].iter().map(|&v| v as i16));
                         b.ms.push(ms as u8);
                         m.prefetch_inputs(u32::from(y));
-                        m.sense_update(y == 1);
+                        m.sense_update::<K>(y == 1);
                     }
                 }
                 if full.send(b).is_err() {
