@@ -121,14 +121,31 @@ jobs:
           ref: ${{ env.REF }}
           fetch-depth: 0
           persist-credentials: false
-      - name: Build and test the client
+      # The bootstrap gate this release requires already ran uorc's tests on
+      # this tree on both architectures (the rest legs, with debug
+      # assertions), so this job does not compile and run them a second time
+      # in release mode. It checks what ships instead: the release binary
+      # round-trips an empty input, one byte, a small text and a multi-frame
+      # input (a tar of the client sources, cut past two 8 MiB frames) byte for byte.
+      - name: Build the client and round-trip the shipped binary
         id: run
         run: |
           set -euo pipefail
           rustup show active-toolchain
-          cargo test --locked --release -p uorc
           cargo build --locked --release -p uorc --target ${{ matrix.target }}
           mkdir -p build && cp "target/${{ matrix.target }}/release/uorc" build/
+          work=$(mktemp -d)
+          : > "$work/empty"
+          printf 'u' > "$work/one"
+          head -c 65536 crates/uorc/src/lib.rs > "$work/text"
+          git archive --format=tar -o "$work/client.tar" HEAD -- crates/uorc generated/rust
+          head -c $((17 * 1024 * 1024)) "$work/client.tar" > "$work/frames"
+          for f in empty one text frames; do
+            build/uorc compress "$work/$f" -o "$work/$f.uorc"
+            build/uorc decompress "$work/$f.uorc" -o "$work/$f.back"
+            cmp "$work/$f" "$work/$f.back"
+            echo "$f: $(stat -c %s "$work/$f") -> $(stat -c %s "$work/$f.uorc") bytes, round trip exact"
+          done
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: factory-native-${{ matrix.target }}
@@ -191,10 +208,48 @@ jobs:
   # Silesia corpora against standard and context-mixing compressors, beside
   # the runner's measured core count and memory copy rate. It runs on release, never on
   # pull requests, and its table goes into the release notes and the Pages site.
+  # The public corpora the benchmark and the closed claims read, fetched once
+  # per run and checked member by member against the sha256 frontier.toml
+  # pins. scripts/corpora.mjs reads this repository's `corpora` release first
+  # and falls back to the corpus hosts, the Internet Archive and per-file
+  # copies, then mirrors what it assembled into that release, so a corpus host
+  # refusing runners (403 from corpus.canterbury.ac.nz, November 2026) cannot
+  # fail a release. The script is taken from this workflow's own commit, so a
+  # rehearsal of an older ref uses the current fetch.
+  corpora:
+    name: corpora
+    needs: [factory]
+    if: needs.factory.outputs.bench == 'observe' || needs.factory.outputs.frontier == 'observe'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ github.workflow_sha }}
+          fetch-depth: 0
+          persist-credentials: false
+          sparse-checkout: |
+            scripts/corpora.mjs
+            frontier.toml
+          sparse-checkout-cone-mode: false
+      - name: Fetch the pinned corpora
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: node scripts/corpora.mjs corpus --corpus canterbury,silesia --publish
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: corpora
+          path: corpus/
+          if-no-files-found: error
+          retention-days: 1
+          compression-level: 1
+
   bench:
     name: benchmark
-    needs: [factory, native]
-    if: always() && needs.factory.outputs.bench == 'observe' && (needs.native.result == 'success' || needs.native.result == 'skipped')
+    needs: [factory, native, corpora]
+    if: always() && needs.corpora.result == 'success' && needs.factory.outputs.bench == 'observe' && (needs.native.result == 'success' || needs.native.result == 'skipped')
     runs-on: ubuntu-24.04
     timeout-minutes: 120
     permissions:
@@ -212,7 +267,11 @@ jobs:
           path: build
           run-id: ${{ needs.factory.outputs.native_x86_run }}
           github-token: ${{ needs.factory.outputs.native_x86_run != github.run_id && github.token || '' }}
-      - name: Fetch the corpora and the comparison tools
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          name: corpora
+          path: corpus
+      - name: Fetch the comparison tools
         run: |
           set -euo pipefail
           chmod +x build/uorc
@@ -220,11 +279,6 @@ jobs:
             sudo apt-get update -qq && sudo apt-get install -y -qq zstd brotli zpaq 7zip >/dev/null && break
             test "$attempt" -lt 3; sleep $((attempt * 20))
           done
-          mkdir -p corpus/canterbury corpus/silesia
-          curl -fsSL --retry 5 --retry-all-errors https://corpus.canterbury.ac.nz/resources/cantrbry.tar.gz | tar -xz -C corpus/canterbury
-          curl -fsSL --retry 5 --retry-all-errors -o silesia.zip https://sun.aei.polsl.pl/~sdeor/corpus/silesia.zip
-          unzip -q -d corpus/silesia silesia.zip
-          find corpus/silesia -mindepth 2 -type f -exec mv -t corpus/silesia {} +
       - name: Benchmark the release binary
         id: run
         run: node scripts/bench.mjs --uorc build/uorc --corpus corpus/canterbury,corpus/silesia --steps 0 --out bench
@@ -262,8 +316,8 @@ jobs:
   # step's outcome is recorded, so a failed download records nothing.
   frontier:
     name: closed claims
-    needs: [factory, native]
-    if: always() && needs.factory.outputs.frontier == 'observe' && (needs.native.result == 'success' || needs.native.result == 'skipped')
+    needs: [factory, native, corpora]
+    if: always() && needs.corpora.result == 'success' && needs.factory.outputs.frontier == 'observe' && (needs.native.result == 'success' || needs.native.result == 'skipped')
     runs-on: ubuntu-24.04
     timeout-minutes: 120
     env:
@@ -274,14 +328,10 @@ jobs:
           ref: ${{ env.REF }}
           fetch-depth: 0
           persist-credentials: false
-      - name: Fetch the corpora
-        run: |
-          set -euo pipefail
-          mkdir -p corpus/canterbury corpus/silesia
-          curl -fsSL --retry 5 --retry-all-errors https://corpus.canterbury.ac.nz/resources/cantrbry.tar.gz | tar -xz -C corpus/canterbury
-          curl -fsSL --retry 5 --retry-all-errors -o silesia.zip https://sun.aei.polsl.pl/~sdeor/corpus/silesia.zip
-          unzip -q -d corpus/silesia silesia.zip
-          find corpus/silesia -mindepth 2 -type f -exec mv -t corpus/silesia {} +
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          name: corpora
+          path: corpus
       - name: Decide the closed claims
         id: run
         env:
@@ -320,7 +370,7 @@ jobs:
   # artifact instead.
   publish:
     name: ${{ github.event.inputs.mode == 'rehearsal' && 'package (rehearsal)' || 'publish release' }}
-    needs: [factory, native, wasm, bench, frontier]
+    needs: [factory, native, wasm, corpora, bench, frontier]
     if: always() && needs.factory.result == 'success' && !contains(needs.*.result, 'failure') && !contains(needs.*.result, 'cancelled')
     runs-on: ubuntu-24.04
     timeout-minutes: 15
