@@ -26,7 +26,7 @@ import {fileURLToPath} from 'node:url';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const RELEASE_TAG = 'corpora';
-const AGENT = 'Mozilla/5.0 (X11; Linux x86_64) uorc-corpora';
+const AGENT = 'uorc-corpora (+https://github.com/UOR-Foundation/compression)';
 
 // Single members published elsewhere byte for byte; a copy is used only when
 // its sha256 matches the register.
