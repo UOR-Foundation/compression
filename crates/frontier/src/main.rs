@@ -464,7 +464,7 @@ fn report_md(r: &Register, point: &CodecPoint) -> String {
     if !ceilings.is_empty() {
         md.push("## Host ceiling".to_owned());
         md.push(String::new());
-        md.push("Each row is this point's distance to the ceiling of the host that ran it (`Uorc.Host::ceilingNanos`): the slower of its exact decode steps over the host's threads at the per-core step rate of the codec's own mixer contraction, and the cache lines its tables move over the host's memory rate. The compress ceiling counts the same steps, a floor on any compression's. Times are this host's; the host κ names the measured model.".to_owned());
+        md.push("Each row is this point's distance to the ceiling of the host that ran it (`Uorc.Host::ceilingNanos`): the slower of its exact decode steps over the host's threads at the per-core step rate of the codec's own mixer contraction, and the cache lines its tables move over the host's memory rate. The compute term covers the mixer contraction only, so the distance includes the rest of each step (sensing, match and repeat models, probability maps, coder). The compress ceiling counts the same steps, a floor on any compression's. Times are this host's; the host κ names the measured model.".to_owned());
         md.push(String::new());
         md.push("| corpus | host κ | threads | vector bits | steps/s per core | memory B/s | decode ceiling s | decode s | decode distance s | compress ceiling s | compress s | compress distance s |".to_owned());
         md.push(
