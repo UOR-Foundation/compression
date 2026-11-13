@@ -64,7 +64,7 @@ lint:
 # runtimes (tens of minutes) and is its own recipe, `formal-tests`.
 test:
     cargo test --locked --workspace --exclude xtask
-    node --test scripts/site.test.mjs
+    node --test scripts/site.test.mjs scripts/corpora.test.mjs
 
 # UC-WEB-01: build the Pages site as the release does (a stand-in benchmark
 # page beside it) and walk every journey of the page's Prism product model in

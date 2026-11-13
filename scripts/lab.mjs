@@ -24,7 +24,8 @@
 // Inputs: --corpus picks generated, deterministic inputs (py: a tar of this
 // host's Python stdlib .py files; elf: a concatenation of the ELF files in
 // /usr/bin; text: the stdlib .py files concatenated, four times --size) and
-// the Canterbury/Silesia corpora (fetched from the URLs release.yml uses),
+// the Canterbury/Silesia corpora (scripts/corpora.mjs: the sources release.yml
+// reads, each member checked against the sha256 frontier.toml pins),
 // all cached under target/lab/corpus; FILE arguments add files or directories.
 // Every input's sha256 is recorded, so two hosts' numbers say what they read.
 // Without --uorc, A is `cargo build --locked --release -p uorc` of the working
@@ -36,6 +37,7 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 import {spawnSync} from 'node:child_process';
 import {fileURLToPath} from 'node:url';
+import {fetchCorpus, publicCorpora} from './corpora.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const lab = path.join(root, 'target', 'lab');
@@ -145,10 +147,10 @@ const generators = {
   // The stdlib .py sources, concatenated: plain text, four times --size.
   text: size => { const dir = stdlib(); return fill(stdlibPy(dir).map(p => () => fs.readFileSync(path.join(dir, p))), 4 * size); },
 };
-const fetched = {
-  canterbury: dir => run('sh', ['-c', 'curl -fsSL --retry 5 --retry-all-errors https://corpus.canterbury.ac.nz/resources/cantrbry.tar.gz | tar -xz -C "$1"', 'sh', dir]),
-  silesia: dir => run('sh', ['-c', 'curl -fsSL --retry 5 --retry-all-errors -o "$1/s.zip" https://sun.aei.polsl.pl/~sdeor/corpus/silesia.zip && unzip -q -d "$1" "$1/s.zip" && rm "$1/s.zip" && find "$1" -mindepth 2 -type f -exec mv -t "$1" {} +', 'sh', dir]),
-};
+// Canterbury and Silesia, checked against the sha256 frontier.toml pins and
+// fetched the way the release fetches them (scripts/corpora.mjs).
+const fetched = Object.fromEntries(publicCorpora().map(c => [c.name, dir =>
+  fetchCorpus(c, path.dirname(dir), {dir, repository: process.env.GITHUB_REPOSITORY ?? 'UOR-Foundation/compression'})]));
 // The inputs of a run: [{name, file}], generated or fetched on first use.
 function inputs(defaults = 'py,elf') {
   const size = bytesOf(args.size ?? '8M');
