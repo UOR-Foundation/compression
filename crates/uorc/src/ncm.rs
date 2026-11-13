@@ -1657,8 +1657,12 @@ macro_rules! dispatch {
 /// rows and trained on the three, the arithmetic every step of an ncm frame
 /// costs at least (`Uorc.Host::stepRate`).
 pub fn contraction_probe(rounds: u64) -> (u64, u32, i64) {
-    let (bits, sum) = (|| dispatch!(contraction(rounds)))();
+    let (bits, sum) = contraction_best(rounds);
     (rounds * NINP as u64, bits, sum)
+}
+
+fn contraction_best(rounds: u64) -> (u32, i64) {
+    dispatch!(contraction(rounds))
 }
 
 #[inline(always)]
