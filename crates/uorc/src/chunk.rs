@@ -610,7 +610,7 @@ mod tests {
             i = i.wrapping_mul(31).wrapping_add(7) % 1009;
         }
         passage.truncate(1 << 20);
-        for input in [vec![0u8; 3 * FRAME], passage.repeat(24)] {
+        for input in [vec![0u8; 3 * FRAME], passage.repeat((3 * FRAME) >> 20)] {
             let frames = frames_of(&mut Framer::plain(), &input, FRAME);
             let kinds: Vec<(usize, bool)> = frames
                 .iter()

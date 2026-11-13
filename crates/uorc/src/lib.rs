@@ -74,7 +74,13 @@ pub mod x86;
 pub use frame::{frame_length, frames, inspect, object_lengths, Info, Representation, HEADER_HINT};
 
 /// Input bytes per frame. Each frame becomes one self-contained archive.
-pub const FRAME: usize = 8 << 20;
+///
+/// Unit tests cut frames at 1 MiB: every framing rule (cuts, references,
+/// windows, blocks) reads the frame length only through this constant and
+/// holds the same at any length well above [`chunk::MAX_UNIT`], while coding
+/// full 8 MiB frames through the whole portfolio cost most of the acceptance
+/// leg's time.
+pub const FRAME: usize = if cfg!(test) { 1 << 20 } else { 8 << 20 };
 
 /// Coded frames per block, the encoder's schedule: the first frame of every
 /// block reads no window, and the others read up to every frame before them
@@ -1107,6 +1113,112 @@ fn decode_next(
     };
     store.finish(index, &output).map_err(io)?;
     Ok(output)
+}
+
+/// What the decoder's schedule of a stream costs (`Uorc.Performance::wholeHost`,
+/// `Uorc.Performance::leastArchive`), from [`decode_schedule`].
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Schedule {
+    /// Decode steps of every frame ([`performance::frame_steps`]).
+    pub total: u64,
+    /// The longest chain of dependent decode steps: frames of a block decode
+    /// in order on one core, a reference frame waits for the frame that holds
+    /// its run, and blocks are otherwise free to run at once (the schedule
+    /// [`decompress_stream`] keeps on any number of threads).
+    pub chain: u64,
+    /// The information the frames' models assign to their output, in 2^-24
+    /// bit ([`ncm::INFORMATION_BITS`]): the ncm decoder's sum
+    /// ([`ncm::measure_information`]) for coded frames, 8 bits per byte for
+    /// raw frames, none for a reference frame.
+    pub information: u64,
+    /// Frames of the stream.
+    pub frames: u64,
+}
+
+/// Decode `stream` on this thread in stream order, and measure the schedule
+/// the decoder keeps on more threads ([`Schedule`]). Exact: it depends on
+/// the stream's bytes alone. Fails as [`decompress`] does, and for a frame
+/// the step measure has no value for (ulz and program frames).
+pub fn decode_schedule(stream: &[u8], work: u64) -> Result<(Vec<u8>, Schedule), Error> {
+    let archives = frames(stream)?;
+    let mut wanted: std::collections::HashMap<[u8; 32], u64> = Default::default();
+    for a in &archives {
+        if let Some((label, n)) = archive::reference_target(a) {
+            wanted.insert(label, n);
+        }
+    }
+    let reads: Vec<Option<usize>> = archives.iter().map(|a| archive::window_len(a)).collect();
+    // the frame each wanted run is first found in, and the run's bytes
+    let mut held: std::collections::HashMap<[u8; 32], (usize, Vec<u8>)> = Default::default();
+    let mut finish: Vec<u64> = Vec::with_capacity(archives.len());
+    let mut window: Vec<Vec<u8>> = Vec::new();
+    let mut out = Vec::new();
+    let (mut total, mut information) = (0u64, 0u64);
+    for (i, a) in archives.iter().enumerate() {
+        let info = inspect(a)?;
+        let steps = performance::frame_steps(&info).ok_or(Error::Decode)?;
+        total = total.checked_add(steps).ok_or(Error::Decode)?;
+        let starts = i == 0 || starts_block(reads[i], reads[i + 1..].iter().copied());
+        let mut ready = if starts { 0 } else { finish[i - 1] };
+        let output = match archive::reference_of(a) {
+            Some(label) => {
+                let (at, run) = held.get(&label).ok_or(Error::Decode)?;
+                ready = ready.max(finish[*at]);
+                match archive::reference_decode(a, run) {
+                    Some(output) => output,
+                    None => decompress_frame_with(a, &[run], work)?,
+                }
+            }
+            None => {
+                let view: Vec<&[u8]> = window.iter().map(Vec::as_slice).collect();
+                let (output, bits, payloads) =
+                    ncm::measure_information(|| decompress_frame_with(a, &view, work));
+                let output = output?;
+                match info.representation {
+                    Representation::Raw => {
+                        information += (8 << ncm::INFORMATION_BITS) * output.len() as u64
+                    }
+                    Representation::Ncm | Representation::NcmX86 => {
+                        // every coded frame is decoded by the native ncm decoder
+                        // (its single payload), so its information is counted
+                        if payloads != 1 {
+                            return Err(Error::Decode);
+                        }
+                        information += bits;
+                    }
+                    _ => return Err(Error::Decode),
+                }
+                output
+            }
+        };
+        finish.push(ready + steps);
+        let mut missing: std::collections::HashMap<u64, std::collections::HashSet<[u8; 32]>> =
+            Default::default();
+        for (label, n) in &wanted {
+            if !held.contains_key(label) {
+                missing.entry(*n).or_default().insert(*label);
+            }
+        }
+        if !missing.is_empty() {
+            for (label, run) in chunk::runs(&output, missing) {
+                held.insert(label, (i, output[run].to_vec()));
+            }
+        }
+        out.extend_from_slice(&output);
+        window.push(output);
+        if window.len() > REACH {
+            window.remove(0);
+        }
+    }
+    Ok((
+        out,
+        Schedule {
+            total,
+            chain: finish.iter().copied().max().unwrap_or(0),
+            information,
+            frames: archives.len() as u64,
+        },
+    ))
 }
 
 /// Apply `f` to every item on up to `threads` workers, keeping order.
@@ -2197,7 +2309,7 @@ mod tests {
     /// library) and an ncm window frame over the two frames before.
     #[test]
     fn released_streams_decode() {
-        let frame: Vec<u8> = (0..FRAME)
+        let frame: Vec<u8> = (0..8 << 20)
             .map(|i| ((((i >> 4) * 7 + (i >> 12)) & 0x3f) + 0x20) as u8)
             .collect();
         let input = [&frame[..], &frame[..], &frame[1000..5096]].concat();
@@ -2578,7 +2690,10 @@ mod tests {
     /// damaged encoder output, resealed, so most leave the encoder's language.
     #[test]
     fn native_decoder_agrees_with_the_reference_where_it_accepts() {
-        let input = text(64, 11);
+        // The reference semantics runs the kernel graph at seconds per output
+        // byte (64 bytes: 265 s, 16 bytes: 97 s); 16 bytes keeps both an
+        // accepted and a declined mutation within the rounds.
+        let input = text(16, 11);
         let payload = ulz::encode(&input);
         let (mut accepted, mut declined) = (0, 0);
         let mut x = 0x9e37_79b9_7f4a_7c15u64;
@@ -3129,5 +3244,31 @@ mod tests {
         let native = compress_frame_with(b, &[a], 0).expect("native");
         let model = on_reference_stack(|| reference_compress(b, &[a], 0)).expect("model");
         assert_eq!(native, model);
+    }
+
+    /// A coded payload is the information its model assigns, rounded up to
+    /// whole bytes, plus the coder's 4-byte length and up to its final byte
+    /// or two; a one-frame stream's chain is all its steps.
+    #[test]
+    fn the_schedule_counts_information_and_the_chain() {
+        let data = text(60_000, 3);
+        for profile in [ncm::FULL, ncm::V03] {
+            let payload = ncm::encode_profile(&[], &data, profile).expect("payload");
+            let (back, bits, payloads) =
+                ncm::measure_information(|| ncm::decode_profile(&[], &payload, u64::MAX, profile));
+            assert_eq!((back.as_deref(), payloads), (Some(&data[..]), 1));
+            let whole = bits.div_ceil(8 << ncm::INFORMATION_BITS) as usize;
+            assert!(
+                (4..=6).contains(&(payload.len() as i64 - whole as i64)),
+                "{profile:#x} {} {whole}",
+                payload.len()
+            );
+        }
+        // outside a measurement nothing is counted
+        assert_eq!(ncm::measure_information(|| ()).1, 0);
+        let one = compress(&data, 0).expect("compress");
+        let (back, s) = decode_schedule(&one, u64::MAX).expect("schedule");
+        assert_eq!((back, s.frames, s.chain), (data.clone(), 1, s.total));
+        assert!(s.information.div_ceil(8 << ncm::INFORMATION_BITS) < one.len() as u64);
     }
 }

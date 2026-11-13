@@ -2549,6 +2549,60 @@ pub fn decode_profile(history: &[u8], payload: &[u8], limit: u64, profile: u32) 
     run_profile(history, payload, limit, false, profile)
 }
 
+thread_local! {
+    /// The information this thread's decoder is summing, while
+    /// [`measure_information`] runs: 1/256 bits and payloads decoded.
+    static INFORMATION: std::cell::Cell<Option<(u64, u64)>> = const { std::cell::Cell::new(None) };
+}
+
+/// Bits of fraction [`information_cost`] counts in.
+pub const INFORMATION_BITS: u32 = 24;
+
+/// `cost[p]` = 2^24 log2(4096 / p): the information of a bit coded at
+/// probability p / 4096, in 2^-24 bit. Integer and exact to the last unit
+/// but one: p is normalised to 2^63 <= m < 2^64 and squared once for each
+/// fraction bit, keeping 64 bits each time.
+fn information_cost() -> &'static [u32; 4096] {
+    static COST: std::sync::OnceLock<Box<[u32; 4096]>> = std::sync::OnceLock::new();
+    COST.get_or_init(|| {
+        let mut cost = Box::new([0u32; 4096]);
+        for (p, c) in cost.iter_mut().enumerate().skip(1) {
+            let (mut m, mut e) = (p as u128, 0u32);
+            while m < 1 << 63 {
+                m <<= 1;
+                e += 1;
+            }
+            // log2 p = 63 - e + log2(m / 2^63), the last in [0, 1)
+            let mut frac = 0u64;
+            for j in 0..INFORMATION_BITS {
+                m = (m * m) >> 63;
+                if m >= 1 << 64 {
+                    m >>= 1;
+                    frac |= 1 << (INFORMATION_BITS - 1 - j);
+                }
+            }
+            let log2p = (u64::from(63 - e) << INFORMATION_BITS) + frac;
+            *c = ((12u64 << INFORMATION_BITS) - log2p) as u32;
+        }
+        cost
+    })
+}
+
+/// Run `f` on this thread and return, beside its result, the information
+/// the model assigned to every bit the ncm decoder decoded meanwhile on this
+/// thread, in 2^-24 bit ([`INFORMATION_BITS`]: log2 of 4096 over the
+/// probability, out of 4096, the coded bit had), and the number of payloads
+/// decoded. It is the length the
+/// model's own predictions assign to the frame's bits, before the coder's
+/// rounding and the archive's form (`Uorc.Performance::leastArchive`). A
+/// decoder thread `f` starts counts nothing here.
+pub fn measure_information<T>(f: impl FnOnce() -> T) -> (T, u64, u64) {
+    let outer = INFORMATION.with(|c| c.replace(Some((0, 0))));
+    let value = f();
+    let (sum, frames) = INFORMATION.with(|c| c.replace(outer)).unwrap_or((0, 0));
+    (value, sum, frames)
+}
+
 #[inline(always)]
 fn decoder<K: Kernel>(
     history: &[&[u8]],
@@ -2594,6 +2648,13 @@ fn decode_bits<K: Kernel, const W: usize>(
     // coder bytes the encoder has emitted so far
     let mut emitted = 0usize;
     let (mut x1, mut x2) = (0u32, u32::MAX);
+    let measuring = INFORMATION.with(|c| c.get().is_some());
+    let cost: &[u32; 4096] = if measuring {
+        information_cost()
+    } else {
+        &[0; 4096]
+    };
+    let mut information = 0u64;
     for i in 0..n as usize {
         if i % TICK == 0 {
             tick(i, n as usize);
@@ -2606,6 +2667,9 @@ fn decode_bits<K: Kernel, const W: usize>(
                 x2 = xm;
             } else {
                 x1 = xm + 1;
+            }
+            if measuring {
+                information += u64::from(cost[if y { p } else { 4096 - p } as usize]);
             }
             while (x1 ^ x2) >> 24 == 0 {
                 if canonical {
@@ -2628,6 +2692,13 @@ fn decode_bits<K: Kernel, const W: usize>(
             || payload[4 + emitted] != (x1 >> 24) as u8)
     {
         return None;
+    }
+    if measuring {
+        INFORMATION.with(|c| {
+            if let Some((sum, frames)) = c.get() {
+                c.set(Some((sum + information, frames + 1)));
+            }
+        });
     }
     let mut out = m.hist;
     out.drain(..history);
