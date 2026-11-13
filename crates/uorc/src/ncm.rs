@@ -525,7 +525,8 @@ fn adapt_slot(s: &mut u32, y: bool, rate: &[i32; 128]) {
     *s = (p & 0xffff) | ((n + u32::from(n < 127)) << 16);
 }
 
-/// Warmed models kept for reuse (state bytes, profile, table mask, bytes
+/// Warmed models kept for reuse (state bytes, profile, (table mask, match
+/// table bits), bytes
 /// held, model): the most recently used last. What the process keeps is the
 /// declared decode host's rule ([`crate::performance::Host::warmed_kept`]):
 /// the most recent ones whose bytes ([`warmed_bytes`]), whatever table size
@@ -533,7 +534,7 @@ fn adapt_slot(s: &mut u32, y: bool, rate: &[i32; 128]) {
 /// ([`crate::performance::Host::warmed_room`]), so a later frame continuing
 /// the same state replays nothing and decodes the same bytes.
 /// Decoders keep them; an encoder reads them and keeps none.
-type Warmed = Vec<(Box<[u8]>, u32, u32, u64, Model)>;
+type Warmed = Vec<(Box<[u8]>, u32, (u32, u32), u64, Model)>;
 static WARMED: std::sync::Mutex<Warmed> = std::sync::Mutex::new(Vec::new());
 
 /// Bytes a warmed model kept for reuse holds: the tables sized for the state
@@ -780,16 +781,15 @@ impl Model {
     /// so the warmed model is computed once per state and profile and cloned.
     fn warmed<K: Kernel>(n: u32, state: &[u8], profile: u32, keep: bool) -> Option<Model> {
         let total = n.checked_add(u32::try_from(state.len()).ok()?)?;
-        let (mut mask, _) = Model::sized(total);
-        if let Some(tb) = recorded_table_bits(profile) {
-            mask = ((1u64 << tb) - 1) as u32;
-        }
+        // the model's dimensions, table mask and match table bits: two
+        // frames share a warmed model only when both are the same
+        let dims = Model::dims(total, profile);
         let mut cache = WARMED
             .lock()
             .unwrap_or_else(std::sync::PoisonError::into_inner);
         if let Some(i) = cache
             .iter()
-            .position(|(s, p, k, _, _)| *p == profile && *k == mask && s[..] == *state)
+            .position(|(s, p, k, _, _)| *p == profile && *k == dims && s[..] == *state)
         {
             let hit = cache.remove(i);
             let m = hit.4.clone();
@@ -824,7 +824,7 @@ impl Model {
         // replayed (`Uorc.Host`, field store): the same model, value for
         // value, so the same bytes.
         #[cfg(not(target_family = "wasm"))]
-        let stored = image::read::<K>(state, profile, Model::dims(total, profile), 0);
+        let stored = image::read::<K>(state, profile, dims, 0);
         #[cfg(target_family = "wasm")]
         let stored: Option<Model> = None;
         let m = match stored {
@@ -844,7 +844,7 @@ impl Model {
             }
         };
         if keep && each <= room {
-            cache.push((state.into(), profile, mask, each, m.clone()));
+            cache.push((state.into(), profile, dims, each, m.clone()));
         }
         Some(m)
     }

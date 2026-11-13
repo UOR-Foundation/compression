@@ -12,7 +12,8 @@
 //!
 //! Whether a host keeps an image is decided by outcome on that host: the
 //! image is kept when writing it took less time than replaying the state,
-//! so reading it back is the cheaper way to the same model there.
+//! so reading it back is the cheaper way to the same model there. The store
+//! holds at most the host's memory in images, least recently used out.
 
 use super::{Apm, Bucket, Kernel, Model, Table, Twin, NC};
 use sha2::{Digest, Sha256};
@@ -61,12 +62,26 @@ impl<W: Write> Out<W> {
     }
 }
 
-struct In<R: Read>(R);
+/// A reader of an image with `left` bytes still in its file: no length it
+/// reads may ask for more, so a damaged image is refused before anything
+/// is allocated for it.
+struct In<R: Read> {
+    r: R,
+    left: u64,
+}
 
 impl<R: Read> In<R> {
+    fn raw(&mut self, buf: &mut [u8]) -> io::Result<()> {
+        let n = buf.len() as u64;
+        if n > self.left {
+            return Err(bad());
+        }
+        self.left -= n;
+        self.r.read_exact(buf)
+    }
     fn u(&mut self) -> io::Result<u64> {
         let mut b = [0; 8];
-        self.0.read_exact(&mut b)?;
+        self.raw(&mut b)?;
         Ok(u64::from_le_bytes(b))
     }
     fn us(&mut self) -> io::Result<usize> {
@@ -82,13 +97,17 @@ impl<R: Read> In<R> {
         Ok(self.u()? != 0)
     }
     fn len(&mut self) -> io::Result<usize> {
-        self.us()
+        let n = self.us()?;
+        if n as u64 > self.left {
+            return Err(bad());
+        }
+        Ok(n)
     }
     fn into<T: Raw>(&mut self, dst: &mut [T]) -> io::Result<()> {
         if self.len()? != dst.len() {
             return Err(bad());
         }
-        self.0.read_exact(bytes_mut(dst))
+        self.raw(bytes_mut(dst))
     }
     fn arr<T: Raw + Default, const N: usize>(&mut self) -> io::Result<[T; N]> {
         let mut a = [T::default(); N];
@@ -98,13 +117,13 @@ impl<R: Read> In<R> {
     fn vec<T: Raw + Default>(&mut self) -> io::Result<Vec<T>> {
         let n = self.len()?;
         let mut v = vec![T::default(); n];
-        self.0.read_exact(bytes_mut(&mut v))?;
+        self.raw(bytes_mut(&mut v))?;
         Ok(v)
     }
     fn table<T: Raw + super::Spare + Default>(&mut self) -> io::Result<Table<T>> {
         let n = self.len()?;
         let mut t = Table::new(n, T::default());
-        self.0.read_exact(bytes_mut(&mut t))?;
+        self.raw(bytes_mut(&mut t))?;
         Ok(t)
     }
     fn gain(&mut self) -> io::Result<Option<Box<[i64; NC]>>> {
@@ -301,8 +320,8 @@ fn save(m: &Model, w: impl Write) -> io::Result<()> {
 }
 
 /// Reads a model [`save`] wrote, every field in the same order.
-fn load(r: impl Read) -> io::Result<Model> {
-    let mut i = In(r);
+fn load(r: impl Read, left: u64) -> io::Result<Model> {
+    let mut i = In { r, left };
     let gain = i.gain()?;
     let twin = i.twin()?;
     let act = i.arr::<u32, { super::NC }>()?.map(|v| v as usize);
@@ -447,13 +466,16 @@ pub(super) fn read<K: Kernel>(
 ) -> Option<Model> {
     let (path, key) = place::<K>(state, profile, dims, form)?;
     let f = std::fs::File::open(&path).ok()?;
+    let size = f.metadata().ok()?.len();
+    // a read makes the image the most recently used ([`prune`])
+    let _ = f.set_modified(std::time::SystemTime::now());
     let mut r = io::BufReader::with_capacity(1 << 20, f);
     let mut head = [0u8; 32];
     r.read_exact(&mut head).ok()?;
     if head != key {
         return None;
     }
-    let m = load(&mut r).ok()?;
+    let m = load(&mut r, size.checked_sub(32)?).ok()?;
     // the whole file was read: a trailing byte means another writer's image
     let mut rest = [0u8; 1];
     if r.read(&mut rest).ok()? != 0 || (m.mask, m.mb) != dims {
@@ -481,7 +503,13 @@ pub(super) fn write<K: Kernel>(
     if std::fs::create_dir_all(dir).is_err() {
         return;
     }
-    let tmp = path.with_extension(format!("{}.tmp", std::process::id()));
+    // a writer's own temporary name: threads of one process write too
+    static WRITER: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+    let tmp = path.with_extension(format!(
+        "{}.{}.tmp",
+        std::process::id(),
+        WRITER.fetch_add(1, std::sync::atomic::Ordering::Relaxed)
+    ));
     let t = Instant::now();
     let written = (|| -> io::Result<()> {
         let f = std::fs::File::create(&tmp)?;
@@ -493,9 +521,38 @@ pub(super) fn write<K: Kernel>(
             .sync_data()
     })();
     if written.is_ok() && t.elapsed() < replay && std::fs::rename(&tmp, &path).is_ok() {
+        prune(dir, crate::region::Host::current().memory);
         return;
     }
     let _ = std::fs::remove_file(&tmp);
+}
+
+/// Keeps the store within `bound` bytes, the running host's memory: an image
+/// is worth keeping while the host can hold it where a read is fast, so the
+/// least recently used images (by the time each was last read or written)
+/// leave first.
+fn prune(dir: &std::path::Path, bound: u64) {
+    let Ok(entries) = std::fs::read_dir(dir) else {
+        return;
+    };
+    let mut images: Vec<(std::time::SystemTime, u64, PathBuf)> = entries
+        .filter_map(Result::ok)
+        .filter(|e| e.path().extension().is_some_and(|x| x == "warm"))
+        .filter_map(|e| {
+            let m = e.metadata().ok()?;
+            Some((m.modified().ok()?, m.len(), e.path()))
+        })
+        .collect();
+    images.sort();
+    let mut total: u64 = images.iter().map(|i| i.1).sum();
+    for (_, len, path) in images {
+        if total <= bound {
+            break;
+        }
+        if std::fs::remove_file(&path).is_ok() {
+            total -= len;
+        }
+    }
 }
 
 #[cfg(test)]
@@ -541,10 +598,15 @@ mod tests {
         }
         let mut img = Vec::new();
         super::save(&m, &mut img).expect("saves");
-        let back = super::load(&img[..]).expect("loads");
+        let back = super::load(&img[..], img.len() as u64).expect("loads");
         let mut again = Vec::new();
         super::save(&back, &mut again).expect("saves");
         assert_eq!(img, again, "an image reads back to the same fields");
+        let half = img.len() / 2;
+        assert!(
+            super::load(&img[..half], half as u64).is_err(),
+            "a cut image is refused"
+        );
         // with a twin, both coders' payloads
         let stops = [usize::MAX, if twin { usize::MAX } else { 0 }];
         let a = run_encoder::<Scalar>(m, data, false, stops);
