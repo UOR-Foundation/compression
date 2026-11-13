@@ -121,14 +121,31 @@ jobs:
           ref: ${{ env.REF }}
           fetch-depth: 0
           persist-credentials: false
-      - name: Build and test the client
+      # The bootstrap gate this release requires already ran uorc's tests on
+      # this tree on both architectures (the rest legs, with debug
+      # assertions), so this job does not compile and run them a second time
+      # in release mode. It checks what ships instead: the release binary
+      # round-trips an empty input, one byte, a small text and a multi-frame
+      # input (a tar of the client sources, cut past two 8 MiB frames) byte for byte.
+      - name: Build the client and round-trip the shipped binary
         id: run
         run: |
           set -euo pipefail
           rustup show active-toolchain
-          cargo test --locked --release -p uorc
           cargo build --locked --release -p uorc --target ${{ matrix.target }}
           mkdir -p build && cp "target/${{ matrix.target }}/release/uorc" build/
+          work=$(mktemp -d)
+          : > "$work/empty"
+          printf 'u' > "$work/one"
+          head -c 65536 crates/uorc/src/lib.rs > "$work/text"
+          git archive --format=tar -o "$work/client.tar" HEAD -- crates/uorc generated/rust
+          head -c $((17 * 1024 * 1024)) "$work/client.tar" > "$work/frames"
+          for f in empty one text frames; do
+            build/uorc compress "$work/$f" -o "$work/$f.uorc"
+            build/uorc decompress "$work/$f.uorc" -o "$work/$f.back"
+            cmp "$work/$f" "$work/$f.back"
+            echo "$f: $(stat -c %s "$work/$f") -> $(stat -c %s "$work/$f.uorc") bytes, round trip exact"
+          done
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: factory-native-${{ matrix.target }}
