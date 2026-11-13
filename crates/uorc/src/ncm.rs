@@ -202,7 +202,7 @@ fn tables() -> &'static Tables {
 /// between learned points of its row for the context.
 #[derive(Clone)]
 struct Apm {
-    t: Vec<u16>,
+    t: Table<u16>,
     idx: usize,
 }
 
@@ -212,7 +212,7 @@ impl Apm {
             .map(|j| (squash((j - 16) * 128) * 16) as u16)
             .collect();
         Apm {
-            t: row.repeat(rows),
+            t: Table::repeat(&row, rows),
             idx: 0,
         }
     }
@@ -365,7 +365,7 @@ fn adapt(p: &mut u16, n: &mut u8, y: bool, rate: &[i32; 128]) {
     }
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Default)]
 #[repr(C, align(64))]
 struct Bucket([u32; 16]);
 
@@ -374,7 +374,15 @@ struct Bucket([u32; 16]);
 /// that size or smaller uses it: allocating ~100 MiB of fresh tables per
 /// frame, or per table size the table facet tries, left the allocator's free
 /// space in pieces, and the memory grew with every frame and size.
-struct Table<T: Spare>(Vec<T>);
+struct Table<T: Spare>(Store<T>);
+
+/// Where a table's entries live: an ordinary vector in WebAssembly, whose
+/// memory has no pages to place, and a host region elsewhere
+/// ([`crate::region`]), placed by the table's working set.
+#[cfg(target_family = "wasm")]
+type Store<T> = Vec<T>;
+#[cfg(not(target_family = "wasm"))]
+type Store<T> = crate::region::Region<T>;
 
 impl<T: Spare> Clone for Table<T> {
     fn clone(&self) -> Self {
@@ -384,13 +392,16 @@ impl<T: Spare> Clone for Table<T> {
 
 trait Spare: Copy + 'static {
     /// Tables of this type one model holds, so the spares a worker keeps.
+    #[cfg_attr(not(target_family = "wasm"), allow(dead_code))]
     const HELD: usize;
+    #[cfg_attr(not(target_family = "wasm"), allow(dead_code))]
     fn spares() -> &'static std::thread::LocalKey<std::cell::RefCell<Vec<Vec<Self>>>>;
 }
 
 thread_local! {
     static SPARE_BUCKETS: std::cell::RefCell<Vec<Vec<Bucket>>> = const { std::cell::RefCell::new(Vec::new()) };
     static SPARE_WORDS: std::cell::RefCell<Vec<Vec<u32>>> = const { std::cell::RefCell::new(Vec::new()) };
+    static SPARE_HALVES: std::cell::RefCell<Vec<Vec<u16>>> = const { std::cell::RefCell::new(Vec::new()) };
 }
 
 impl Spare for Bucket {
@@ -409,10 +420,19 @@ impl Spare for u32 {
     }
 }
 
+impl Spare for u16 {
+    // the two probability maps
+    const HELD: usize = 2;
+    fn spares() -> &'static std::thread::LocalKey<std::cell::RefCell<Vec<Vec<Self>>>> {
+        &SPARE_HALVES
+    }
+}
+
 impl<T: Spare> Table<T> {
     /// `len` entries of `value`.
+    #[cfg(target_family = "wasm")]
     fn new(len: usize, value: T) -> Table<T> {
-        if cfg!(target_family = "wasm") && len > 0 {
+        if len > 0 {
             // the least spare that holds `len` entries; a larger one is
             // used in part, so stepping a table's size down allocates
             // nothing and the heap is never left with a freed table that
@@ -436,11 +456,32 @@ impl<T: Spare> Table<T> {
         }
         Table(vec![value; len])
     }
+
+    /// `len` entries of `value`.
+    #[cfg(not(target_family = "wasm"))]
+    fn new(len: usize, value: T) -> Table<T> {
+        Table(crate::region::Region::new(len, value))
+    }
+
+    /// No entries (a table handed to another model).
+    fn empty() -> Table<T> {
+        Table(Store::<T>::default())
+    }
+
+    /// `len` entries, each the corresponding entry of `row` repeated.
+    fn repeat(row: &[T], rows: usize) -> Table<T> {
+        let mut t = Table::new(row.len() * rows, row[0]);
+        for chunk in t.chunks_exact_mut(row.len()) {
+            chunk.copy_from_slice(row);
+        }
+        t
+    }
 }
 
+#[cfg(target_family = "wasm")]
 impl<T: Spare> Drop for Table<T> {
     fn drop(&mut self) {
-        if cfg!(target_family = "wasm") && !self.0.is_empty() {
+        if !self.0.is_empty() {
             let t = std::mem::take(&mut self.0);
             T::spares().with(|s| {
                 let mut s = s.borrow_mut();
@@ -484,7 +525,8 @@ fn adapt_slot(s: &mut u32, y: bool, rate: &[i32; 128]) {
     *s = (p & 0xffff) | ((n + u32::from(n < 127)) << 16);
 }
 
-/// Warmed models kept for reuse (state bytes, profile, table mask, bytes
+/// Warmed models kept for reuse (state bytes, profile, (table mask, match
+/// table bits), bytes
 /// held, model): the most recently used last. What the process keeps is the
 /// declared decode host's rule ([`crate::performance::Host::warmed_kept`]):
 /// the most recent ones whose bytes ([`warmed_bytes`]), whatever table size
@@ -492,7 +534,7 @@ fn adapt_slot(s: &mut u32, y: bool, rate: &[i32; 128]) {
 /// ([`crate::performance::Host::warmed_room`]), so a later frame continuing
 /// the same state replays nothing and decodes the same bytes.
 /// Decoders keep them; an encoder reads them and keeps none.
-type Warmed = Vec<(Box<[u8]>, u32, u32, u64, Model)>;
+type Warmed = Vec<(Box<[u8]>, u32, (u32, u32), u64, Model)>;
 static WARMED: std::sync::Mutex<Warmed> = std::sync::Mutex::new(Vec::new());
 
 /// Bytes a warmed model kept for reuse holds: the tables sized for the state
@@ -607,8 +649,9 @@ impl Model {
     /// position, and every other model starts fresh.
     /// A model for `n` bytes coded after `history`, the concatenation of its
     /// pieces (a window decodes without first joining its frames).
-    fn new(n: u32, history: &[&[u8]], profile: u32) -> Model {
-        let before: usize = history.iter().map(|h| h.len()).sum();
+    /// (table mask, match table bits) of a model for `n` bytes under
+    /// `profile`: [`Model::sized`], unless the profile word records them.
+    fn dims(n: u32, profile: u32) -> (u32, u32) {
         let (mut mask, mut mb) = Model::sized(n);
         if let Some(tb) = recorded_table_bits(profile) {
             mask = ((1u64 << tb) - 1) as u32;
@@ -616,6 +659,12 @@ impl Model {
         if let Some(bits) = recorded_match_bits(profile) {
             mb = bits;
         }
+        (mask, mb)
+    }
+
+    fn new(n: u32, history: &[&[u8]], profile: u32) -> Model {
+        let before: usize = history.iter().map(|h| h.len()).sum();
+        let (mask, mb) = Model::dims(n, profile);
         let profile = profile & FULL;
         let mut act = [0; NC];
         let mut na = 0;
@@ -732,16 +781,15 @@ impl Model {
     /// so the warmed model is computed once per state and profile and cloned.
     fn warmed<K: Kernel>(n: u32, state: &[u8], profile: u32, keep: bool) -> Option<Model> {
         let total = n.checked_add(u32::try_from(state.len()).ok()?)?;
-        let (mut mask, _) = Model::sized(total);
-        if let Some(tb) = recorded_table_bits(profile) {
-            mask = ((1u64 << tb) - 1) as u32;
-        }
+        // the model's dimensions, table mask and match table bits: two
+        // frames share a warmed model only when both are the same
+        let dims = Model::dims(total, profile);
         let mut cache = WARMED
             .lock()
             .unwrap_or_else(std::sync::PoisonError::into_inner);
         if let Some(i) = cache
             .iter()
-            .position(|(s, p, k, _, _)| *p == profile && *k == mask && s[..] == *state)
+            .position(|(s, p, k, _, _)| *p == profile && *k == dims && s[..] == *state)
         {
             let hit = cache.remove(i);
             let m = hit.4.clone();
@@ -772,14 +820,31 @@ impl Model {
             }
             cache.drain(..kept);
         }
-        let mut m = Model::new(total, &[], profile);
-        if m.stride == NINP_NARROW {
-            m.warm::<K, NINP_NARROW>(state);
-        } else {
-            m.warm::<K, NINP>(state);
-        }
+        // A host with a persistent store reads the model an earlier process
+        // replayed (`Uorc.Host`, field store): the same model, value for
+        // value, so the same bytes.
+        #[cfg(not(target_family = "wasm"))]
+        let stored = image::read::<K>(state, profile, dims, 0);
+        #[cfg(target_family = "wasm")]
+        let stored: Option<Model> = None;
+        let m = match stored {
+            Some(m) => m,
+            None => {
+                #[cfg(not(target_family = "wasm"))]
+                let t = std::time::Instant::now();
+                let mut m = Model::new(total, &[], profile);
+                if m.stride == NINP_NARROW {
+                    m.warm::<K, NINP_NARROW>(state);
+                } else {
+                    m.warm::<K, NINP>(state);
+                }
+                #[cfg(not(target_family = "wasm"))]
+                image::write::<K>(&m, state, profile, (m.mask, m.mb), 0, t.elapsed());
+                m
+            }
+        };
         if keep && each <= room {
-            cache.push((state.into(), profile, mask, each, m.clone()));
+            cache.push((state.into(), profile, dims, each, m.clone()));
         }
         Some(m)
     }
@@ -1602,6 +1667,8 @@ macro_rules! dispatch {
     }};
 }
 
+#[cfg(not(target_family = "wasm"))]
+mod image;
 pub mod streams;
 
 #[cfg(target_arch = "x86_64")]
@@ -2194,6 +2261,18 @@ fn encoder_pair<K: Kernel>(
     };
     // with a state, the model `Model::warmed` builds, sized for the state and
     // the frame; the twin replays the state with it below
+    // A shared pass warmed from a state on an earlier run of this build is
+    // read from the host's store (`image`): the same model and twin.
+    #[cfg(not(target_family = "wasm"))]
+    let form = 1 + u8::from(learn[1]);
+    #[cfg(not(target_family = "wasm"))]
+    if !state.is_empty() {
+        if let Some(m) = image::read::<K>(state, profile, Model::dims(total, profile), form) {
+            return run_encoder::<K>(m, data, learn[0], stops);
+        }
+    }
+    #[cfg(not(target_family = "wasm"))]
+    let t = std::time::Instant::now();
     let mut m = if state.is_empty() {
         Model::new(n, &[history], profile)
     } else {
@@ -2216,6 +2295,8 @@ fn encoder_pair<K: Kernel>(
         } else {
             m.warm::<K, NINP>(state);
         }
+        #[cfg(not(target_family = "wasm"))]
+        image::write::<K>(&m, state, profile, (m.mask, m.mb), form, t.elapsed());
     }
     run_encoder::<K>(m, data, learn[0], stops)
 }
