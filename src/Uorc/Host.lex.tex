@@ -1,0 +1,130 @@
+\begin{lexlean}{Uorc.Host}
+\title{Parameters}
+\begin{semanticmodule}
+structure{
+  name: Cache,
+  type_parameters: [],
+  parameters: [],
+  fields: [{name: level, type: Nat}, {name: bytes, type: Nat}]
+}
+
+structure{
+  name: Host,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: threads, type: Nat},
+    {name: memory, type: Nat},
+    {name: workers, type: Nat},
+    {name: keepsTables, type: Bool},
+    {name: page, type: Nat},
+    {name: largePage, type: Nat},
+    {name: line, type: Nat},
+    {name: caches, type: (List Cache)}
+  ]
+}
+
+definition{
+  name: granule,
+  parameters: [page : Nat, largePage : Nat, workingSet : Nat],
+  result: Nat,
+  body: (if ((0 <? largePage) && (largePage <=? workingSet)) then largePage else page)
+}
+
+theorem{
+  name: granuleWithinTheWorkingSet,
+  parameters: [page : Nat, largePage : Nat, workingSet : Nat],
+  statement: ((page <= workingSet) -> ((granule page largePage workingSet) <= workingSet)),
+  proof: linear_arithmetic{definitions: [granule]},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: largeGranuleWhenTheWorkingSetSpansOne,
+  parameters: [page : Nat, largePage : Nat, workingSet : Nat],
+  statement: ((0 < largePage) -> ((largePage <= workingSet) -> ((granule page largePage workingSet) = largePage))),
+  proof: linear_arithmetic{definitions: [granule]},
+  axioms: [Classical.choice, Quot.sound, propext]
+}
+
+theorem{
+  name: baseGranuleBelowALargePage,
+  parameters: [page : Nat, largePage : Nat, workingSet : Nat],
+  statement: ((workingSet < largePage) -> ((granule page largePage workingSet) = page)),
+  proof: linear_arithmetic{definitions: [granule]},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: regionWithinTwiceTheWorkingSet,
+  parameters: [granuleBytes : Nat, workingSet : Nat, placed : Nat],
+  statement: ((granuleBytes <= workingSet) -> ((placed < (workingSet + granuleBytes)) -> (placed < (prim multiply 2 workingSet : Nat)))),
+  proof: linear_arithmetic{},
+  axioms: [Quot.sound, propext]
+}
+
+structure{
+  name: Region,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: table, type: String},
+    {name: workingSet, type: String},
+    {name: locality, type: String}
+  ]
+}
+
+definition{
+  name: slotRegion,
+  parameters: [],
+  result: Region,
+  body: (record Region {table := "context slots", workingSet := "the whole table: each context hashes a bucket anywhere in it, every bit", locality := "one bucket of one cache line per context per byte, then its slots within that line"})
+}
+
+definition{
+  name: matchRegion,
+  parameters: [],
+  result: Region,
+  body: (record Region {table := "match and short match positions", workingSet := "the whole table: one hashed entry per byte", locality := "one entry per byte, then the history read forward from it"})
+}
+
+definition{
+  name: mapRegion,
+  parameters: [],
+  result: Region,
+  body: (record Region {table := "second probability map", workingSet := "the whole table: one row hashed from the order-3 context and the bit's prefix, every bit", locality := "two adjacent entries of one row per bit"})
+}
+
+definition{
+  name: mixerRegion,
+  parameters: [],
+  result: Region,
+  body: (record Region {table := "mixer weights and the first probability map", workingSet := "rows selected by the bit's prefix and the order-1 context", locality := "one row per mixer per bit, read and written whole"})
+}
+
+structure{
+  name: Requirement,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: characteristic, type: String},
+    {name: subcharacteristic, type: String},
+    {name: text, type: String}
+  ]
+}
+
+definition{
+  name: twoHosts,
+  parameters: [],
+  result: Requirement,
+  body: (record Requirement {characteristic := "compatibility", subcharacteristic := "interoperability", text := "One Host structure has two values in the client. The declared decode host (uorc performance::Host, PAGE_WORKER by default, --host-memory otherwise; Uorc.Page::pageWorker) sets threads, memory, workers and keepsTables, and is the only host an archive's facets are derived from: the archive never depends on the machine that compressed it. The running host (uorc region::Host::current, printed by uorc host) fills every field from the machine and only places regions, which moves where a table's entries live and never their values."})
+}
+
+definition{
+  name: placedByWorkingSet,
+  parameters: [],
+  result: Requirement,
+  body: (record Requirement {characteristic := "performance efficiency", subcharacteristic := "resource utilization", text := "Every model table is a region of the host: it is placed on the host's large page when its working set spans at least one (largeGranuleWhenTheWorkingSetSpansOne), and on the base page otherwise (baseGranuleBelowALargePage), so a region, its working set rounded up to its granule, never exceeds twice the working set (granuleWithinTheWorkingSet, regionWithinTwiceTheWorkingSet). The host is read from the running machine, never declared by a number in the client; placement moves where entries live and never their values, so an archive's bytes do not depend on it."})
+}
+\end{semanticmodule}
+\end{lexlean}
