@@ -63,6 +63,7 @@ mod frame;
 pub mod ncm;
 pub mod performance;
 pub mod portfolio;
+pub mod region;
 pub mod states;
 mod store;
 pub mod tree;

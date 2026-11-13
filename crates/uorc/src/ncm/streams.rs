@@ -456,19 +456,19 @@ impl Frame {
         let mut hist = std::mem::take(&mut base.hist);
         hist.resize(before + n, 0);
         let shared = Arc::new(Shared {
-            sl: std::mem::replace(&mut base.sl, Table(Vec::new())),
-            mtab: std::mem::replace(&mut base.mtab, Table(Vec::new())),
-            m2tab: std::mem::replace(&mut base.m2tab, Table(Vec::new())),
+            sl: std::mem::replace(&mut base.sl, Table::empty()),
+            mtab: std::mem::replace(&mut base.mtab, Table::empty()),
+            m2tab: std::mem::replace(&mut base.m2tab, Table::empty()),
             hist,
         });
         let mut own = Own::new(&shared);
         let mut lanes = Vec::with_capacity(plan.streams);
         for i in 0..plan.streams {
             let mut m = base.clone();
-            m.sl = Table(Vec::new());
+            m.sl = Table::empty();
             m.hist = Vec::new();
-            m.mtab = Table(Vec::new());
-            m.m2tab = Table(Vec::new());
+            m.mtab = Table::empty();
+            m.m2tab = Table::empty();
             let start = before + plan.range(n, i).start;
             m.lane = Some(Box::new(Lane {
                 shared: Some(Arc::clone(&shared)),
@@ -712,7 +712,7 @@ impl Frame {
 fn merge_words<T, F>(base: &mut [T], lanes: &mut [Model], get: F, (lo, hi): (i32, i32)) -> u64
 where
     T: Copy + PartialEq + Into<i32> + TryFrom<i32>,
-    F: Fn(&mut Model) -> &mut Vec<T>,
+    F: Fn(&mut Model) -> &mut [T],
 {
     const CHUNK: usize = 64;
     let mut steps = 0;
@@ -737,7 +737,7 @@ fn merge_word<T, F>(
 ) -> u64
 where
     T: Copy + PartialEq + Into<i32> + TryFrom<i32>,
-    F: Fn(&mut Model) -> &mut Vec<T>,
+    F: Fn(&mut Model) -> &mut [T],
 {
     {
         let x = base[j];
