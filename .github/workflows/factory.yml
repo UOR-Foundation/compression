@@ -12,13 +12,27 @@
 # release.yml is dispatched from the default branch to publish it (a tag made
 # with this token starts no workflow, and the github-pages environment
 # refuses tag refs, so the run comes from the branch and checks out the tag).
+#
+# After a bootstrap run, and when a request is labelled `merge-train`, it moves
+# the merge train (scripts/factory.mjs merge-train): labelled requests into the
+# default branch merge one at a time, in label order. The head of the train is
+# brought up to date with the default branch, tested by a dispatched bootstrap
+# run (a push or merge made with this token starts no workflow), and
+# squash-merged once the required checks pass on it; then bootstrap is
+# dispatched on the default branch, whose receipts drive the release step.
 name: factory
 
 on:
   workflow_run:
     workflows: [bootstrap, SDK offline reproducibility, release, pages client]
     types: [completed]
-  # Re-decides the release step by hand (e.g. after fixing a failed rehearsal).
+  # Labelling a request `merge-train` moves the train at once. Only the
+  # merge-train job runs on it, from the default branch; no request code is
+  # checked out.
+  pull_request_target:
+    types: [labeled]
+  # Re-decides the release step and moves the merge train by hand (e.g. after
+  # fixing a failed rehearsal).
   workflow_dispatch:
 
 permissions:
@@ -99,3 +113,33 @@ jobs:
           gh api "repos/$GITHUB_REPOSITORY/git/refs" -f ref="refs/tags/$TAG" -f sha="$object" >/dev/null
           gh workflow run release.yml --repo "$GITHUB_REPOSITORY" --ref "$DEFAULT_BRANCH" -f ref="$TAG" -f mode=publish
           echo "::notice title=released $TAG::tagged $SHA and dispatched the publish run"
+
+  merge-train:
+    name: move the merge train
+    needs: receipts
+    if: always() && (github.event_name == 'workflow_dispatch' || github.event.workflow_run.name == 'bootstrap' || github.event.label.name == 'merge-train')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    concurrency:
+      group: factory-merge-train
+      cancel-in-progress: false
+    # contents: update a request's branch and merge it; pull-requests: merge,
+    # take the label off and comment; issues: create the label when missing;
+    # checks: read the required checks; actions: list and dispatch bootstrap runs.
+    permissions:
+      contents: write
+      issues: write
+      pull-requests: write
+      checks: read
+      actions: write
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Update, test or merge the head of the train
+        env:
+          GH_TOKEN: ${{ github.token }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        run: node scripts/factory.mjs merge-train
