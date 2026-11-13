@@ -47,8 +47,10 @@ jobs:
     runs-on: ${{ matrix.runner }}
     # The full verify's certificate stage runs one Lean process per production
     # root, serially (LexLean 0.4), which alone takes about half an hour; the
-    # integrity leg's canonical runtime verifies its own scoped closure.
-    timeout-minutes: ${{ (matrix.leg == 'artifacts' || matrix.leg == 'integrity') && 120 || 60 }}
+    # integrity leg's canonical runtime verifies its own scoped closure. The
+    # rest leg's client tests take about an hour since v0.5 (58 minutes on
+    # x86), so every leg has the same guard against a hung job.
+    timeout-minutes: 120
     steps:
       - name: Check out the exact event revision
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
