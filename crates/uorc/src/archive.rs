@@ -192,9 +192,8 @@ pub enum Codec {
     /// [`Codec::Ncm`] over the x86 branch filter ([`crate::x86`]).
     NcmX86,
     /// The context-mixing coder under the frame word it carries: the model
-    /// profile ([`crate::ncm::valid_profile`]); the word's streams and epoch
-    /// fields ([`crate::ncm::streams::split`]) are reserved and zero
-    /// ([`frame_word`]), which the entry names.
+    /// profile ([`crate::ncm::valid_profile`]) and the frame's streams
+    /// ([`crate::ncm::streams::split`]), which the entry names.
     Profile(u64),
     /// [`Codec::Profile`] over the x86 branch filter.
     ProfileX86(u64),
@@ -219,7 +218,7 @@ impl Codec {
         match self {
             Codec::Ulz => None,
             Codec::Ncm | Codec::NcmX86 => Some((crate::ncm::V03, crate::ncm::streams::Plan::ONE)),
-            Codec::Profile(w) | Codec::ProfileX86(w) => frame_word(w),
+            Codec::Profile(w) | Codec::ProfileX86(w) => crate::ncm::streams::split(w),
         }
     }
 
@@ -233,23 +232,15 @@ impl Codec {
     }
 }
 
-/// The model profile and plan of a frame word this client reads and writes:
-/// in v0.5 the streams and epoch fields are reserved and must be zero (one
-/// stream), as in the exported decoder (`Archive.profileWord`), so every
-/// archive decodes alike in both clients. The streams coder
-/// ([`crate::ncm::streams`]) is tested here but not yet shipped: its
-/// exported model does not build within the export's bounds.
-pub fn frame_word(word: u64) -> Option<(u32, crate::ncm::streams::Plan)> {
-    crate::ncm::streams::split(word).filter(|(_, plan)| plan.streams == 1)
-}
-
 /// The bytes around the payload of an entry that applies `codec` over `k`
 /// window frames in a basis of `era`: `prefix uleb(len) payload suffix`.
 fn template(codec: Codec, k: usize, era: Era) -> Option<(Cow<'static, [u8]>, Vec<u8>)> {
     if let Codec::Profile(p) | Codec::ProfileX86(p) = codec {
         // A recorded table field or streams are read by this library's ncm blocks only.
-        let (model, plan) = frame_word(p)?;
-        if era != Era::Current && (crate::ncm::records_tables(model) || plan.streams > 1) {
+        let Some((model, plan)) = crate::ncm::streams::split(p) else {
+            return None;
+        };
+        if era != Era::Current && (crate::ncm::records_tables(model) || !plan.serial()) {
             return None;
         }
         let (prefix, tail) = profile_template(k, codec.x86(), era)?;
@@ -287,14 +278,15 @@ fn template(codec: Codec, k: usize, era: Era) -> Option<(Cow<'static, [u8]>, Vec
     Some((Cow::Borrowed(prefix), suffix.to_vec()))
 }
 
-/// Entry bytes, borrowed from the basis or built for a window depth.
-type Bytes = Cow<'static, [u8]>;
-
 /// (prefix, tail) of the profiled entry over `k` window frames in a basis of
 /// `era` (profiled entries exist from v0.4 on). A current-basis entry reads
 /// any number of frames ([`window_profile_template`]); v0.4 entries read at
 /// most two.
-fn profile_template(k: usize, x86: bool, era: Era) -> Option<(Bytes, Bytes)> {
+fn profile_template(
+    k: usize,
+    x86: bool,
+    era: Era,
+) -> Option<(Cow<'static, [u8]>, Cow<'static, [u8]>)> {
     let current = era == Era::Current;
     if !current && era != Era::V04 {
         return None;
@@ -384,8 +376,8 @@ fn parse_body(body: &[u8], k: usize, era: Era) -> Option<(Codec, &[u8])> {
         let rest = rest.strip_prefix(&[0])?;
         let (p, after) = read_uleb(rest, 0)?;
         let ok = after == uleb_len(p)
-            && frame_word(p).is_some_and(|(model, plan)| {
-                era == Era::Current || (!crate::ncm::records_tables(model) && plan.streams == 1)
+            && crate::ncm::streams::split(p).is_some_and(|(model, plan)| {
+                era == Era::Current || (!crate::ncm::records_tables(model) && plan.serial())
             })
             && rest[after..] == tail[..];
         ok.then_some((Codec::profiled(p, x86), payload))
@@ -637,8 +629,8 @@ pub fn linked_archive(codec: Codec, lengths: &[u64], payload: &[u8]) -> Option<V
 fn profiled_era(codec: Codec) -> Era {
     match codec {
         Codec::Profile(p) | Codec::ProfileX86(p)
-            if frame_word(p)
-                .is_some_and(|(m, plan)| !crate::ncm::records_tables(m) && plan.streams == 1) =>
+            if crate::ncm::streams::split(p)
+                .is_some_and(|(m, plan)| !crate::ncm::records_tables(m) && plan.serial()) =>
         {
             Era::V04
         }
@@ -1198,9 +1190,12 @@ fn ncm_decode(
     n: u64,
     (profile, plan): (u32, crate::ncm::streams::Plan),
 ) -> Option<Vec<u8>> {
-    // one stream ([`frame_word`])
-    let _ = plan;
-    crate::ncm::decode_canonical_window(window, payload, n, profile)
+    if plan.serial() {
+        return crate::ncm::decode_canonical_window(window, payload, n, profile);
+    }
+    let threads = crate::ncm::streams::threads(plan);
+    let out = crate::ncm::streams::decode(window, payload, n, profile, plan, threads, true)?;
+    (out.len() as u64 == n).then_some(out)
 }
 
 /// `Archive.fastDecode`, natively: the output of an archive this client wrote

@@ -773,10 +773,37 @@ definition{
 }
 
 definition{
+  name: frameWord,
+  parameters: [word : Nat],
+  result: Bool,
+  body: (let e : Nat := (prim quotient word 9007199254740992 0 : Nat); (let streams : Nat := (prim remainder (prim quotient word 137438953472 0 : Nat) 65536 0 : Nat); (if (e <? 32) then (if (let p : Nat := (prim remainder (prim quotient word 4294967296 0 : Nat) 32 0 : Nat); ((p =? 0) || (p =? 16))) then (if (profileWord (prim remainder word 4294967296 0 : Nat)) then (if (0 <? streams) then true else (e =? 0)) else false) else false) else false))),
+  executable: true,
+  axioms: []
+}
+
+definition{
+  name: ncmDecoder,
+  parameters: [history : Bytes, payload : Bytes, word : Nat],
+  result: Bytes,
+  body: (if (word <? 4294967296) then (Uorc.Codec.NcmDecode::runProfile history payload word) else (Uorc.Codec.NcmDecode::runStreams history payload word)),
+  executable: true,
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: ncmEncoder,
+  parameters: [history : Bytes, input : Bytes, word : Nat],
+  result: Bytes,
+  body: (if (word <? 4294967296) then (Uorc.Codec.NcmEncode::runProfile history input word) else (Uorc.Codec.NcmEncode::runStreams history input word)),
+  executable: true,
+  axioms: [Quot.sound, propext]
+}
+
+definition{
   name: profiledDecoder,
   parameters: [x : Nat, history : Bytes, payload : Bytes, profile : Nat],
   result: Bytes,
-  body: (if (x =? 0) then (Uorc.Codec.NcmDecode::runProfile history payload profile) else (Uorc.Codec.X86::run 1 (prim length history : Nat) (Uorc.Codec.NcmDecode::runProfile (Uorc.Codec.X86::run 0 0 history) payload profile))),
+  body: (if (x =? 0) then (ncmDecoder history payload profile) else (Uorc.Codec.X86::run 1 (prim length history : Nat) (ncmDecoder (Uorc.Codec.X86::run 0 0 history) payload profile))),
   executable: true,
   axioms: [Quot.sound, propext]
 }
@@ -785,7 +812,7 @@ definition{
   name: profiledEncoder,
   parameters: [x : Nat, history : Bytes, input : Bytes, profile : Nat],
   result: Bytes,
-  body: (if (x =? 0) then (Uorc.Codec.NcmEncode::runProfile history input profile) else (let h : Bytes := (Uorc.Codec.X86::run 0 0 history); (let f : Bytes := (Uorc.Codec.X86::run 0 (prim length history : Nat) input); (Uorc.Codec.NcmEncode::runProfile h f profile)))),
+  body: (if (x =? 0) then (ncmEncoder history input profile) else (let h : Bytes := (Uorc.Codec.X86::run 0 0 history); (let f : Bytes := (Uorc.Codec.X86::run 0 (prim length history : Nat) input); (ncmEncoder h f profile)))),
   executable: true,
   axioms: [Quot.sound, propext]
 }
@@ -1410,7 +1437,7 @@ definition{
   name: profiledArchive,
   parameters: [x : Nat, k : Nat, identity : Bytes, n : Nat, profile : Nat, payload : Bytes],
   result: (Option Bytes),
-  body: (if (profileWord profile) then (seal (windowPreimage identity n (profiledBody x k profile payload))) else (ctor Option.none [Bytes])),
+  body: (if (frameWord profile) then (seal (windowPreimage identity n (profiledBody x k profile payload))) else (ctor Option.none [Bytes])),
   executable: true,
   axioms: [Quot.sound, propext]
 }

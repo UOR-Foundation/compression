@@ -537,7 +537,7 @@ def lane_cap(i): return add(mul(2, sub(stream_end(i), stream_start(i))), 64)
 def be32(at): return add(add(add(mul(1 << 24, IN(at)), mul(1 << 16, IN(add(at, 1)))), mul(256, IN(add(at, 2)))), IN(add(at, 3)))
 
 
-plan = [('set', 'prof', mod(V('pf'), 1 << 32)), ('set', 'sk', add(mod(div(V('pf'), 1 << STREAMS_AT), 1 << 16), 1)),
+plan = [('set', 'prof', mod(V('pf'), 1 << 32)), ('set', 'pz', sel(eq(mod(div(V('pf'), 1 << 32), 32), 0), 0, 15)), ('set', 'sk', add(mod(div(V('pf'), 1 << STREAMS_AT), 1 << 16), 1)),
         ('set', 'ep', rom('POW2', P.roms['POW2'][0], mod(div(V('pf'), 1 << EPOCH_AT), 32))),
         ('set', 'sr', mul(64, div(add(div(add(G('n'), sub(G('sk'), 1)), G('sk')), 63), 64))),
         ('set', 'stamp', 1), ('set', 'estamp', 1), ('set', 'ul', 0), ('set', 'lc', 0), ('set', 'msteps', 0), ('set', 'coded', 0)]
@@ -688,24 +688,25 @@ P.lane_table = 'PL'
 assert sum(_g[g] for g in LANE_G) <= 8 * LGSPAN
 
 
-def word(prof, k, epoch):
+def word(prof, k, epoch, bits=12):
+    p = 0 if bits == 12 else bits
     if k == 1:
-        return prof
-    return prof | (k - 1) << STREAMS_AT | (epoch.bit_length() - 1) << EPOCH_AT
+        return prof | p << 32
+    return prof | p << 32 | (k - 1) << STREAMS_AT | (epoch.bit_length() - 1) << EPOCH_AT
 
 
-def py_encode_streams(data, history=b'', prof=nm.FULL, k=2, epoch=4096):
+def py_encode_streams(data, history=b'', prof=nm.FULL, k=2, epoch=4096, bits=12):
     m = Machine(P, data)
     for i, b in enumerate(history):
         m.t['H'][i] = b
-    m.call('encodeStreams', len(data), len(history), word(prof, k, epoch) if k > 1 else prof | 0)
+    m.call('encodeStreams', len(data), len(history), word(prof, k, epoch, bits))
     return bytes(m.t['OUT'].get(i, 0) for i in range(m.g['flen']))
 
 
-def py_decode_streams(payload, history=b'', prof=nm.FULL, k=2, epoch=4096):
+def py_decode_streams(payload, history=b'', prof=nm.FULL, k=2, epoch=4096, bits=12):
     m = Machine(P, payload)
     for i, b in enumerate(history):
         m.t['H'][i] = b
-    m.call('decodeStreams', len(history), word(prof, k, epoch))
+    m.call('decodeStreams', len(history), word(prof, k, epoch, bits))
     h = len(history)
     return bytes(m.t['H'].get(h + i, 0) for i in range(m.g['n']))

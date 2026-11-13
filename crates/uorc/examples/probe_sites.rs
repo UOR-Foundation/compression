@@ -29,10 +29,7 @@ fn main() {
         let k: usize = it.next().unwrap().parse().unwrap();
         let e: usize = it.next().unwrap().parse().unwrap();
         let th: usize = it.next().unwrap_or("4").parse().unwrap();
-        let plan = streams::Plan {
-            streams: k,
-            epoch: e,
-        };
+        let plan = streams::Plan::of(k, e);
         let t = Instant::now();
         let (out, s) = streams::encode_sites(&[], data, ncm::FULL, plan, th).unwrap();
         let enc = t.elapsed().as_secs_f64();

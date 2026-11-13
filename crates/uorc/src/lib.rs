@@ -195,6 +195,19 @@ fn compress_pieces(
     compress_pieces_on(frame, lengths, window, steps, side_by_side, host)
 }
 
+/// The archive a frame gets when it is written for a decode host whose
+/// frame decoder runs on `threads` threads (otherwise the declared host,
+/// [`performance::declared_host`]): [`compress_frame_with`] at another point
+/// of the host facet (with `steps == 0`).
+pub fn compress_frame_for(frame: &[u8], window: &[&[u8]], threads: u64) -> Vec<u8> {
+    let host = performance::Host {
+        threads,
+        ..performance::declared_host()
+    };
+    compress_pieces_on(frame, &[frame.len() as u64], window, 0, true, host)
+        .unwrap_or_else(|_| archive::raw_objects(frame, &[frame.len() as u64]))
+}
+
 fn compress_pieces_on(
     frame: &[u8],
     lengths: &[u64],
@@ -241,7 +254,8 @@ fn compress_pieces_on(
         Some((linked, _)) if (linked.len() as u64) < raw => {
             let (stepped, k) = step_window(frame, lengths, reach, linked, host);
             let window = &reach[reach.len() - k..];
-            Ok(step_table(frame, lengths, window, stepped, host))
+            let stepped = step_table(frame, lengths, window, stepped, host);
+            Ok(step_streams(frame, lengths, window, stepped, host))
         }
         _ => Ok(archive::raw_objects(frame, lengths)),
     }
@@ -269,7 +283,7 @@ pub fn step_window(
     let mut k = reach.len().min(archive::WINDOW);
     let one = |w: u64| {
         ncm::streams::split(w)
-            .filter(|(_, p)| p.streams == 1)
+            .filter(|(_, p)| p.serial())
             .map(|(m, _)| m)
     };
     let (x86, mut word) = match archive::frame_codec(&chosen) {
@@ -368,7 +382,7 @@ pub fn step_table(
     } else {
         let one = |w: u64| {
             ncm::streams::split(w)
-                .filter(|(_, p)| p.streams == 1)
+                .filter(|(_, p)| p.serial())
                 .map(|(m, _)| m)
         };
         match archive::frame_codec(&chosen) {
@@ -447,6 +461,93 @@ pub fn step_table(
         }
     }
     best
+}
+
+/// The probability and streams facets stepped last on the frame's chosen
+/// archive (`Client.stepStreams`). The probability field first: the chosen
+/// coding is tried at 16-bit probabilities as one stream (the frame's model,
+/// coded at 16 bits, [`ncm::streams::Plan::bits`]), and kept only when its
+/// archive is shorter (the decode steps are the same). Then, for a decode
+/// host whose frame decoder runs on more than one thread, the coding is cut
+/// into streams over one shared state ([`ncm::streams::derive`]): the stream
+/// count steps while the counted longest chain of decode steps on the host
+/// falls, and the epoch is the least archive, then steps. On a one-thread
+/// host (the page's worker, the default) one stream is the derivation. Raw
+/// frames, state frames and the fixed v0.3 entries are kept byte for byte.
+pub fn step_streams(
+    frame: &[u8],
+    lengths: &[u64],
+    window: &[&[u8]],
+    chosen: Vec<u8>,
+    host: performance::Host,
+) -> Vec<u8> {
+    if archive::state_frame(&chosen).is_some() {
+        return chosen;
+    }
+    let (x86, word) = match archive::frame_codec(&chosen) {
+        Some(archive::Codec::Profile(w)) => (false, w),
+        Some(archive::Codec::ProfileX86(w)) => (true, w),
+        _ => return chosen,
+    };
+    let Some((profile, plan)) = ncm::streams::split(word) else {
+        return chosen;
+    };
+    if !plan.serial() {
+        return chosen;
+    }
+    let history = window.concat();
+    let filtered;
+    let (data, past) = if x86 {
+        filtered = (
+            x86::filter(frame, false, history.len() as u64).0,
+            x86::filter(&history, false, 0).0,
+        );
+        (&filtered.0[..], &filtered.1[..])
+    } else {
+        (frame, &history[..])
+    };
+    let codec = if x86 {
+        archive::Codec::NcmX86
+    } else {
+        archive::Codec::Ncm
+    };
+    let identity = (!window.is_empty()).then(|| archive::window_identity(window));
+    let archive_of = |plan: ncm::streams::Plan, payload: &[u8]| {
+        let w = ncm::streams::word(profile, plan)?;
+        match &identity {
+            None => archive::linked_archive_profile(codec, w, lengths, payload),
+            Some(id) => archive::window_archive_profile(codec, w, window, id, lengths, payload),
+        }
+    };
+    let host_threads = usize::try_from(host.threads).unwrap_or(usize::MAX).max(1);
+    let threads = ncm::streams::threads(ncm::streams::Plan::of(host_threads, 1));
+    // the probability field, by bytes (the steps are equal)
+    let wide = ncm::streams::Plan {
+        bits: 16,
+        ..ncm::streams::Plan::ONE
+    };
+    let mut best = chosen;
+    let mut bits = 12;
+    if let Some((payload, _)) = ncm::streams::encode_below(past, data, profile, wide, 1, best.len())
+    {
+        if let Some(a) = archive_of(wide, &payload).filter(|a| a.len() < best.len()) {
+            best = a;
+            bits = 16;
+        }
+    }
+    if host_threads <= 1 {
+        return best;
+    }
+    let n = frame.len() as u64;
+    let h = history.len() as u64;
+    let coding = performance::trial_steps(profile, n);
+    let holds = |k: usize| host.holds_streams(n, h, profile, k as u64);
+    let Some(d) =
+        ncm::streams::derive(past, data, profile, bits, host_threads, coding, threads, holds)
+    else {
+        return best;
+    };
+    archive_of(d.plan, &d.payload).unwrap_or(best)
 }
 
 /// The trials of `plan` on `frame`, in plan order: each strategy's archive
@@ -2345,13 +2446,10 @@ mod tests {
     /// repeats the oldest frame of its block is coded over every earlier
     /// frame (its entry names three) and is strictly smaller than the
     /// portfolio's archive over the last two; any frame is the portfolio's
-    /// archive byte for byte or a strictly shorter one. Both decode. The
-    /// repeated frame is letters with no structure a warm state predicts
-    /// (on text a state frame may win, and the window step does not apply to
-    /// it), so the portfolio codes it below raw without a state.
+    /// archive byte for byte or a strictly shorter one. Both decode.
     #[test]
     fn window_step_keeps_only_a_shorter_archive_uc_perf_16() {
-        let a: Vec<u8> = noise(12_000, 1).iter().map(|&x| b'a' + (x & 15)).collect();
+        let a = include_bytes!("../../../README.md").to_vec();
         let (b, c) = (noise(30_000, 2), noise(30_000, 3));
         let window: [&[u8]; 3] = [&a, &b, &c];
         let deep = compress_frame_with(&a, &window, 0).expect("deep");
@@ -3129,5 +3227,29 @@ mod tests {
         let native = compress_frame_with(b, &[a], 0).expect("native");
         let model = on_reference_stack(|| reference_compress(b, &[a], 0)).expect("model");
         assert_eq!(native, model);
+    }
+
+    #[test]
+    fn stream_frames_round_trip_natively() {
+        let text: Vec<u8> = (0..40_000u32)
+            .flat_map(|i| format!("line {} of {}\n", i % 977, i / 13).into_bytes())
+            .take(48_000)
+            .collect();
+        let one = compress_frame(&text, 0).expect("frame");
+        let coded = compress_frame_for(&text, &[], 4);
+        assert_ne!(coded, one, "streams name another frame word");
+        assert_eq!(
+            decompress_frame(&coded, DEFAULT_DECODE_WORK).expect("decodes"),
+            text
+        );
+        // the default host runs one thread: the frame compress_frame writes
+        assert_eq!(compress_frame_for(&text, &[], 1), one);
+        // a window frame of streams reads its window
+        let (a, b) = text.split_at(20_000);
+        let w = compress_frame_for(b, &[a], 4);
+        assert_eq!(
+            decompress_frame_with(&w, &[a], DEFAULT_DECODE_WORK).expect("decodes"),
+            b
+        );
     }
 }

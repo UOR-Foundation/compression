@@ -1878,21 +1878,21 @@ definition{
   name: streamsPerFrame,
   parameters: [],
   result: Facet,
-  body: (record Facet {quantity := "contiguous streams a frame is coded as", fixedAt := "one: in v0.5 the frame word's streams and epoch fields are reserved and zero, and the native, WebAssembly and exported decoders refuse a frame where they are not", standing := "unmet: the streams coder (ncm::streams natively, ncm_streams.py in the IR model, byte-equal at 2, 3 and 4 streams with the merge steps counted alike) is tested but not shipped, because its exported model does not build within the export's bounds", measured := "export: the codec modules grow from 0.14 MB to 0.61-0.69 MB with the streams tables grouped (1.0-1.1 MB ungrouped); extraction exceeds Lean's heartbeat budget, and with the budget lifted runs over 80 minutes before lexlean is killed at 12.5 GB of a 15 GB limit. Coding, declared 4-thread host: 7.8 MB Python, 4 streams of 64 KiB epochs, 1.09 percent larger than one stream, merge steps 3.5 percent of the coding steps; 8 MiB ELF, 4 streams of 32 KiB epochs, 1.83 percent larger, merge 10.2 percent"})
+  body: (record Facet {quantity := "contiguous streams a frame is coded as", fixedAt := "derived (Client.stepStreams): streams step up from one while the counted chain, coding steps plus merge steps over the declared decode host's threads, falls; past the host's threads a further stream is kept only on fewer bytes, then fewer steps; bounded by one 64-byte stride unit a stream and by the host's memory. One on the page worker (one thread)", standing := "derived", measured := "declared 4-thread host: 7.8 MB Python, 4 streams of 64 KiB epochs, 1.09 percent larger than one stream, merge steps 3.5 percent of the coding steps; 8 MiB ELF, 4 streams of 32 KiB epochs, 1.83 percent larger, merge 10.2 percent"})
 }
 
 definition{
   name: streamEpoch,
   parameters: [],
   result: Facet,
-  body: (record Facet {quantity := "bytes a stream codes between merges of the shared state", fixedAt := "none while a frame is one stream; the unshipped derivation (ncm::streams::derive) starts at one epoch per stream and halves while the payload shrinks (bytes, then steps)", standing := "unmet: derived by trials, each a full coding of the frame; the merge steps of every power-of-two epoch can be counted in one pass, the bytes cannot yet", measured := "the trials make compressing for a declared 4-thread host 209 s on 7.8 MB Python and 351 s on 8 MiB ELF, against 11.5 s and 15.7 s for one stream"})
+  body: (record Facet {quantity := "bytes a stream codes between merges of the shared state", fixedAt := "derived: one epoch per stream first, halved while the payload shrinks (bytes, then steps)", standing := "unmet: derived by trials, each a full coding of the frame; the merge steps of every power-of-two epoch can be counted in one pass, the bytes cannot yet", measured := "the trials make compressing for a declared 4-thread host 209 s on 7.8 MB Python and 351 s on 8 MiB ELF, against 11.5 s and 15.7 s for one stream"})
 }
 
 definition{
   name: archiveWidth,
   parameters: [],
   result: Facet,
-  body: (record Facet {quantity := "threads one frame decodes on", fixedAt := "one: a frame is one stream", standing := "unmet for wholeHost: a frame's decode runs on one thread whatever the host has", measured := ""})
+  body: (record Facet {quantity := "threads an archive's frames decode on", fixedAt := "the declared decode host's: a frame's streams are fixed when it is written", standing := "unmet for wholeHost: a host with more threads than the archive was written for runs each frame on at most its streams", measured := ""})
 }
 
 definition{
@@ -1906,7 +1906,7 @@ definition{
   name: probabilityBits,
   parameters: [],
   result: Facet,
-  body: (record Facet {quantity := "bits of a coded probability", fixedAt := "12", standing := "unmeasured", measured := ""})
+  body: (record Facet {quantity := "bits of a coded probability", fixedAt := "derived per frame (Client.stepStreams): the chosen coding is tried at 16 bits (the frame word's probability field 16, bits 32-36; 0 is 12 bits, the frame's coder) and kept only when its archive is shorter, the decode steps being equal", standing := "derived", measured := "3 MB ELF 880,344 to 880,194 bytes (-0.02 percent); on near-constant data the 12-bit floor binds: 8 MiB of zeros 2,961 to 744 bytes, an 8 MiB synthetic log 6,094 to 4,210"})
 }
 
 definition{

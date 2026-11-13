@@ -218,12 +218,14 @@ impl Apm {
     }
 
     #[inline]
-    fn refine(&mut self, stretch: &[i16; 4096], p: u32, cx: usize) -> i32 {
+    /// The map's refinement of 12-bit `p` in context `cx`, as a probability
+    /// of `bits` bits (the map's entries are 16-bit, interpolated in 128ths).
+    fn refine(&mut self, stretch: &[i16; 4096], p: u32, cx: usize, bits: u32) -> i32 {
         let s = (i32::from(stretch[p as usize]) + 2048) as usize;
         let (lo, w) = (s >> 7, (s & 127) as i32);
         let base = cx * APM_ROW + lo;
         self.idx = base + (w >> 6) as usize;
-        (i32::from(self.t[base]) * (128 - w) + i32::from(self.t[base + 1]) * w) >> 11
+        (i32::from(self.t[base]) * (128 - w) + i32::from(self.t[base + 1]) * w) >> (23 - bits)
     }
 
     #[inline]
@@ -586,6 +588,9 @@ struct Model {
     bit: u32,
     mtab: Table<u32>,
     profile: u32,
+    /// Bits of the probability the coder codes a bit at: 12, or 16 under a
+    /// frame word's probability field ([`streams::Plan::prob`]).
+    pbits: u32,
     m2tab: Table<u32>,
     m2ptr: u32,
     m2len: u32,
@@ -706,6 +711,7 @@ impl Model {
             bit: 0,
             mtab: Table::new(1 << mb, 0),
             profile,
+            pbits: 12,
             m2tab: Table::new(if short { 1 << mb } else { 0 }, 0),
             m2ptr: 0,
             m2len: 0,
@@ -1100,7 +1106,7 @@ impl Model {
     /// read, so a wrong guess costs a few loads and nothing else.
     #[inline(always)]
     fn prefetch_next(&mut self, p: u32) {
-        let y = u32::from(p >= 2048);
+        let y = u32::from(p >= 1 << (self.pbits - 1));
         let c0 = (self.c0 << 1) | y;
         let (c4, c0) = if self.bit == 7 {
             let b = c0 & 255;
@@ -1352,13 +1358,15 @@ impl Model {
         self.pm3 = sq(d3);
         // the mean of the three, in -2048..=2047
         let p = sq((((d1 + d2 + d3 + 6144) * 21846) >> 16) - 2048).clamp(1, 4095) as u32;
-        let q1 = self.a1.refine(&t.stretch, p, c1);
+        let bits = self.pbits;
+        let q1 = self.a1.refine(&t.stretch, p, c1, bits);
         let cx2 = h((self.c4 & 0xff_ffff)
             .wrapping_mul(0x2F0B_4C27)
             .wrapping_add(self.c0))
             >> (32 - APM2_BITS);
-        let q2 = self.a2.refine(&t.stretch, p, cx2 as usize);
-        let pr = ((p as i32 + q1 + 2 * q2) / 4).clamp(1, 4095) as u32;
+        let q2 = self.a2.refine(&t.stretch, p, cx2 as usize, bits);
+        let top = (1 << bits) - 1;
+        let pr = (((p << (bits - 12)) as i32 + q1 + 2 * q2) / 4).clamp(1, top) as u32;
         if let Some(tw) = self.twin.as_deref_mut() {
             let c1 = (self.c0 + 256 * if tw.sel { mstate } else { 0 }) as usize;
             tw.s1 = c1 * W;
@@ -1367,9 +1375,9 @@ impl Model {
             let d1 = (a >> 16).clamp(-2047, 2047) as i32;
             tw.pm1 = sq(d1);
             let p = sq((((d1 + d2 + d3 + 6144) * 21846) >> 16) - 2048).clamp(1, 4095) as u32;
-            let q1 = tw.a1.refine(&t.stretch, p, c1);
-            let q2 = tw.a2.refine(&t.stretch, p, cx2 as usize);
-            tw.pr = ((p as i32 + q1 + 2 * q2) / 4).clamp(1, 4095) as u32;
+            let q1 = tw.a1.refine(&t.stretch, p, c1, bits);
+            let q2 = tw.a2.refine(&t.stretch, p, cx2 as usize, bits);
+            tw.pr = (((p << (bits - 12)) as i32 + q1 + 2 * q2) / 4).clamp(1, top) as u32;
         }
         self.prefetch_next(pr);
         pr
