@@ -16,10 +16,12 @@
 # After a bootstrap run, and when a request is labelled `merge-train`, it moves
 # the merge train (scripts/factory.mjs merge-train): labelled requests into the
 # default branch merge one at a time, in label order. The head of the train is
-# brought up to date with the default branch, tested by a dispatched bootstrap
-# run (a push or merge made with this token starts no workflow), and
-# squash-merged once the required checks pass on it; then bootstrap is
-# dispatched on the default branch, whose receipts drive the release step.
+# squash-merged once it contains the default branch and the required checks
+# passed on it; a head that lacks the default branch is asked, once, to take
+# it in with an ordinary push (the train never pushes to a rider: this token's
+# push holds the request's own checks for approval). After each merge
+# bootstrap is dispatched on the default branch, whose receipts drive the
+# release step.
 name: factory
 
 on:

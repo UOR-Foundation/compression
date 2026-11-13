@@ -246,26 +246,28 @@ export function trainQueue(prs, {base}) {
 /// The next move for the head of the train, from how many commits of the
 /// default branch its head lacks, the bootstrap runs on its head commit, and
 /// the newest run of each required check there:
-///   update    merge the default branch into it, then test the new head
-///   dispatch  no bootstrap run has tested the head: start one
-///   wait      a bootstrap run on the head is still going
+///   behind    it lacks the default branch: ask its branch to take it in
+///   wait      its checks are running, or no push has started them yet
 ///   merge     it contains the default branch and every required check passed
 ///   drop      it cannot merge as it is: take the label off and say why
-/// A workflow token's push starts no workflow, so the train dispatches every
-/// bootstrap run it needs; it dispatches only when none ran on the head, so a
-/// run that never reports cannot loop.
+/// The train never pushes to a rider. A workflow token's push holds the
+/// request's own pull_request run for approval, and branch protection reads
+/// the required checks from that held run, so a head the train updated could
+/// never merge (#150 on 561fd0f). The rider's branch takes the default
+/// branch in with an ordinary push, which runs its checks; the train merges
+/// it once they pass.
 export function trainStep({pr, base, repository, behind, runs, checks}) {
   if (pr.headRepo !== repository) return {action: 'drop', why: `its branch is in ${pr.headRepo ?? 'a deleted repository'}; the train updates and tests only branches of ${repository}`};
   if (behind > 0) {
     if (pr.mergeable === false) return {action: 'drop', why: `it conflicts with ${base}; merge ${base} into it by hand`};
-    return {action: 'update', why: `it is ${behind} commit(s) behind ${base}`};
+    return {action: 'behind', why: `it is ${behind} commit(s) behind ${base}; merge ${base} into its branch and push`};
   }
   if (runs.some(r => r.status !== 'completed')) return {action: 'wait', why: `bootstrap is still running on ${pr.headSha}`};
   const failed = REQUIRED_CHECKS.filter(n => checks[n]?.status === 'completed' && !PASSING.includes(checks[n].conclusion));
   if (failed.length) return {action: 'drop', why: `${failed.map(n => `${n} is ${checks[n].conclusion}`).join(', ')} on ${pr.headSha}`};
   if (REQUIRED_CHECKS.every(n => checks[n]?.status === 'completed')) return {action: 'merge', why: `it contains ${base} and every required check passed on ${pr.headSha}`};
   if (REQUIRED_CHECKS.some(n => checks[n])) return {action: 'wait', why: `the required checks are still running on ${pr.headSha}`};
-  if (!runs.length) return {action: 'dispatch', why: `no bootstrap run has tested ${pr.headSha}`};
+  if (!runs.length) return {action: 'wait', why: `no bootstrap run has started on ${pr.headSha} yet`};
   return {action: 'drop', why: `bootstrap ran on ${pr.headSha} without reporting ${REQUIRED_CHECKS.join(' and ')}`};
 }
 
@@ -574,21 +576,15 @@ export async function mergeTrain({repository, base, token, run = '', sleep = ms 
     const step = trainStep({pr, base, repository, behind, runs, checks});
     log(`merge-train: #${pr.number} ${step.action}: ${step.why}`);
     if (step.action === 'wait') return step;
-    if (step.action === 'dispatch') { await dispatch(pr.headRef); return step; }
     if (step.action === 'drop') { await drop(pr, step.why); continue; }
-    if (step.action === 'update') {
-      const r = await call('PUT', `pulls/${pr.number}/update-branch`, {expected_head_sha: pr.headSha});
-      if (!r.ok) {
-        const message = r.data?.message ?? `status ${r.status}`;
-        if (/expected head sha/i.test(message)) { log(`merge-train: #${pr.number} moved while updating; its push starts its own run`); return {action: 'wait', why: message}; }
-        await drop(pr, /conflict/i.test(message) ? `it conflicts with ${base}; merge ${base} into it by hand` : `updating it from ${base} failed: ${message}`);
-        continue;
+    if (step.action === 'behind') {
+      // One request per head: the comment names the head it asks about.
+      const mark = `<!-- merge-train behind ${pr.headSha} -->`;
+      const asked = (await all(`issues/${pr.number}/comments`)).some(c => (c.body ?? '').includes(mark));
+      if (!asked) {
+        const r = await call('POST', `issues/${pr.number}/comments`, {body: `${mark}\nNext on the merge train, but ${step.why}. Its checks run on that push, and the train merges it once they pass.`});
+        if (!r.ok) log(`merge-train: asking #${pr.number} to take in ${base} failed: ${r.status}`);
       }
-      for (let tries = 0; tries < 24; tries++) {
-        await sleep(5000);
-        if ((await get(`pulls/${pr.number}`)).head.sha !== pr.headSha) { await dispatch(pr.headRef); return step; }
-      }
-      log(`merge-train: #${pr.number}'s updated head has not appeared yet; the next train run dispatches its bootstrap`);
       return step;
     }
     // merge: the workflow token's merge starts no push run, and the default
