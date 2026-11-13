@@ -1585,7 +1585,7 @@ trait Kernel {
 struct Scalar;
 
 impl Kernel for Scalar {
-    const BITS: u32 = 64;
+    const BITS: u32 = i64::BITS;
 
     #[inline(always)]
     fn dot<const W: usize>(x: &[i32; W], w1: &[i32; W], w2: &[i32; W], w3: &[i32; W]) -> [i64; 3] {
@@ -1668,8 +1668,8 @@ fn contraction_best(rounds: u64) -> (u32, i64) {
 #[inline(always)]
 fn contraction<K: Kernel>(rounds: u64) -> (u32, i64) {
     let mut x = [0i32; NINP];
-    for (i, v) in x.iter_mut().enumerate() {
-        *v = ((i as i32 * 709) % 4095) - 2047;
+    for (i, v) in (0i32..).zip(x.iter_mut()) {
+        *v = i;
     }
     let (mut w1, mut w2, mut w3) = (
         [standard::WEIGHT_INITIAL; NINP],
@@ -1677,12 +1677,12 @@ fn contraction<K: Kernel>(rounds: u64) -> (u32, i64) {
         [standard::WEIGHT_INITIAL; NINP],
     );
     let mut sum = 0i64;
-    for r in 0..rounds {
+    for r in (0..rounds).map(|r| r as usize % NINP) {
         let [a, b, c] = K::dot::<NINP>(&x, &w1, &w2, &w3);
         sum = sum.wrapping_add(a ^ b ^ c);
-        let e = |d: i64| ((d >> 16) as i32 & 1023) - 512;
+        let e = |d: i64| d.signum() as i32;
         K::train::<NINP>(&x, &mut w1, &mut w2, &mut w3, [e(a), e(b), e(c)]);
-        x[(r % NINP as u64) as usize] ^= 1;
+        x[r] ^= 1;
     }
     (K::BITS, sum)
 }
@@ -1846,7 +1846,7 @@ mod x86 {
     }
 
     impl Kernel for Avx2 {
-        const BITS: u32 = 256;
+        const BITS: u32 = u8::BITS * std::mem::size_of::<__m256i>() as u32;
 
         #[inline(always)]
         fn dot<const W: usize>(
@@ -1881,7 +1881,7 @@ mod arm {
     pub(super) struct Neon;
 
     impl Kernel for Neon {
-        const BITS: u32 = 128;
+        const BITS: u32 = u8::BITS * std::mem::size_of::<int32x4_t>() as u32;
 
         #[inline(always)]
         fn dot<const W: usize>(
@@ -1944,7 +1944,7 @@ mod wasm {
     pub(super) struct Simd128;
 
     impl Kernel for Simd128 {
-        const BITS: u32 = 128;
+        const BITS: u32 = u8::BITS * std::mem::size_of::<v128>() as u32;
 
         #[inline(always)]
         fn dot<const W: usize>(

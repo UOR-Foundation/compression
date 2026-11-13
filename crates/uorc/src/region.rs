@@ -95,12 +95,13 @@ impl Host {
     /// over its memory rate: the slower of the two terms; a rate of zero
     /// (not measured) gives its term zero (`noRateNoTerm`).
     pub fn ceiling_nanos(&self, steps: u64, line_bytes: u64) -> u64 {
+        let second = std::time::Duration::from_secs(1).as_nanos();
         let compute = round_up(
-            u128::from(steps) * 1_000_000_000,
+            u128::from(steps) * second,
             u128::from(self.threads) * u128::from(self.step_rate),
         );
         let transport = round_up(
-            u128::from(line_bytes) * 1_000_000_000,
+            u128::from(line_bytes) * second,
             u128::from(self.memory_rate),
         );
         compute.max(transport)
@@ -188,22 +189,29 @@ fn round_up(amount: u128, rate: u128) -> u64 {
 
 fn per_second(count: u64, took: std::time::Duration) -> u64 {
     let nanos = took.as_nanos().max(1);
-    u64::try_from(u128::from(count) * 1_000_000_000 / nanos).unwrap_or(u64::MAX)
+    let second = std::time::Duration::from_secs(1).as_nanos();
+    u64::try_from(u128::from(count) * second / nanos).unwrap_or(u64::MAX)
 }
 
 /// Bytes per second `threads` threads read as `lines` independent random
 /// lines each from a table of `table` bytes, after one pass touching it.
 fn memory_rate(table: u64, line: u64, lines: u64, threads: u64) -> u64 {
-    let words = usize::try_from(table / 8).unwrap_or(usize::MAX).max(1);
+    let word = std::mem::size_of::<u64>() as u64;
+    let words = usize::try_from(table / word).unwrap_or(usize::MAX).max(1);
     let t: Region<u64> = Region::new(words, 1);
-    let stride = usize::try_from(line / 8).unwrap_or(1).max(1);
-    let slots = (words / stride).max(1);
+    let stride = usize::try_from(line / word).unwrap_or(1).max(1);
+    // whole lines, a power of two: the table's slots are
+    let bits = (words / stride).max(1).ilog2();
     let pass = |seed: u64| {
         let mut sum = 0u64;
         for i in 0..lines {
-            // independent addresses: each from its index, never from a load
-            let h = (i ^ seed).wrapping_mul(0x9e37_79b9_7f4a_7c15) >> 20;
-            sum = sum.wrapping_add(t[(h as usize % slots) * stride]);
+            // independent addresses: the bit-reversed index, never a load,
+            // spreads consecutive reads over the whole table
+            let at = (i ^ seed)
+                .reverse_bits()
+                .checked_shr(u64::BITS - bits)
+                .unwrap_or(0) as usize;
+            sum = sum.wrapping_add(t[at * stride]);
         }
         sum
     };
