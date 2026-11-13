@@ -398,16 +398,19 @@ struct Bucket([u32; 16]);
 /// The buckets as one run of slots: slot `i` is `sl[i >> 4].0[i & 15]`.
 #[inline(always)]
 fn slots(sl: &[Bucket]) -> &[u32] {
-    // SAFETY: a Bucket is 16 u32 and nothing else (repr(C)), so `sl` is
-    // `16 * sl.len()` u32 in a row, borrowed for as long as `sl` is.
-    unsafe { std::slice::from_raw_parts(sl.as_ptr().cast(), sl.len() * 16) }
+    // SAFETY: a Bucket is SLOTS u32 and nothing else (repr(C)), so `sl` is
+    // `SLOTS * sl.len()` u32 in a row, borrowed for as long as `sl` is.
+    unsafe { std::slice::from_raw_parts(sl.as_ptr().cast(), sl.len() * SLOTS) }
 }
+
+/// Slots in a bucket.
+const SLOTS: usize = std::mem::size_of::<Bucket>() / std::mem::size_of::<u32>();
 
 /// [`slots`] to write.
 #[inline(always)]
 fn slots_mut(sl: &mut [Bucket]) -> &mut [u32] {
     // SAFETY: as in `slots`, borrowed mutably for as long as `sl` is.
-    unsafe { std::slice::from_raw_parts_mut(sl.as_mut_ptr().cast(), sl.len() * 16) }
+    unsafe { std::slice::from_raw_parts_mut(sl.as_mut_ptr().cast(), sl.len() * SLOTS) }
 }
 
 /// A model table. In WebAssembly, whose memory never shrinks, a dropped
@@ -566,21 +569,42 @@ fn adapt_slot(s: &mut u32, y: bool, rate: &[i32; 128]) {
     *s = (p & 0xffff) | ((n + u32::from(n < 127)) << 16);
 }
 
-/// The buckets `bb[..na]` in five rows of four lanes for the 4-lane
-/// kernels' [`Kernel::distinct`]: lanes past `na` take odd values, which no
-/// bucket start (a multiple of 16) equals.
+/// The buckets `bb[..na]` in `P` lanes (whole rows of a kernel's vector)
+/// for [`Kernel::distinct`]: lane `k` past `na` holds `2k + 1`, odd, which
+/// no bucket start (a multiple of [`SLOTS`]) and no other lane equals.
 #[cfg_attr(
-    not(any(target_arch = "aarch64", target_arch = "wasm32")),
+    not(any(
+        target_arch = "x86_64",
+        target_arch = "aarch64",
+        all(target_arch = "wasm32", target_feature = "simd128")
+    )),
     allow(dead_code)
 )]
 #[inline(always)]
-fn rows4(bb: &[u32; NC], na: usize) -> [u32; 20] {
-    let mut r = [0u32; 20];
-    for (k, v) in r.iter_mut().enumerate() {
-        *v = if k < na { bb[k] } else { 2 * k as u32 + 1 };
-    }
-    r
+fn padded<const P: usize>(bb: &[u32; NC], na: usize) -> [u32; P] {
+    std::array::from_fn(|k| if k < na { bb[k] } else { ((k as u32) << 1) | 1 })
 }
+
+/// The probability of slot word `w` (its low half) as an index into
+/// [`Tables::stretch`].
+#[inline(always)]
+fn stretch_index(w: u32) -> usize {
+    ((w & 0xffff) >> 4) as usize
+}
+
+/// A slot's rate for each count it may hold ([`Tables::rate`]).
+type Rates = [i32; standard::COUNT_LIMIT as usize + 1];
+
+/// Bits of a slot's probability, below its count (`adapt_slot`).
+#[cfg_attr(
+    not(any(
+        target_arch = "x86_64",
+        target_arch = "aarch64",
+        all(target_arch = "wasm32", target_feature = "simd128")
+    )),
+    allow(dead_code)
+)]
+const PROB_BITS: u32 = u16::BITS;
 
 /// Warmed models kept for reuse (state bytes, profile, (table mask, match
 /// table bits), bytes
@@ -1774,7 +1798,7 @@ trait Kernel {
             let i = bb[j] + part;
             let w = sl[i as usize];
             (ix[j], sv[j]) = (i, w);
-            st[j] = i32::from(t.stretch[((w & 0xffff) >> 4) as usize]);
+            st[j] = i32::from(t.stretch[stretch_index(w)]);
         }
     }
 
@@ -1799,7 +1823,7 @@ trait Kernel {
         _sv: &[u32; NC],
         na: usize,
         y: bool,
-        rate: &[i32; 128],
+        rate: &Rates,
     ) {
         for &i in &ix[..na] {
             adapt_slot(&mut sl[i as usize], y, rate);
@@ -1815,7 +1839,7 @@ trait Kernel {
 ///
 /// # Safety
 /// Every `bb[j] + part` (`j < na`) is a slot of `sl`: a bucket start that
-/// [`Model::bucket`] gave plus a partial nibble below 16.
+/// [`Model::bucket`] gave plus a partial nibble, inside the bucket.
 #[cfg_attr(
     not(any(
         target_arch = "x86_64",
@@ -1842,7 +1866,7 @@ unsafe fn sense_read_once(
         // index.
         let (w, s) = unsafe {
             let w = *sl.get_unchecked(i as usize);
-            (w, *t.stretch.get_unchecked(((w & 0xffff) >> 4) as usize))
+            (w, *t.stretch.get_unchecked(stretch_index(w)))
         };
         (ix[j], sv[j]) = (i, w);
         st[j] = i32::from(s);
@@ -2143,75 +2167,61 @@ mod x86 {
         out
     }
 
-    /// Lanes `base..base + 8` that hold kept contexts (below `na`), as a
+    /// Lanes of the AVX2 kernel's vector, as u32.
+    const L: usize = std::mem::size_of::<__m256i>() / std::mem::size_of::<u32>();
+    /// Lanes of the whole rows that hold NC buckets.
+    const P: usize = NC.div_ceil(L) * L;
+    /// Slots read in whole vectors; the rest one by one.
+    const FULL: usize = NC / L * L;
+    /// The scale of a gather of 32-bit words.
+    const WORD: i32 = std::mem::size_of::<u32>() as i32;
+    /// The shift that takes a slot word to its count.
+    const COUNT: i32 = super::PROB_BITS as i32;
+
+    /// Lanes `base..base + L` that hold kept contexts (below `na`), as a
     /// gather mask.
     #[target_feature(enable = "avx2")]
     #[inline]
     fn kept(base: usize, na: usize) -> __m256i {
-        let lane = _mm256_setr_epi32(0, 1, 2, 3, 4, 5, 6, 7);
+        let lane: [i32; L] = std::array::from_fn(|k| k as i32);
+        // SAFETY: the load reads L lanes of `lane`.
+        let lane = unsafe { _mm256_loadu_si256(lane.as_ptr().cast()) };
         _mm256_cmpgt_epi32(_mm256_set1_epi32(na as i32 - base as i32), lane)
     }
 
-    /// [`Kernel::distinct`] by comparing lanes: each row of eight against its
-    /// rotations by 1 to 4 (every distance within the row), the first row
-    /// against every rotation of the second, and both against the last.
-    /// Lanes past `na` take odd values, which no bucket start (a multiple of
-    /// 16) equals.
+    /// [`Kernel::distinct`] by counting matches: each kept bucket against
+    /// every row of the padded buckets ([`super::padded`]); the buckets are
+    /// all different exactly when each matches only itself.
     #[target_feature(enable = "avx2")]
     #[inline]
     fn distinct(bb: &[u32; NC], na: usize) -> bool {
-        // SAFETY: both loads lie inside bb (NC = 17).
-        let (a, b) = unsafe {
-            (
-                _mm256_loadu_si256(bb.as_ptr().cast()),
-                _mm256_loadu_si256(bb.as_ptr().add(8).cast()),
-            )
-        };
-        let odd = _mm256_setr_epi32(1, 3, 5, 7, 9, 11, 13, 15);
-        let a = _mm256_blendv_epi8(odd, a, kept(0, na));
-        let b = _mm256_blendv_epi8(_mm256_add_epi32(odd, _mm256_set1_epi32(16)), b, kept(8, na));
-        let rot = |k: i32| {
-            let r = _mm256_setr_epi32(k, k + 1, k + 2, k + 3, k + 4, k + 5, k + 6, k + 7);
-            _mm256_and_si256(r, _mm256_set1_epi32(7))
-        };
-        let mut dup = _mm256_cmpeq_epi32(a, b);
-        for k in 1..8 {
-            let r = rot(k);
-            if k <= 4 {
-                dup = _mm256_or_si256(
-                    dup,
-                    _mm256_cmpeq_epi32(a, _mm256_permutevar8x32_epi32(a, r)),
-                );
-                dup = _mm256_or_si256(
-                    dup,
-                    _mm256_cmpeq_epi32(b, _mm256_permutevar8x32_epi32(b, r)),
-                );
+        let r = super::padded::<P>(bb, na);
+        // SAFETY: every load reads L lanes inside r.
+        let rows: [__m256i; P / L] =
+            std::array::from_fn(|i| unsafe { _mm256_loadu_si256(r.as_ptr().add(i * L).cast()) });
+        let mut matches = 0;
+        for &b in &bb[..na] {
+            let v = _mm256_set1_epi32(b as i32);
+            for &row in &rows {
+                let eq = _mm256_castsi256_ps(_mm256_cmpeq_epi32(row, v));
+                matches += (_mm256_movemask_ps(eq) as u32).count_ones() as usize;
             }
-            dup = _mm256_or_si256(
-                dup,
-                _mm256_cmpeq_epi32(a, _mm256_permutevar8x32_epi32(b, r)),
-            );
         }
-        if na > 16 {
-            let c = _mm256_set1_epi32(bb[16] as i32);
-            dup = _mm256_or_si256(dup, _mm256_cmpeq_epi32(a, c));
-            dup = _mm256_or_si256(dup, _mm256_cmpeq_epi32(b, c));
-        }
-        _mm256_testz_si256(dup, dup) == 1
+        matches == na
     }
 
-    /// [`Kernel::adapt_slots`] eight different slots at a time: the words
+    /// [`Kernel::adapt_slots`] L different slots at a time: the words
     /// sensing read, their rates gathered by count, the probabilities adapted
     /// in exact 32-bit lanes, each word written back once. With `u` the gap
-    /// to the bit's end (`65535 - p` for a 1, `p` for a 0) and
-    /// `r = rate[n] <= 43690`, `u * r + 65535 < 2^32`, so the unsigned shift
-    /// is the floor the scalar's 64-bit shift takes for a 1 and its negated
-    /// ceiling for a 0.
+    /// to the bit's end (the probability's maximum less `p` for a 1, `p` for
+    /// a 0) and `r` a rate below 2^16, `u * r` plus the maximum stays below
+    /// 2^32, so the unsigned shift is the floor the scalar's 64-bit shift
+    /// takes for a 1 and its negated ceiling for a 0.
     ///
     /// # Safety
     /// AVX2 must be available, and `ix[..na]` different slots of `sl` whose
-    /// words are `sv[..na]`, each a probability and a count up to 127 (as
-    /// [`adapt_slot`] keeps them).
+    /// words are `sv[..na]`, each a probability and a count up to the limit
+    /// (as [`adapt_slot`] keeps them).
     #[target_feature(enable = "avx2")]
     #[inline]
     unsafe fn adapt_slots(
@@ -2220,41 +2230,40 @@ mod x86 {
         sv: &[u32; NC],
         na: usize,
         y: bool,
-        rate: &[i32; 128],
+        rate: &super::Rates,
     ) {
-        let low = _mm256_set1_epi32(0xffff);
-        let top = _mm256_set1_epi32(127);
-        let mut out = [0u32; 8];
+        let low = _mm256_set1_epi32(i32::from(u16::MAX));
+        let top = _mm256_set1_epi32(i32::from(super::standard::COUNT_LIMIT));
+        let mut out = [0u32; L];
         let mut base = 0;
-        // SAFETY: lanes below 16 lie inside ix and sv (NC = 17); the masked
-        // gather reads kept lanes' rates, at counts below 128; each store
-        // writes a kept lane's own slot, which the caller vouches for.
+        // SAFETY: whole vectors lie inside ix and sv (base + L <= NC); the
+        // masked gather reads kept lanes' rates, at counts within the table;
+        // each store writes a kept lane's own slot, which the caller vouches
+        // for.
         unsafe {
-            while base < na.min(16) {
+            while base < na.min(FULL) {
                 let w = _mm256_loadu_si256(sv.as_ptr().add(base).cast());
-                let (p, n) = (_mm256_and_si256(w, low), _mm256_srli_epi32::<16>(w));
+                let (p, n) = (_mm256_and_si256(w, low), _mm256_srli_epi32::<COUNT>(w));
                 let z = _mm256_setzero_si256();
-                let r = _mm256_mask_i32gather_epi32::<4>(z, rate.as_ptr(), n, kept(base, na));
+                let r = _mm256_mask_i32gather_epi32::<WORD>(z, rate.as_ptr(), n, kept(base, na));
                 let p = if y {
                     let u = _mm256_sub_epi32(low, p);
-                    _mm256_add_epi32(p, _mm256_srli_epi32::<16>(_mm256_mullo_epi32(u, r)))
+                    _mm256_add_epi32(p, _mm256_srli_epi32::<COUNT>(_mm256_mullo_epi32(u, r)))
                 } else {
                     let c = _mm256_add_epi32(_mm256_mullo_epi32(p, r), low);
-                    _mm256_sub_epi32(p, _mm256_srli_epi32::<16>(c))
+                    _mm256_sub_epi32(p, _mm256_srli_epi32::<COUNT>(c))
                 };
                 // n + 1 below the limit: the compare is -1 there
                 let n = _mm256_sub_epi32(n, _mm256_cmpgt_epi32(top, n));
-                _mm256_storeu_si256(
-                    out.as_mut_ptr().cast(),
-                    _mm256_or_si256(p, _mm256_slli_epi32::<16>(n)),
-                );
-                for k in 0..(na - base).min(8) {
+                let v = _mm256_or_si256(p, _mm256_slli_epi32::<COUNT>(n));
+                _mm256_storeu_si256(out.as_mut_ptr().cast(), v);
+                for k in 0..(na - base).min(L) {
                     *sl.get_unchecked_mut(ix[base + k] as usize) = out[k];
                 }
-                base += 8;
+                base += L;
             }
         }
-        for &i in &ix[16.min(na)..na] {
+        for &i in &ix[FULL.min(na)..na] {
             adapt_slot(&mut sl[i as usize], y, rate);
         }
     }
@@ -2289,7 +2298,7 @@ mod x86 {
             sv: &[u32; NC],
             na: usize,
             y: bool,
-            rate: &[i32; 128],
+            rate: &super::Rates,
         ) {
             // SAFETY: `Avx2` is only used once AVX2 has been detected; the model calls this for the words
             // sense_slots read, of slots all different.
@@ -2335,42 +2344,49 @@ mod x86 {
 
 #[cfg(target_arch = "aarch64")]
 mod arm {
-    use super::{adapt_slot, rows4, Kernel, Tables, NC, NINP, WEIGHT_LIMIT};
+    use super::{adapt_slot, Kernel, Tables, NC, NINP, WEIGHT_LIMIT};
     use std::arch::aarch64::*;
 
     pub(super) struct Neon;
 
-    /// [`Kernel::distinct`] on five rows of four ([`rows4`]): each row
-    /// against its rotations by 1 and 2, each pair of rows at all four.
+    /// Lanes of the NEON vector, as u32.
+    const L: usize = std::mem::size_of::<uint32x4_t>() / std::mem::size_of::<u32>();
+    /// Lanes of the whole rows that hold NC buckets.
+    const P: usize = NC.div_ceil(L) * L;
+    /// Slots adapted in whole vectors; the rest one by one.
+    const FULL: usize = NC / L * L;
+    /// The shift that takes a slot word to its count.
+    const COUNT: i32 = super::PROB_BITS as i32;
+
+    /// [`Kernel::distinct`] by counting matches: each kept bucket against
+    /// every row of the padded buckets ([`super::padded`]); the buckets are
+    /// all different exactly when each matches only itself.
     #[inline(always)]
     fn distinct(bb: &[u32; NC], na: usize) -> bool {
-        let r = rows4(bb, na);
-        // SAFETY: NEON is part of aarch64; every load lies inside r.
+        let r = super::padded::<P>(bb, na);
+        // SAFETY: NEON is part of aarch64; every load reads L lanes inside r.
         unsafe {
-            let v: [uint32x4_t; 5] = std::array::from_fn(|i| vld1q_u32(r.as_ptr().add(4 * i)));
-            let mut dup = vdupq_n_u32(0);
-            for i in 0..5 {
-                dup = vorrq_u32(dup, vceqq_u32(v[i], vextq_u32::<1>(v[i], v[i])));
-                dup = vorrq_u32(dup, vceqq_u32(v[i], vextq_u32::<2>(v[i], v[i])));
-                for b in &v[i + 1..] {
-                    dup = vorrq_u32(dup, vceqq_u32(v[i], *b));
-                    dup = vorrq_u32(dup, vceqq_u32(v[i], vextq_u32::<1>(*b, *b)));
-                    dup = vorrq_u32(dup, vceqq_u32(v[i], vextq_u32::<2>(*b, *b)));
-                    dup = vorrq_u32(dup, vceqq_u32(v[i], vextq_u32::<3>(*b, *b)));
+            let rows: [uint32x4_t; P / L] =
+                std::array::from_fn(|i| vld1q_u32(r.as_ptr().add(i * L)));
+            let mut matches = vdupq_n_u32(0);
+            for &b in &bb[..na] {
+                let v = vdupq_n_u32(b);
+                for &row in &rows {
+                    // a match is all ones: subtracting it counts one
+                    matches = vsubq_u32(matches, vceqq_u32(row, v));
                 }
             }
-            vmaxvq_u32(dup) == 0
+            vaddvq_u32(matches) as usize == na
         }
     }
 
-    /// [`Kernel::adapt_slots`] four different slots at a time, from the words
-    /// sensing read, in the exact 32-bit lanes the AVX2 kernel uses
-    /// (`u * r + 65535 < 2^32`); NEON has no gather, so each lane looks up
-    /// its rate.
+    /// [`Kernel::adapt_slots`] L different slots at a time, from the words
+    /// sensing read, in the exact 32-bit lanes the AVX2 kernel uses; NEON
+    /// has no gather, so each lane looks up its rate.
     ///
     /// # Safety
     /// As the AVX2 kernel's: `ix[..na]` different slots of `sl` whose words
-    /// are `sv[..na]`, each a probability and a count up to 127.
+    /// are `sv[..na]`, each a probability and a count up to the limit.
     #[inline(always)]
     unsafe fn adapt_slots(
         sl: &mut [u32],
@@ -2378,42 +2394,43 @@ mod arm {
         sv: &[u32; NC],
         na: usize,
         y: bool,
-        rate: &[i32; 128],
+        rate: &super::Rates,
     ) {
         let mut base = 0;
-        // SAFETY: NEON is part of aarch64; lanes below 16 lie inside ix and sv; each
-        // rate is at a count below 128; each store writes a kept lane's own
-        // slot, which the caller vouches for.
+        // SAFETY: NEON is part of aarch64; whole vectors lie inside ix and sv
+        // (base + L <= NC); each rate is at a count within the table; each
+        // store writes a kept lane's own slot, which the caller vouches for.
         unsafe {
-            let low = vdupq_n_u32(0xffff);
-            while base < na.min(16) {
-                let kept = (na - base).min(4);
-                let mut r = [0u32; 4];
+            while base < na.min(FULL) {
+                let kept = (na - base).min(L);
+                let mut r = [0u32; L];
                 for k in 0..kept {
-                    r[k] = *rate.get_unchecked((sv[base + k] >> 16) as usize) as u32;
+                    r[k] = *rate.get_unchecked((sv[base + k] >> super::PROB_BITS) as usize) as u32;
                 }
+                let low = vdupq_n_u32(u32::from(u16::MAX));
                 let wv = vld1q_u32(sv.as_ptr().add(base));
                 let (p, n, r) = (
                     vandq_u32(wv, low),
-                    vshrq_n_u32::<16>(wv),
+                    vshrq_n_u32::<COUNT>(wv),
                     vld1q_u32(r.as_ptr()),
                 );
                 let p = if y {
-                    vaddq_u32(p, vshrq_n_u32::<16>(vmulq_u32(vsubq_u32(low, p), r)))
+                    vaddq_u32(p, vshrq_n_u32::<COUNT>(vmulq_u32(vsubq_u32(low, p), r)))
                 } else {
-                    vsubq_u32(p, vshrq_n_u32::<16>(vaddq_u32(vmulq_u32(p, r), low)))
+                    vsubq_u32(p, vshrq_n_u32::<COUNT>(vaddq_u32(vmulq_u32(p, r), low)))
                 };
                 // n + 1 below the limit: the compare is all ones there
-                let n = vsubq_u32(n, vcltq_u32(n, vdupq_n_u32(127)));
-                let mut w = [0u32; 4];
-                vst1q_u32(w.as_mut_ptr(), vorrq_u32(p, vshlq_n_u32::<16>(n)));
+                let top = vdupq_n_u32(u32::from(super::standard::COUNT_LIMIT));
+                let n = vsubq_u32(n, vcltq_u32(n, top));
+                let mut w = [0u32; L];
+                vst1q_u32(w.as_mut_ptr(), vorrq_u32(p, vshlq_n_u32::<COUNT>(n)));
                 for k in 0..kept {
                     *sl.get_unchecked_mut(ix[base + k] as usize) = w[k];
                 }
-                base += 4;
+                base += L;
             }
         }
-        for &i in &ix[16.min(na)..na] {
+        for &i in &ix[FULL.min(na)..na] {
             adapt_slot(&mut sl[i as usize], y, rate);
         }
     }
@@ -2447,7 +2464,7 @@ mod arm {
             sv: &[u32; NC],
             na: usize,
             y: bool,
-            rate: &[i32; 128],
+            rate: &super::Rates,
         ) {
             // SAFETY: the model calls this for the words
             // sense_slots read, of slots all different.
@@ -2507,47 +2524,51 @@ mod arm {
 
 #[cfg(all(target_arch = "wasm32", target_feature = "simd128"))]
 mod wasm {
-    use super::{adapt_slot, rows4, Kernel, Tables, NC, NINP, WEIGHT_LIMIT};
+    use super::{adapt_slot, Kernel, Tables, NC, NINP, WEIGHT_LIMIT};
     use std::arch::wasm32::*;
 
     /// The WebAssembly SIMD128 kernel: 4 lanes of i32, products widened to
     /// i64 pairs exactly as the scalar kernel computes them.
     pub(super) struct Simd128;
 
-    /// [`Kernel::distinct`] on five rows of four ([`rows4`]): each row
-    /// against its rotations by 1 and 2, each pair of rows at all four.
+    /// Lanes of the WebAssembly SIMD vector, as u32.
+    const L: usize = std::mem::size_of::<v128>() / std::mem::size_of::<u32>();
+    /// Lanes of the whole rows that hold NC buckets.
+    const P: usize = NC.div_ceil(L) * L;
+    /// Slots adapted in whole vectors; the rest one by one.
+    const FULL: usize = NC / L * L;
+
+    /// [`Kernel::distinct`] by counting matches: each kept bucket against
+    /// every row of the padded buckets ([`super::padded`]); the buckets are
+    /// all different exactly when each matches only itself.
     #[inline(always)]
     fn distinct(bb: &[u32; NC], na: usize) -> bool {
-        let r = rows4(bb, na);
-        // SAFETY: simd128 is enabled for this module; every load lies
-        // inside r.
-        let v: [v128; 5] =
-            std::array::from_fn(|i| unsafe { v128_load(r.as_ptr().add(4 * i).cast()) });
-        let r1 = |b: v128| i32x4_shuffle::<1, 2, 3, 0>(b, b);
-        let r2 = |b: v128| i32x4_shuffle::<2, 3, 0, 1>(b, b);
-        let r3 = |b: v128| i32x4_shuffle::<3, 0, 1, 2>(b, b);
-        let mut dup = u32x4_splat(0);
-        for i in 0..5 {
-            dup = v128_or(dup, i32x4_eq(v[i], r1(v[i])));
-            dup = v128_or(dup, i32x4_eq(v[i], r2(v[i])));
-            for &b in &v[i + 1..] {
-                dup = v128_or(dup, i32x4_eq(v[i], b));
-                dup = v128_or(dup, i32x4_eq(v[i], r1(b)));
-                dup = v128_or(dup, i32x4_eq(v[i], r2(b)));
-                dup = v128_or(dup, i32x4_eq(v[i], r3(b)));
+        let r = super::padded::<P>(bb, na);
+        // SAFETY: simd128 is enabled for this module; every load reads L
+        // lanes inside r.
+        let rows: [v128; P / L] =
+            std::array::from_fn(|i| unsafe { v128_load(r.as_ptr().add(i * L).cast()) });
+        let mut matches = u32x4_splat(0);
+        for &b in &bb[..na] {
+            let v = u32x4_splat(b);
+            for &row in &rows {
+                // a match is all ones: subtracting it counts one
+                matches = i32x4_sub(matches, i32x4_eq(row, v));
             }
         }
-        !v128_any_true(dup)
+        let mut m = [0u32; L];
+        // SAFETY: the store writes L lanes of m.
+        unsafe { v128_store(m.as_mut_ptr().cast(), matches) };
+        m.iter().sum::<u32>() as usize == na
     }
 
-    /// [`Kernel::adapt_slots`] four different slots at a time, from the words
-    /// sensing read, in the exact 32-bit lanes the AVX2 kernel uses
-    /// (`u * r + 65535 < 2^32`); WebAssembly SIMD has no gather, so each lane looks up
-    /// its rate.
+    /// [`Kernel::adapt_slots`] L different slots at a time, from the words
+    /// sensing read, in the exact 32-bit lanes the AVX2 kernel uses; WebAssembly SIMD
+    /// has no gather, so each lane looks up its rate.
     ///
     /// # Safety
     /// As the AVX2 kernel's: `ix[..na]` different slots of `sl` whose words
-    /// are `sv[..na]`, each a probability and a count up to 127.
+    /// are `sv[..na]`, each a probability and a count up to the limit.
     #[inline(always)]
     unsafe fn adapt_slots(
         sl: &mut [u32],
@@ -2555,42 +2576,52 @@ mod wasm {
         sv: &[u32; NC],
         na: usize,
         y: bool,
-        rate: &[i32; 128],
+        rate: &super::Rates,
     ) {
         let mut base = 0;
-        // SAFETY: simd128 is enabled for this module; lanes below 16 lie inside ix and sv; each
-        // rate is at a count below 128; each store writes a kept lane's own
-        // slot, which the caller vouches for.
+        // SAFETY: simd128 is enabled for this module; whole vectors lie inside ix and sv
+        // (base + L <= NC); each rate is at a count within the table; each
+        // store writes a kept lane's own slot, which the caller vouches for.
         unsafe {
-            let low = u32x4_splat(0xffff);
-            while base < na.min(16) {
-                let kept = (na - base).min(4);
-                let mut r = [0u32; 4];
+            while base < na.min(FULL) {
+                let kept = (na - base).min(L);
+                let mut r = [0u32; L];
                 for k in 0..kept {
-                    r[k] = *rate.get_unchecked((sv[base + k] >> 16) as usize) as u32;
+                    r[k] = *rate.get_unchecked((sv[base + k] >> super::PROB_BITS) as usize) as u32;
                 }
+                let low = u32x4_splat(u32::from(u16::MAX));
                 let wv = v128_load(sv.as_ptr().add(base).cast());
                 let (p, n, r) = (
                     v128_and(wv, low),
-                    u32x4_shr(wv, 16),
+                    u32x4_shr(wv, super::PROB_BITS),
                     v128_load(r.as_ptr().cast()),
                 );
                 let p = if y {
-                    i32x4_add(p, u32x4_shr(i32x4_mul(i32x4_sub(low, p), r), 16))
+                    i32x4_add(
+                        p,
+                        u32x4_shr(i32x4_mul(i32x4_sub(low, p), r), super::PROB_BITS),
+                    )
                 } else {
-                    i32x4_sub(p, u32x4_shr(i32x4_add(i32x4_mul(p, r), low), 16))
+                    i32x4_sub(
+                        p,
+                        u32x4_shr(i32x4_add(i32x4_mul(p, r), low), super::PROB_BITS),
+                    )
                 };
                 // n + 1 below the limit: the compare is all ones there
-                let n = i32x4_sub(n, u32x4_lt(n, u32x4_splat(127)));
-                let mut w = [0u32; 4];
-                v128_store(w.as_mut_ptr().cast(), v128_or(p, i32x4_shl(n, 16)));
+                let top = u32x4_splat(u32::from(super::standard::COUNT_LIMIT));
+                let n = i32x4_sub(n, u32x4_lt(n, top));
+                let mut w = [0u32; L];
+                v128_store(
+                    w.as_mut_ptr().cast(),
+                    v128_or(p, i32x4_shl(n, super::PROB_BITS)),
+                );
                 for k in 0..kept {
                     *sl.get_unchecked_mut(ix[base + k] as usize) = w[k];
                 }
-                base += 4;
+                base += L;
             }
         }
-        for &i in &ix[16.min(na)..na] {
+        for &i in &ix[FULL.min(na)..na] {
             adapt_slot(&mut sl[i as usize], y, rate);
         }
     }
@@ -2624,7 +2655,7 @@ mod wasm {
             sv: &[u32; NC],
             na: usize,
             y: bool,
-            rate: &[i32; 128],
+            rate: &super::Rates,
         ) {
             // SAFETY: the model calls this for the words
             // sense_slots read, of slots all different.
