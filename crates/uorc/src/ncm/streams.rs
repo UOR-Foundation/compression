@@ -114,7 +114,11 @@ pub fn word(profile: u32, plan: Plan) -> Option<u64> {
     if !plan.valid() || !plan.epoch.is_power_of_two() || plan.epoch.trailing_zeros() >= 32 {
         return None;
     }
-    let p = if plan.bits == 12 { 0 } else { u64::from(plan.bits) };
+    let p = if plan.bits == 12 {
+        0
+    } else {
+        u64::from(plan.bits)
+    };
     if plan.streams == 1 {
         return Some(u64::from(profile) | p << PROB_AT);
     }
@@ -224,8 +228,7 @@ pub fn derive(
 /// The epoch of `k` streams by the least payload, then steps: one epoch per
 /// stream first, then halved while the payload shrinks.
 fn epochs(history: &[u8], data: &[u8], profile: u32, k: usize, threads: usize) -> Option<Derived> {
-    let stride = Plan::of(k, 1)
-    .stride(data.len());
+    let stride = Plan::of(k, 1).stride(data.len());
     let mut epoch = stride.next_power_of_two();
     let trial = |epoch, stop| {
         let plan = Plan::of(k, epoch);

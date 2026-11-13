@@ -2671,7 +2671,10 @@ mod tests {
                 ncm::encode_bits_below(&[], &text, profile, bits, usize::MAX).expect("payload");
             let a = archive::linked_archive_profile(archive::Codec::Ncm, word, &[n], &payload)
                 .expect("archive");
-            assert_eq!(decompress_frame(&a, DEFAULT_DECODE_WORK).expect("native"), text);
+            assert_eq!(
+                decompress_frame(&a, DEFAULT_DECODE_WORK).expect("native"),
+                text
+            );
             assert_eq!(
                 model_decompress_frame(&a).expect("model"),
                 text,
