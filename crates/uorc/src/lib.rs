@@ -170,7 +170,7 @@ pub fn default_threads() -> usize {
 /// archive when that is not smaller; with `steps > 0` the exported model also searches and keeps the
 /// smallest.
 pub fn compress_frame(frame: &[u8], steps: u64) -> Result<Vec<u8>, Error> {
-    compress_pieces(frame, &[frame.len() as u64], &[], steps, true)
+    compress_pieces(frame, &[frame.len() as u64], &[], steps, default_threads())
 }
 
 /// [`compress_frame`] for a frame that follows the frames `window` (the
@@ -178,21 +178,30 @@ pub fn compress_frame(frame: &[u8], steps: u64) -> Result<Vec<u8>, Error> {
 /// `compress input window steps`: the ncm candidate is the window archive
 /// whose payload reads those frames as history.
 pub fn compress_frame_with(frame: &[u8], window: &[&[u8]], steps: u64) -> Result<Vec<u8>, Error> {
-    compress_pieces(frame, &[frame.len() as u64], window, steps, true)
+    compress_pieces(
+        frame,
+        &[frame.len() as u64],
+        window,
+        steps,
+        default_threads(),
+    )
 }
 
 /// [`compress_frame`] with the output split into objects of `lengths`, which
 /// sum to the frame's length. Only the header differs from the one-object
-/// archive, so the choice between linked and raw is the same.
+/// archive, so the choice between linked and raw is the same. The frame
+/// has `cores` threads to itself: with two or more its strategies code side
+/// by side, and the cores they leave take the steps ahead
+/// ([`portfolio_trials_ahead`]). The archive does not depend on `cores`.
 fn compress_pieces(
     frame: &[u8],
     lengths: &[u64],
     window: &[&[u8]],
     steps: u64,
-    side_by_side: bool,
+    cores: usize,
 ) -> Result<Vec<u8>, Error> {
     let host = performance::declared_host();
-    compress_pieces_on(frame, lengths, window, steps, side_by_side, host)
+    compress_pieces_on(frame, lengths, window, steps, cores, host)
 }
 
 fn compress_pieces_on(
@@ -200,7 +209,7 @@ fn compress_pieces_on(
     lengths: &[u64],
     window: &[&[u8]],
     steps: u64,
-    side_by_side: bool,
+    cores: usize,
     host: performance::Host,
 ) -> Result<Vec<u8>, Error> {
     if steps > 0 {
@@ -209,7 +218,7 @@ fn compress_pieces_on(
         // search, `Client.search`), the search kept only when strictly shorter
         // (`Client.smaller`); as one object, then relabelled
         let n = [frame.len() as u64];
-        let quick = compress_pieces(frame, &n, window, 0, side_by_side)?;
+        let quick = compress_pieces(frame, &n, window, 0, cores)?;
         let found = on_reference_stack(|| reference_search(frame, steps))?;
         let archive = match found {
             Some(f) if f.len() < quick.len() => f,
@@ -226,23 +235,31 @@ fn compress_pieces_on(
     // then reaches every frame given
     let reach = window;
     let window = &window[window.len().saturating_sub(archive::WINDOW)..];
-    let found = portfolio_trials(
+    // the window and table steps on a chosen archive (`Client.stepWindow`,
+    // `Client.stepTable`): a function of the archive's bytes alone
+    let finish = |linked: &[u8]| -> Vec<u8> {
+        let (stepped, k) = step_window(frame, lengths, reach, linked.to_vec(), host);
+        let window = &reach[reach.len() - k..];
+        step_table(frame, lengths, window, stepped, host)
+    };
+    let (found, ahead) = portfolio_trials_ahead(
         frame,
         lengths,
         window,
         &portfolio::plan(frame),
-        side_by_side,
+        cores >= 2,
+        Some((&finish, cores)),
     );
     let best = found
         .into_iter()
         .rev()
         .fold(None, |kept, head| pick_trial(head, kept));
     match best {
-        Some((linked, _)) if (linked.len() as u64) < raw => {
-            let (stepped, k) = step_window(frame, lengths, reach, linked, host);
-            let window = &reach[reach.len() - k..];
-            Ok(step_table(frame, lengths, window, stepped, host))
-        }
+        Some((linked, _)) if (linked.len() as u64) < raw => Ok(match ahead {
+            // the steps already taken on these very bytes
+            Some((led, done)) if led == linked => done,
+            _ => finish(&linked),
+        }),
         _ => Ok(archive::raw_objects(frame, lengths)),
     }
 }
@@ -460,6 +477,31 @@ fn portfolio_trials(
     plan: &[portfolio::Strategy],
     side_by_side: bool,
 ) -> Vec<Option<(Vec<u8>, u64)>> {
+    portfolio_trials_ahead(frame, lengths, window, plan, side_by_side, None).0
+}
+
+/// The steps a chosen archive takes after the portfolio, as a function of
+/// its bytes (`compress_pieces_on`'s window and table steps).
+type Finish<'a> = &'a (dyn Fn(&[u8]) -> Vec<u8> + Sync);
+
+/// [`portfolio_trials`], and, when the strategies code side by side and
+/// `finish` is given with the frame's cores, the steps taken ahead: while
+/// the last strategies are still coding, the cores the finished ones left
+/// (never more threads than the frame's cores) take `finish` on the
+/// least archive so far (the leader, `Client.pick` over the finished
+/// trials). The result names the archive the steps were taken on and their
+/// archive; the caller uses it only when that archive is, byte for byte,
+/// the one the fold of `pick` chooses: the steps are a function of the
+/// chosen archive's bytes, so the frame's archive is the one the serial
+/// order writes, whichever strategy finishes first.
+fn portfolio_trials_ahead(
+    frame: &[u8],
+    lengths: &[u64],
+    window: &[&[u8]],
+    plan: &[portfolio::Strategy],
+    side_by_side: bool,
+    finish: Option<(Finish<'_>, usize)>,
+) -> (Vec<Trial>, Option<Ahead>) {
     let history = window.concat();
     let identity = (!window.is_empty()).then(|| archive::window_identity(window));
     // The strategy portfolio (`Client.portfolio`): code the frame by the
@@ -661,40 +703,48 @@ fn portfolio_trials(
         }
         found[k] = Some(a);
     };
+    let mut ahead = None;
     if side_by_side && cfg!(not(target_family = "wasm")) {
         // each group on its own core, bounded by the raw archive
-        let coded: Vec<(Trial, Trial)> = std::thread::scope(|s| {
-            // each group's thread holds a core of the compression's pool
-            // (taken before any starts), so its encoders borrow only cores
-            // no group runs on
-            let pool = ncm::Cores::current();
-            let held: Vec<_> = leads[1..]
-                .iter()
-                .map(|_| pool.as_ref().map(ncm::Cores::hold))
-                .collect();
-            let others: Vec<_> = leads[1..]
-                .iter()
-                .zip(held)
-                .map(|(&k, held)| {
-                    s.spawn(move || match held {
-                        Some(h) => h.run(|| group(k, raw)),
-                        None => group(k, raw),
-                    })
-                })
-                .collect();
-            let first = group(leads[0], raw);
-            // this thread only waits from here: its core is spare
-            let _idle = pool.as_ref().map(ncm::Cores::idle);
-            std::iter::once(first)
-                .chain(
-                    others
-                        .into_iter()
-                        .map(|h| h.join().expect("strategy thread")),
-                )
-                .collect()
-        });
-        for (&k, c) in leads.iter().zip(coded) {
-            place(k, c);
+        match finish {
+            None => {
+                let coded: Vec<(Trial, Trial)> = std::thread::scope(|s| {
+                    // each group's thread holds a core of the compression's pool
+                    // (taken before any starts), so its encoders borrow only cores
+                    // no group runs on
+                    let pool = ncm::Cores::current();
+                    let held: Vec<_> = leads[1..]
+                        .iter()
+                        .map(|_| pool.as_ref().map(ncm::Cores::hold))
+                        .collect();
+                    let others: Vec<_> = leads[1..]
+                        .iter()
+                        .zip(held)
+                        .map(|(&k, held)| {
+                            s.spawn(move || match held {
+                                Some(h) => h.run(|| group(k, raw)),
+                                None => group(k, raw),
+                            })
+                        })
+                        .collect();
+                    let first = group(leads[0], raw);
+                    // this thread only waits from here: its core is spare
+                    let _idle = pool.as_ref().map(ncm::Cores::idle);
+                    std::iter::once(first)
+                        .chain(
+                            others
+                                .into_iter()
+                                .map(|h| h.join().expect("strategy thread")),
+                        )
+                        .collect()
+                });
+                for (&k, c) in leads.iter().zip(coded) {
+                    place(k, c);
+                }
+            }
+            Some((finish, cores)) => {
+                ahead = side_by_side_ahead(&leads, &group, &mut place, raw, finish, cores);
+            }
         }
     } else {
         // one group after the other, each bounded by one byte past the least
@@ -710,11 +760,131 @@ fn portfolio_trials(
             place(k, c);
         }
     }
-    found.into_iter().map(Option::flatten).collect()
+    (found.into_iter().map(Option::flatten).collect(), ahead)
+}
+
+/// What a side-by-side portfolio's threads report: a group's trials, or
+/// the steps taken ahead on a leader.
+enum Done {
+    Group(usize, (Trial, Trial)),
+    Ahead(Vec<u8>, Vec<u8>),
+}
+
+/// The side-by-side portfolio with the steps taken ahead
+/// ([`portfolio_trials_ahead`]): every group on its own thread, each
+/// bounded by the raw archive; as groups finish, the least finished archive
+/// (the fold of `pick` over the trials so far) is stepped on a thread of
+/// its own while groups are still coding and fewer threads than `cores`
+/// run (groups coding and steppings). Once every group is in, the chosen
+/// archive is the fold over all of them: its steps are the ones taken ahead on the same bytes, or the
+/// running stepping when that is on the same bytes, or else taken now.
+/// Returns the chosen archive and its steps, when it is under raw.
+fn side_by_side_ahead(
+    leads: &[usize],
+    group: &(dyn Fn(usize, u64) -> (Trial, Trial) + Sync),
+    place: &mut dyn FnMut(usize, (Trial, Trial)),
+    raw: u64,
+    finish: Finish<'_>,
+    cores: usize,
+) -> Option<Ahead> {
+    // the trials so far, by group (plan order of the leads)
+    let mut got: Vec<Option<(Trial, Trial)>> = vec![None; leads.len()];
+    let leader = |got: &[Option<(Trial, Trial)>]| -> Option<Vec<u8>> {
+        got.iter()
+            .flatten()
+            .flat_map(|(a, b)| [a.clone(), b.clone()])
+            .rev()
+            .fold(None, |kept, head| pick_trial(head, kept))
+            .map(|(a, _)| a)
+            .filter(|a| (a.len() as u64) < raw)
+    };
+    let mut taken: Vec<Ahead> = Vec::new();
+    let result = std::thread::scope(|s| {
+        let (tx, rx) = std::sync::mpsc::channel::<Done>();
+        // each thread this starts holds a core of the compression's pool
+        // (the groups' taken before any starts), so its encoders borrow
+        // only cores nothing runs on
+        let pool = ncm::Cores::current();
+        let held: Vec<_> = leads
+            .iter()
+            .map(|_| pool.as_ref().map(ncm::Cores::hold))
+            .collect();
+        for ((i, &k), held) in leads.iter().enumerate().zip(held) {
+            let tx = tx.clone();
+            s.spawn(move || {
+                let c = match held {
+                    Some(h) => h.run(|| group(k, raw)),
+                    None => group(k, raw),
+                };
+                let _ = tx.send(Done::Group(i, c));
+            });
+        }
+        // this thread only waits until the trials are in: its core is spare
+        let idle = pool.as_ref().map(ncm::Cores::idle);
+        // the leaders being stepped
+        let mut stepping: Vec<Vec<u8>> = Vec::new();
+        let mut left = leads.len();
+        while left > 0 {
+            match rx.recv().expect("strategy thread") {
+                Done::Group(i, c) => {
+                    got[i] = Some(c);
+                    left -= 1;
+                }
+                Done::Ahead(led, done) => {
+                    stepping.retain(|t| *t != led);
+                    taken.push((led, done));
+                }
+            }
+            if left == 0 || left + stepping.len() >= cores {
+                continue;
+            }
+            if let Some(led) = leader(&got) {
+                if !taken.iter().any(|(t, _)| *t == led) && !stepping.contains(&led) {
+                    stepping.push(led.clone());
+                    let tx = tx.clone();
+                    let held = pool.as_ref().map(ncm::Cores::hold);
+                    s.spawn(move || {
+                        let done = match held {
+                            Some(h) => h.run(|| finish(&led)),
+                            None => finish(&led),
+                        };
+                        let _ = tx.send(Done::Ahead(led, done));
+                    });
+                }
+            }
+        }
+        // the trials are all in: the chosen archive is the fold over them
+        let chosen = leader(&got)?;
+        if let Some(i) = taken.iter().position(|(t, _)| *t == chosen) {
+            return Some(taken.swap_remove(i));
+        }
+        if stepping.contains(&chosen) {
+            // the stepping running is on the chosen bytes: wait for it
+            loop {
+                if let Done::Ahead(led, done) = rx.recv().expect("stepping thread") {
+                    if led == chosen {
+                        return Some((led, done));
+                    }
+                }
+            }
+        }
+        // steppings on other leaders may still run; take the steps now, on
+        // this thread's own core
+        drop(idle);
+        let done = finish(&chosen);
+        Some((chosen, done))
+    });
+    for (&k, c) in leads.iter().zip(got) {
+        place(k, c.expect("every group reports"));
+    }
+    result
 }
 
 /// A coded trial: the archive and its decode steps.
 type Trial = Option<(Vec<u8>, u64)>;
+
+/// Steps taken ahead: the archive they were taken on and their archive.
+type Ahead = (Vec<u8>, Vec<u8>);
 
 /// What a state strategy codes: the frame and the state it continues, both
 /// through the x86 filter or not, and the state's identity.
@@ -1362,8 +1532,9 @@ fn compress_frames(
         let jobs: Vec<usize> = (before.len()..all.len())
             .filter(|&k| batch[k - before.len()].reference.is_none())
             .collect();
-        // a frame codes its two strategies side by side when the batch leaves a core free
-        let spare = 2 * jobs.len() <= threads;
+        // each frame of the batch has its share of the threads: with two or
+        // more, its strategies code side by side
+        let share = threads / jobs.len().max(1);
         // the cores no frame's worker holds, lent to the encoders as they start
         let cores = ncm::Cores::new(threads.saturating_sub(jobs.len().max(1)));
         let mut coded = parallel(&jobs, threads, |&k| {
@@ -1374,7 +1545,7 @@ fn compress_frames(
                     &frame.pieces,
                     &all[k - frame.window..k],
                     steps,
-                    spare,
+                    share,
                 )
             })
         })
@@ -2004,7 +2175,7 @@ impl Planned {
                 window,
             } => {
                 let window: Vec<&[u8]> = window.iter().map(Vec::as_slice).collect();
-                compress_pieces(bytes, pieces, &window, steps, true)
+                compress_pieces(bytes, pieces, &window, steps, default_threads())
             }
         }
     }
@@ -2249,6 +2420,33 @@ mod tests {
     /// The portfolio's choices depend on each frame and its window only (the
     /// weights are the committed table), so a stream of frames from every
     /// family is the same bytes for any number of threads.
+    #[test]
+    fn steps_taken_ahead_are_the_steps_on_the_chosen_archive() {
+        // side by side, the steps the leaders took are kept only for the
+        // archive the fold of `pick` chooses: the frame is the serial one
+        for frame in [text(40_000, 7), text(3_000, 8)] {
+            let n = [frame.len() as u64];
+            let plan = portfolio::plan(&frame);
+            let host = performance::declared_host();
+            let finish = |linked: &[u8]| {
+                let (stepped, _) = step_window(&frame, &n, &[], linked.to_vec(), host);
+                step_table(&frame, &n, &[], stepped, host)
+            };
+            let (found, ahead) =
+                portfolio_trials_ahead(&frame, &n, &[], &plan, true, Some((&finish, 4)));
+            let chosen = found
+                .into_iter()
+                .rev()
+                .fold(None, |kept, head| pick_trial(head, kept))
+                .map(|(a, _)| a)
+                .expect("text codes");
+            let (led, done) = ahead.expect("the chosen archive is under raw");
+            assert!(led == chosen);
+            assert!(done == finish(&chosen));
+            assert!(compress_pieces(&frame, &n, &[], 0, 1).expect("codes") == done);
+        }
+    }
+
     #[test]
     fn portfolio_streams_do_not_depend_on_threads() {
         let calls: Vec<u8> = (0..20_000u32)

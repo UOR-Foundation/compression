@@ -905,8 +905,12 @@ impl Model {
     /// over the state that reports progress like any other, on this core or
     /// with the input side on spare cores as an encode runs ([`run_bits`]).
     fn warm<K: Kernel, const W: usize>(self, state: &[u8]) -> Model {
+        let profile = self.profile;
         let mut idle = [Coder::idle(), Coder::new(0, 0, false)];
-        run_bits::<K, W>(self, state, &mut idle, false).expect("an idle coder is never abandoned")
+        let m = run_bits::<K, W>(self, state, &mut idle, false)
+            .expect("an idle coder is never abandoned");
+        count_steps(profile, idle[0].bits);
+        m
     }
 
     /// (table mask, match table bits) for `n` coded bytes.
@@ -2187,6 +2191,27 @@ pub fn set_progress(hook: Option<Progress>) {
     PROGRESS.with(|p| p.set(hook));
 }
 
+/// Steps the model has run in this process: each coder's coded bits times
+/// the inputs its profile evaluates per bit, up to where it ended or was
+/// abandoned, and each state replay's (the
+/// [`crate::performance::trial_steps`] measure). A trial never coded (an
+/// excluded strategy, a step the host refuses) adds nothing; a stepping
+/// taken ahead on a leader that is not chosen adds its own.
+static MODEL_STEPS: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+
+/// [`MODEL_STEPS`]: the steps the model has run in this process so far. The
+/// difference over a compression is the work that compression coded.
+pub fn model_steps() -> u64 {
+    MODEL_STEPS.load(std::sync::atomic::Ordering::Relaxed)
+}
+
+fn count_steps(profile: u32, bits: u64) {
+    MODEL_STEPS.fetch_add(
+        bits * u64::from(crate::performance::inputs(profile)),
+        std::sync::atomic::Ordering::Relaxed,
+    );
+}
+
 #[inline(never)]
 fn tick(done: usize, total: usize) {
     if let Some(hook) = PROGRESS.with(std::cell::Cell::get) {
@@ -2519,6 +2544,8 @@ struct Coder {
     out: Vec<u8>,
     cap: usize,
     live: bool,
+    /// Bits coded while live ([`model_steps`]).
+    bits: u64,
 }
 
 impl Coder {
@@ -2532,6 +2559,7 @@ impl Coder {
             // the payload ends one byte longer than the bytes emitted so far
             cap: (2 * len + 64).min(stop.saturating_sub(5)),
             live,
+            bits: 0,
         }
     }
 
@@ -2545,6 +2573,7 @@ impl Coder {
             out: vec![0; 4],
             cap: usize::MAX,
             live: true,
+            bits: 0,
         }
     }
 
@@ -2552,6 +2581,7 @@ impl Coder {
     /// output reaches its cap is abandoned.
     #[inline(always)]
     fn code(&mut self, y: bool, p: u32) {
+        self.bits += 1;
         let (mut x1, mut x2) = (self.x1, self.x2);
         let xm = x1 + ((u64::from(x2 - x1) * u64::from(p)) >> 12) as u32;
         if y {
@@ -2589,7 +2619,12 @@ fn encode_bits<K: Kernel, const W: usize>(m: Model, data: &[u8], stops: [usize; 
         Coder::new(data.len(), stops[0], true),
         Coder::new(data.len(), stops[1], twin),
     ];
-    let Some(m) = run_bits::<K, W>(m, data, &mut coders, learning) else {
+    let profiles = [m.profile, m.profile ^ F_SEL];
+    let ran = run_bits::<K, W>(m, data, &mut coders, learning);
+    for (p, c) in profiles.into_iter().zip(&coders) {
+        count_steps(p, c.bits);
+    }
+    let Some(m) = ran else {
         return (None, None);
     };
     let (learned, twin_learned) = (m.learned(), m.twin_learned());
