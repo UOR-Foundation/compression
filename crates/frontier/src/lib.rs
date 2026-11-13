@@ -36,6 +36,7 @@ use std::path::Path;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use uorc::portfolio::{self, Strategy};
+use uorc::region::Host;
 
 /// The register's schema name.
 pub const SCHEMA: &str = "uorc/frontier/1";
@@ -754,6 +755,9 @@ pub struct Register {
     /// Claims, in the order they were minted.
     #[serde(default)]
     pub claim: Vec<Claim>,
+    /// Distances to the host ceiling, one per (point, corpus, host κ).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub ceiling: Vec<Ceiling>,
 }
 
 impl Default for Register {
@@ -764,6 +768,7 @@ impl Default for Register {
             comparator: Vec::new(),
             point: Vec::new(),
             claim: Vec::new(),
+            ceiling: Vec::new(),
         }
     }
 }
@@ -814,6 +819,22 @@ impl Register {
         for p in &self.point {
             if p.point()?.kappa() != p.kappa {
                 return bad(format!("point {} κ does not recompute", p.kappa));
+            }
+        }
+        for c in &self.ceiling {
+            if c.recomputed() != *c {
+                return bad(format!(
+                    "ceiling of {} on {}: host κ, ceiling or distance does not recompute",
+                    c.codec, c.corpus
+                ));
+            }
+            if self.corpus_by_kappa(&c.corpus).is_none()
+                || !self.point.iter().any(|q| q.kappa == c.codec)
+            {
+                return bad(format!(
+                    "ceiling names an unknown corpus or point {}",
+                    c.codec
+                ));
             }
         }
         let mut seen = BTreeMap::new();
@@ -932,6 +953,18 @@ impl Register {
         files: &[Vec<u8>],
         by: &str,
     ) -> Result<Closed, Error> {
+        self.decide_timed(point, corpus, files, by).map(|(c, _)| c)
+    }
+
+    /// [`Register::decide`], with the run's [`Timing`] when the codec ran
+    /// (`None` when the claim was known by κ).
+    pub fn decide_timed(
+        &mut self,
+        point: &CodecPoint,
+        corpus: &Corpus,
+        files: &[Vec<u8>],
+        by: &str,
+    ) -> Result<(Closed, Option<Timing>), Error> {
         let q = Register::closed_question(point, corpus);
         let factory = by.starts_with("factory:");
         if let Some(known) = self.known(&q.id) {
@@ -940,13 +973,13 @@ impl Register {
                     // a refuted statement answers with what was observed
                     closed.bytes = known.observed_bytes.unwrap_or(closed.bytes);
                     closed.steps = known.observed_steps.unwrap_or(closed.steps);
-                    return Ok(closed);
+                    return Ok((closed, None));
                 }
             }
         }
         self.add_corpus(corpus.clone())?;
         self.add_point(point, None);
-        let run = measure(point, corpus, files)?;
+        let (run, timing) = measure_timed(point, corpus, files, Host::measured())?;
         let mut claim = self.known(&q.id).cloned().unwrap_or(q);
         match (claim.bytes, claim.steps) {
             (Some(b), Some(s)) if (b, s) != (run.bytes, run.steps) => {
@@ -965,7 +998,32 @@ impl Register {
         claim.members = run.members.clone();
         claim.receipt = Some(by.to_owned());
         self.put(claim);
-        Ok(run)
+        Ok((run, Some(timing)))
+    }
+
+    /// Record the distance of `point` on `corpus` to the ceiling of the
+    /// host that ran it ([`Ceiling::of`]), replacing an earlier record of
+    /// the same point, corpus and host κ.
+    pub fn record_ceiling(
+        &mut self,
+        point: &CodecPoint,
+        corpus: &Corpus,
+        steps: u64,
+        timing: &Timing,
+        label: Option<&str>,
+    ) -> &Ceiling {
+        let c = Ceiling::of(
+            &point.kappa(),
+            &corpus.kappa,
+            label,
+            Host::measured(),
+            steps,
+            timing,
+        );
+        self.ceiling
+            .retain(|e| !(e.codec == c.codec && e.corpus == c.corpus && e.host == c.host));
+        self.ceiling.push(c);
+        self.ceiling.last().expect("pushed")
     }
 
     /// Decide every bound claim of `point` on `corpus` against the pinned
@@ -1080,6 +1138,33 @@ impl Register {
 /// and decompress it back. Exact and deterministic: the result depends on
 /// the point and the bytes alone (not on the thread count or the machine).
 pub fn measure(point: &CodecPoint, corpus: &Corpus, files: &[Vec<u8>]) -> Result<Closed, Error> {
+    measure_timed(point, corpus, files, Host::current()).map(|(c, _)| c)
+}
+
+/// The wall time and transport of one [`measure`] run on the running host:
+/// what [`Ceiling::of`] compares with the host's ceiling. Times are what
+/// this host observed; the bytes and steps beside them are exact.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct Timing {
+    /// Nanoseconds compressing every member.
+    pub compress_ns: u64,
+    /// Nanoseconds decompressing every member.
+    pub decode_ns: u64,
+    /// Bytes of cache lines the members' ncm frames move on this host
+    /// ([`Host::line_bytes`]).
+    pub line_bytes: u64,
+}
+
+/// [`measure`], timing the compression and the decompression on `host`
+/// (the running machine) and counting the lines the frames move there.
+pub fn measure_timed(
+    point: &CodecPoint,
+    corpus: &Corpus,
+    files: &[Vec<u8>],
+    host: &Host,
+) -> Result<(Closed, Timing), Error> {
+    let mut timing = Timing::default();
+    let nanos = |t: std::time::Instant| u64::try_from(t.elapsed().as_nanos()).unwrap_or(u64::MAX);
     if point.state.is_some() || point.lanes != 1 {
         return Err(Error::Codec(
             "this client codes fresh models in one lane only".to_owned(),
@@ -1096,7 +1181,9 @@ pub fn measure(point: &CodecPoint, corpus: &Corpus, files: &[Vec<u8>]) -> Result
     let mut members = Vec::with_capacity(files.len());
     for (m, input) in corpus.members.iter().zip(files) {
         let fail = |what: &str| Error::Codec(format!("{}: {what}", m.name));
+        let started = std::time::Instant::now();
         let stream = point.plan.compress(input, threads);
+        timing.compress_ns = timing.compress_ns.saturating_add(nanos(started));
         let mut steps = 0u64;
         for frame in uorc::frames(&stream).map_err(|e| fail(&format!("frames: {e}")))? {
             let info = uorc::inspect(frame).map_err(|e| fail(&format!("inspect: {e}")))?;
@@ -1107,9 +1194,17 @@ pub fn measure(point: &CodecPoint, corpus: &Corpus, files: &[Vec<u8>]) -> Result
                 ))
             })?;
             steps = steps.checked_add(s).ok_or_else(|| fail("step overflow"))?;
+            if let Some(profile) = info.ncm_profile {
+                timing.line_bytes =
+                    timing
+                        .line_bytes
+                        .saturating_add(host.line_bytes(info.output_len, 0, profile));
+            }
         }
+        let started = std::time::Instant::now();
         let back = uorc::decompress(&stream, uorc::DEFAULT_DECODE_WORK)
             .map_err(|e| fail(&format!("decompress: {e}")))?;
+        timing.decode_ns = timing.decode_ns.saturating_add(nanos(started));
         if back != *input {
             return Err(fail("the archive does not round-trip"));
         }
@@ -1121,11 +1216,146 @@ pub fn measure(point: &CodecPoint, corpus: &Corpus, files: &[Vec<u8>]) -> Result
             steps,
         });
     }
-    Ok(Closed {
-        bytes: members.iter().map(|m| m.bytes).sum(),
-        steps: members.iter().map(|m| m.steps).sum(),
-        members,
-    })
+    Ok((
+        Closed {
+            bytes: members.iter().map(|m| m.bytes).sum(),
+            steps: members.iter().map(|m| m.steps).sum(),
+            members,
+        },
+        timing,
+    ))
+}
+
+/// Domain tag of a measured host's κ.
+pub const HOST_TAG: &str = "uorc/host/1";
+
+/// A codec point's distance to the ceiling of the host that ran it
+/// (`Uorc.Performance::hostCeiling`, `Uorc.Host::ceilingDerived`): the
+/// host's measured model, the point's exact decode steps on the corpus and
+/// the lines its frames move there, the ceiling `Uorc.Host::ceilingNanos`
+/// derives from them, the time observed, and the distance (observed less
+/// ceiling, `Uorc.Host::distance`). The compress ceiling counts the
+/// archive's decode steps, a floor on any compression's steps. Every
+/// derived field recomputes ([`Ceiling::recomputed`], `frontier check`).
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
+pub struct Ceiling {
+    /// The codec point's κ.
+    pub codec: String,
+    /// The corpus κ.
+    pub corpus: String,
+    /// The release (or other label) the run was for.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub label: Option<String>,
+    /// [`HOST_TAG`] κ of the host fields below.
+    pub host: String,
+    /// The host's threads.
+    pub threads: u64,
+    /// Bits of the vector the codec's kernel works on.
+    pub vector_bits: u32,
+    /// Steps per second one core evaluates.
+    pub step_rate: u64,
+    /// Bytes per second all threads read as independent lines.
+    pub memory_rate: u64,
+    /// Bytes of a cache line.
+    pub line: u64,
+    /// Bytes of the outermost cache level.
+    pub outer_cache: u64,
+    /// Exact decode steps of the corpus under the point.
+    pub steps: u64,
+    /// Bytes of cache lines the point's frames move on this host.
+    pub line_bytes: u64,
+    /// The decode ceiling, nanoseconds.
+    pub decode_ceiling_ns: u64,
+    /// Decode time observed, nanoseconds.
+    pub decode_ns: u64,
+    /// Observed less ceiling.
+    pub decode_distance_ns: u64,
+    /// The compress ceiling (the same steps and lines), nanoseconds.
+    pub compress_ceiling_ns: u64,
+    /// Compress time observed, nanoseconds.
+    pub compress_ns: u64,
+    /// Observed less ceiling.
+    pub compress_distance_ns: u64,
+}
+
+impl Ceiling {
+    /// The record for `steps` and `timing` on `host`.
+    pub fn of(
+        codec: &str,
+        corpus: &str,
+        label: Option<&str>,
+        host: &Host,
+        steps: u64,
+        timing: &Timing,
+    ) -> Ceiling {
+        Ceiling {
+            codec: codec.to_owned(),
+            corpus: corpus.to_owned(),
+            label: label.map(str::to_owned),
+            host: String::new(),
+            threads: host.threads,
+            vector_bits: host.vector_bits,
+            step_rate: host.step_rate,
+            memory_rate: host.memory_rate,
+            line: host.line,
+            outer_cache: host.caches.last().map_or(0, |c| c.bytes),
+            steps,
+            line_bytes: timing.line_bytes,
+            decode_ceiling_ns: 0,
+            decode_ns: timing.decode_ns,
+            decode_distance_ns: 0,
+            compress_ceiling_ns: 0,
+            compress_ns: timing.compress_ns,
+            compress_distance_ns: 0,
+        }
+        .recomputed()
+    }
+
+    /// The host κ: SHA-256 over [`HOST_TAG`] and the host's fields.
+    pub fn host_kappa(&self) -> String {
+        sha256_hex(
+            format!(
+                "{HOST_TAG}\nthreads {}\nvectorBits {}\nstepRate {}\nmemoryRate {}\nline {}\nouterCache {}\n",
+                self.threads,
+                self.vector_bits,
+                self.step_rate,
+                self.memory_rate,
+                self.line,
+                self.outer_cache
+            )
+            .as_bytes(),
+        )
+    }
+
+    /// This record with its host κ, ceilings and distances derived from its
+    /// other fields.
+    pub fn recomputed(&self) -> Ceiling {
+        let host = Host {
+            threads: self.threads,
+            step_rate: self.step_rate,
+            memory_rate: self.memory_rate,
+            ..Host::default()
+        };
+        let ceiling = host.ceiling_nanos(self.steps, self.line_bytes);
+        Ceiling {
+            host: self.host_kappa(),
+            decode_ceiling_ns: ceiling,
+            decode_distance_ns: self.decode_ns.saturating_sub(ceiling),
+            compress_ceiling_ns: ceiling,
+            compress_distance_ns: self.compress_ns.saturating_sub(ceiling),
+            ..self.clone()
+        }
+    }
+
+    /// Whether the run stood within the ceiling (no distance either way),
+    /// and whether the host stated both rates (a host that states none has
+    /// no ceiling: an unmet requirement, not a met one).
+    pub fn met(&self) -> bool {
+        self.step_rate > 0
+            && self.memory_rate > 0
+            && self.decode_distance_ns == 0
+            && self.compress_distance_ns == 0
+    }
 }
 
 /// The export identity recorded in `generated/rust/factory.identity` under
@@ -1296,5 +1526,42 @@ mod tests {
             text,
             "frontier.toml is in canonical form"
         );
+    }
+
+    /// A ceiling record derives its host κ, ceilings and distances from its
+    /// other fields (`Uorc.Host::ceilingNanos`, `distance`): the slower term
+    /// binds, a rate of zero gives its term zero, and a tampered field fails
+    /// `check`.
+    #[test]
+    fn ceiling_recomputes() {
+        let host = Host {
+            threads: 4,
+            step_rate: 1_000_000_000,
+            memory_rate: 1_000_000_000,
+            line: 64,
+            ..Host::default()
+        };
+        let t = Timing {
+            compress_ns: 9_000_000_000,
+            decode_ns: 1_000_000_000,
+            line_bytes: 2_000_000_000,
+        };
+        let c = Ceiling::of("p", "c", Some("v"), &host, 8_000_000_000, &t);
+        // steps: 8e9 / (4 x 1e9) = 2 s; lines: 2e9 / 1e9 = 2 s
+        assert_eq!(c.decode_ceiling_ns, 2_000_000_000);
+        assert_eq!(c.decode_distance_ns, 0);
+        assert_eq!(c.compress_distance_ns, 7_000_000_000);
+        assert!(!c.met());
+        let compute = Ceiling::of("p", "c", None, &host, 16_000_000_000, &t);
+        assert_eq!(compute.decode_ceiling_ns, 4_000_000_000);
+        let unmeasured = Ceiling::of("p", "c", None, &Host::default(), 1, &t);
+        assert_eq!(unmeasured.decode_ceiling_ns, 0);
+        assert!(!unmeasured.met());
+        assert_eq!(c.recomputed(), c);
+        let tampered = Ceiling {
+            decode_distance_ns: 3,
+            ..c.clone()
+        };
+        assert_ne!(tampered.recomputed(), tampered);
     }
 }

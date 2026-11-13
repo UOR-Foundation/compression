@@ -926,7 +926,7 @@ fn main() -> ExitCode {
             return ExitCode::SUCCESS;
         }
         Some("host") => {
-            println!("{}", uorc::region::Host::current().json());
+            println!("{}", uorc::region::Host::measured().json());
             return ExitCode::SUCCESS;
         }
         Some("--help" | "-h") | None => {

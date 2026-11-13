@@ -32,7 +32,7 @@ pub struct Cache {
 /// this one only places regions, so it never changes a byte, and its
 /// padding (under one granule per table) is not counted in
 /// [`crate::ncm::decoder_bytes`], which must not depend on the machine.
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct Host {
     /// Threads the host runs at once.
     pub threads: u64,
@@ -47,6 +47,17 @@ pub struct Host {
     pub line: u64,
     /// The data cache levels, innermost first.
     pub caches: Vec<Cache>,
+    /// Bits of the vector the codec's kernel works on here (`vectorBits`).
+    /// Zero until the host is measured ([`Host::measured`]).
+    pub vector_bits: u32,
+    /// Steps one core evaluates per second running the codec's exact mixer
+    /// contraction ([`crate::ncm::contraction_probe`], `stepRate`). Zero
+    /// until measured.
+    pub step_rate: u64,
+    /// Bytes per second all threads read as independent cache lines from a
+    /// working set the size of the codec's context table at a full frame
+    /// (`memoryRate`). Zero until measured.
+    pub memory_rate: u64,
 }
 
 impl Host {
@@ -54,6 +65,60 @@ impl Host {
     pub fn current() -> &'static Host {
         static HOST: OnceLock<Host> = OnceLock::new();
         HOST.get_or_init(probe)
+    }
+
+    /// The running host with its rates measured ([`Host::current`] reads
+    /// none, so placing a table never waits on a measurement): the step
+    /// rate of one core over one pass of the context table's lines worth of
+    /// coded bits, and the memory rate of all threads reading that table's
+    /// lines at random, each after one pass that touches the pages. Read
+    /// once per process; it decides no byte of an archive.
+    pub fn measured() -> &'static Host {
+        static MEASURED: OnceLock<Host> = OnceLock::new();
+        MEASURED.get_or_init(|| {
+            let mut h = Host::current().clone();
+            let table = crate::ncm::table_bytes(crate::FRAME as u64, 0, false, crate::ncm::FULL);
+            let line = h.line.max(1);
+            let lines = (table / line).max(1);
+            crate::ncm::contraction_probe(lines);
+            let t = std::time::Instant::now();
+            let (steps, bits, _) = crate::ncm::contraction_probe(lines);
+            h.step_rate = per_second(steps, t.elapsed());
+            h.vector_bits = bits;
+            h.memory_rate = memory_rate(table, line, lines, h.threads.max(1));
+            h
+        })
+    }
+
+    /// The ceiling (`Uorc.Host::ceilingNanos`) in nanoseconds of `steps`
+    /// over this host's threads at its step rate, and `line_bytes` moved
+    /// over its memory rate: the slower of the two terms; a rate of zero
+    /// (not measured) gives its term zero (`noRateNoTerm`).
+    pub fn ceiling_nanos(&self, steps: u64, line_bytes: u64) -> u64 {
+        let compute = round_up(
+            u128::from(steps) * 1_000_000_000,
+            u128::from(self.threads) * u128::from(self.step_rate),
+        );
+        let transport = round_up(
+            u128::from(line_bytes) * 1_000_000_000,
+            u128::from(self.memory_rate),
+        );
+        compute.max(transport)
+    }
+
+    /// Bytes of cache lines `n` coded bytes move under `profile` on this
+    /// host (`Uorc.Host::moved`): one line per context per byte when the
+    /// frame's tables do not fit the outermost cache, none otherwise.
+    pub fn line_bytes(&self, n: u64, history: u64, profile: u32) -> u64 {
+        let tables = crate::ncm::table_bytes(n, history, false, profile);
+        let outer = self.caches.last().map_or(0, |c| c.bytes);
+        if outer < tables {
+            let contexts =
+                u64::from(profile & ((1 << crate::performance::CONTEXT_BITS) - 1)).count_ones();
+            u64::from(contexts) * self.line * n
+        } else {
+            0
+        }
     }
 
     /// Runs `f` with tables placed as on `host` instead of the running
@@ -94,19 +159,66 @@ impl Host {
             .map(|c| format!("{{\"level\":{},\"bytes\":{}}}", c.level, c.bytes))
             .collect();
         format!(
-            "{{\"threads\":{},\"memory\":{},\"page\":{},\"largePage\":{},\"line\":{},\"caches\":[{}]}}",
+            "{{\"threads\":{},\"memory\":{},\"page\":{},\"largePage\":{},\"line\":{},\"caches\":[{}],\"vectorBits\":{},\"stepRate\":{},\"memoryRate\":{}}}",
             self.threads,
             self.memory,
             self.page,
             self.large_page,
             self.line,
-            caches.join(",")
+            caches.join(","),
+            self.vector_bits,
+            self.step_rate,
+            self.memory_rate
         )
     }
 }
 
 thread_local! {
     static PLACING: std::cell::Cell<Option<&'static Host>> = const { std::cell::Cell::new(None) };
+}
+
+/// `amount / rate` rounded up; zero for a rate of zero (`Uorc.Host::roundUp`).
+fn round_up(amount: u128, rate: u128) -> u64 {
+    if rate == 0 {
+        0
+    } else {
+        u64::try_from(amount.div_ceil(rate)).unwrap_or(u64::MAX)
+    }
+}
+
+fn per_second(count: u64, took: std::time::Duration) -> u64 {
+    let nanos = took.as_nanos().max(1);
+    u64::try_from(u128::from(count) * 1_000_000_000 / nanos).unwrap_or(u64::MAX)
+}
+
+/// Bytes per second `threads` threads read as `lines` independent random
+/// lines each from a table of `table` bytes, after one pass touching it.
+fn memory_rate(table: u64, line: u64, lines: u64, threads: u64) -> u64 {
+    let words = usize::try_from(table / 8).unwrap_or(usize::MAX).max(1);
+    let t: Region<u64> = Region::new(words, 1);
+    let stride = usize::try_from(line / 8).unwrap_or(1).max(1);
+    let slots = (words / stride).max(1);
+    let pass = |seed: u64| {
+        let mut sum = 0u64;
+        for i in 0..lines {
+            // independent addresses: each from its index, never from a load
+            let h = (i ^ seed).wrapping_mul(0x9e37_79b9_7f4a_7c15) >> 20;
+            sum = sum.wrapping_add(t[(h as usize % slots) * stride]);
+        }
+        sum
+    };
+    let run = || {
+        std::thread::scope(|s| {
+            let hs: Vec<_> = (0..threads).map(|k| s.spawn(move || pass(k))).collect();
+            hs.into_iter()
+                .map(|h| h.join().unwrap_or(0))
+                .fold(0, u64::wrapping_add)
+        })
+    };
+    std::hint::black_box(run());
+    let start = std::time::Instant::now();
+    std::hint::black_box(run());
+    per_second(threads * lines * line, start.elapsed())
 }
 
 fn read(path: &str) -> Option<String> {
@@ -185,6 +297,9 @@ fn probe() -> Host {
         large_page,
         line,
         caches,
+        vector_bits: 0,
+        step_rate: 0,
+        memory_rate: 0,
     }
 }
 
@@ -379,6 +494,9 @@ mod tests {
             large_page: 2 << 20,
             line: 64,
             caches: vec![],
+            vector_bits: 0,
+            step_rate: 0,
+            memory_rate: 0,
         };
         assert_eq!(h.granule(4 << 20), 2 << 20);
         assert_eq!(h.granule(2 << 20), 2 << 20);

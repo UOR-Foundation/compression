@@ -204,9 +204,22 @@ fn run() -> Result<(), String> {
                 } else {
                     Vec::new()
                 };
-                let closed = r
-                    .decide(&point, &corpus, &files, &by)
+                let (closed, timing) = r
+                    .decide_timed(&point, &corpus, &files, &by)
                     .map_err(|e| e.to_string())?;
+                if let (Some(label), Some(t)) = (args.one("label"), timing) {
+                    let c = r.record_ceiling(&point, &corpus, closed.steps, &t, Some(label));
+                    println!(
+                        "  ceiling on host {}: decode {} ns observed {} ns (distance {}); compress {} ns observed {} ns (distance {})",
+                        &c.host[..12],
+                        c.decode_ceiling_ns,
+                        c.decode_ns,
+                        c.decode_distance_ns,
+                        c.compress_ceiling_ns,
+                        c.compress_ns,
+                        c.compress_distance_ns
+                    );
+                }
                 let claim = r.known(&q.id).cloned().ok_or("decided claim")?;
                 println!(
                     "closed {} on {}: {} bytes, {} steps: {}{}",
@@ -445,6 +458,37 @@ fn report_md(r: &Register, point: &CodecPoint) -> String {
         }
         md.push(String::new());
         md.push("</details>".to_owned());
+        md.push(String::new());
+    }
+    let ceilings: Vec<_> = r.ceiling.iter().filter(|c| c.codec == k).collect();
+    if !ceilings.is_empty() {
+        md.push("## Host ceiling".to_owned());
+        md.push(String::new());
+        md.push("Each row is this point's distance to the ceiling of the host that ran it (`Uorc.Host::ceilingNanos`): the slower of its exact decode steps over the host's threads at the per-core step rate of the codec's own mixer contraction, and the cache lines its tables move over the host's memory rate. The compress ceiling counts the same steps, a floor on any compression's. Times are this host's; the host κ names the measured model.".to_owned());
+        md.push(String::new());
+        md.push("| corpus | host κ | threads | vector bits | steps/s per core | memory B/s | decode ceiling s | decode s | decode distance s | compress ceiling s | compress s | compress distance s |".to_owned());
+        md.push(
+            "| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |"
+                .to_owned(),
+        );
+        let s = |ns: u64| format!("{:.3}", ns as f64 / 1e9);
+        for c in ceilings {
+            md.push(format!(
+                "| {} | `{}` | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} |",
+                name(&c.corpus),
+                &c.host[..12],
+                c.threads,
+                c.vector_bits,
+                c.step_rate,
+                c.memory_rate,
+                s(c.decode_ceiling_ns),
+                s(c.decode_ns),
+                s(c.decode_distance_ns),
+                s(c.compress_ceiling_ns),
+                s(c.compress_ns),
+                s(c.compress_distance_ns)
+            ));
+        }
         md.push(String::new());
     }
     let others = r

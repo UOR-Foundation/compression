@@ -20,7 +20,10 @@ structure{
     {name: page, type: Nat},
     {name: largePage, type: Nat},
     {name: line, type: Nat},
-    {name: caches, type: (List Cache)}
+    {name: caches, type: (List Cache)},
+    {name: vectorBits, type: Nat},
+    {name: stepRate, type: Nat},
+    {name: memoryRate, type: Nat}
   ]
 }
 
@@ -61,6 +64,129 @@ theorem{
   statement: ((granuleBytes <= workingSet) -> ((placed < (workingSet + granuleBytes)) -> (placed < (prim multiply 2 workingSet : Nat)))),
   proof: linear_arithmetic{},
   axioms: [Quot.sound, propext]
+}
+
+definition{name: nanosPerSecond, parameters: [], result: Nat, body: 1000000000}
+
+definition{
+  name: roundUp,
+  parameters: [amount : Nat, rate : Nat],
+  result: Nat,
+  body: (if (rate =? 0) then 0 else (prim quotient (prim subtract (amount + rate) 1 : Nat) rate 0 : Nat))
+}
+
+definition{
+  name: stepNanos,
+  parameters: [steps : Nat, threads : Nat, stepRate : Nat],
+  result: Nat,
+  body: (roundUp (prim multiply steps (nanosPerSecond) : Nat) (prim multiply threads stepRate : Nat))
+}
+
+definition{
+  name: lineNanos,
+  parameters: [lineBytes : Nat, memoryRate : Nat],
+  result: Nat,
+  body: (roundUp (prim multiply lineBytes (nanosPerSecond) : Nat) memoryRate)
+}
+
+definition{
+  name: moved,
+  parameters: [lineBytes : Nat, tableBytes : Nat, outer : Nat],
+  result: Nat,
+  body: (if (outer <? tableBytes) then lineBytes else 0)
+}
+
+definition{
+  name: slower,
+  parameters: [compute : Nat, transport : Nat],
+  result: Nat,
+  body: (if (compute <=? transport) then transport else compute)
+}
+
+definition{
+  name: ceilingNanos,
+  parameters: [steps : Nat, lineBytes : Nat, threads : Nat, stepRate : Nat, memoryRate : Nat],
+  result: Nat,
+  body: (slower (stepNanos steps threads stepRate) (lineNanos lineBytes memoryRate))
+}
+
+definition{
+  name: distance,
+  parameters: [ceiling : Nat, observed : Nat],
+  result: Nat,
+  body: (prim subtract observed ceiling : Nat)
+}
+
+theorem{
+  name: tableInTheCacheMovesNoLines,
+  parameters: [lineBytes : Nat, tableBytes : Nat, outer : Nat],
+  statement: ((tableBytes <= outer) -> ((moved lineBytes tableBytes outer) = 0)),
+  proof: linear_arithmetic{definitions: [moved]},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: tablePastTheCacheMovesItsLines,
+  parameters: [lineBytes : Nat, tableBytes : Nat, outer : Nat],
+  statement: ((outer < tableBytes) -> ((moved lineBytes tableBytes outer) = lineBytes)),
+  proof: linear_arithmetic{definitions: [moved]},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: ceilingCoversTheCompute,
+  parameters: [compute : Nat, transport : Nat],
+  statement: (compute <= (slower compute transport)),
+  proof: linear_arithmetic{definitions: [slower]},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: ceilingCoversTheTransport,
+  parameters: [compute : Nat, transport : Nat],
+  statement: (transport <= (slower compute transport)),
+  proof: linear_arithmetic{definitions: [slower]},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: ceilingIsOneOfTheTerms,
+  parameters: [compute : Nat, transport : Nat],
+  statement: ((((slower compute transport) =? compute) || ((slower compute transport) =? transport)) = true),
+  proof: linear_arithmetic{definitions: [slower]},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: noDistanceWithinTheCeiling,
+  parameters: [ceiling : Nat, observed : Nat],
+  statement: ((observed <= ceiling) -> ((distance ceiling observed) = 0)),
+  proof: linear_arithmetic{definitions: [distance]},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: distanceIsTheExcess,
+  parameters: [ceiling : Nat, observed : Nat],
+  statement: ((ceiling <= observed) -> (((distance ceiling observed) + ceiling) = observed)),
+  proof: linear_arithmetic{definitions: [distance]},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: distanceFallsWithTheObservation,
+  parameters: [ceiling : Nat, before : Nat, after : Nat],
+  statement: ((after <= before) -> ((distance ceiling after) <= (distance ceiling before))),
+  proof: linear_arithmetic{definitions: [distance]},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: noRateNoTerm,
+  parameters: [amount : Nat],
+  statement: ((roundUp amount 0) = 0),
+  proof: linear_arithmetic{definitions: [roundUp]},
+  axioms: [propext]
 }
 
 structure{
@@ -125,6 +251,13 @@ definition{
   parameters: [],
   result: Requirement,
   body: (record Requirement {characteristic := "performance efficiency", subcharacteristic := "resource utilization", text := "Every model table is a region of the host: it is placed on the host's large page when its working set spans at least one (largeGranuleWhenTheWorkingSetSpansOne), and on the base page otherwise (baseGranuleBelowALargePage), so a region, its working set rounded up to its granule, never exceeds twice the working set (granuleWithinTheWorkingSet, regionWithinTwiceTheWorkingSet). The host is read from the running machine, never declared by a number in the client; placement moves where entries live and never their values, so an archive's bytes do not depend on it."})
+}
+
+definition{
+  name: ceilingDerived,
+  parameters: [],
+  result: Requirement,
+  body: (record Requirement {characteristic := "performance efficiency", subcharacteristic := "resource utilization", text := "The ceiling of a codec point on a host (Uorc.Performance::hostCeiling) is derived from the point's exact steps and the host's model, never stated: ceilingNanos is the slower of the compute term, the steps over the host's threads at its per-core step rate (stepRate: steps a core evaluates per second running the codec's own exact mixer contraction at the host's vector width, vectorBits), and the transport term, the cache lines the point's hashed tables move over the host's memory rate (memoryRate: bytes per second all threads read as independent lines from a working set past the outermost cache). A table that fits the outermost cache moves no lines (tableInTheCacheMovesNoLines); one past it moves one line per context per byte, the slot region's locality (tablePastTheCacheMovesItsLines). The ceiling bounds both terms and is one of them (ceilingCoversTheCompute, ceilingCoversTheTransport, ceilingIsOneOfTheTerms). The measure is the distance from the ceiling to the time observed on the same host (distance; noDistanceWithinTheCeiling, distanceIsTheExcess, distanceFallsWithTheObservation), recorded per release, per corpus and per host κ in the claim register (frontier ceiling). The rates are read from the running host (uorc host); a declared host that states no rate has no ceiling term for it (noRateNoTerm), which the register reports as an unmet requirement rather than a number. The compress ceiling uses the decode steps of the archive written, a floor on the steps any compression of it evaluates; the plan's trial steps are not yet counted."})
 }
 \end{semanticmodule}
 \end{lexlean}

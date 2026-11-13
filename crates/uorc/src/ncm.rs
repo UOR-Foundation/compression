@@ -1540,6 +1540,11 @@ fn row_mut<const W: usize>(w: &mut [i32], s: usize) -> &mut [i32; W] {
 /// three weight rows, and the bounded Hebbian step on those rows. Every kernel
 /// computes the same integers; only the instructions differ.
 trait Kernel {
+    /// Bits of the vector one instruction of this kernel works on (the
+    /// host's vector width as the codec uses it, `Uorc.Host` field
+    /// `vectorBits`).
+    const BITS: u32;
+
     fn dot<const W: usize>(x: &[i32; W], w1: &[i32; W], w2: &[i32; W], w3: &[i32; W]) -> [i64; 3];
     fn train<const W: usize>(
         x: &[i32; W],
@@ -1580,6 +1585,8 @@ trait Kernel {
 struct Scalar;
 
 impl Kernel for Scalar {
+    const BITS: u32 = 64;
+
     #[inline(always)]
     fn dot<const W: usize>(x: &[i32; W], w1: &[i32; W], w2: &[i32; W], w3: &[i32; W]) -> [i64; 3] {
         let (mut a, mut b, mut c) = (0i64, 0i64, 0i64);
@@ -1643,6 +1650,39 @@ macro_rules! dispatch {
     }};
 }
 
+/// Steps the codec's exact mixer contraction evaluates in `rounds` coded
+/// bits on this host's best kernel, its vector width in bits, and a value
+/// that depends on every round (so no round is left out). One round is one
+/// coded bit of a full row: [`NINP`] inputs, each dotted with three weight
+/// rows and trained on the three, the arithmetic every step of an ncm frame
+/// costs at least (`Uorc.Host::stepRate`).
+pub fn contraction_probe(rounds: u64) -> (u64, u32, i64) {
+    let (bits, sum) = (|| dispatch!(contraction(rounds)))();
+    (rounds * NINP as u64, bits, sum)
+}
+
+#[inline(always)]
+fn contraction<K: Kernel>(rounds: u64) -> (u32, i64) {
+    let mut x = [0i32; NINP];
+    for (i, v) in x.iter_mut().enumerate() {
+        *v = ((i as i32 * 709) % 4095) - 2047;
+    }
+    let (mut w1, mut w2, mut w3) = (
+        [standard::WEIGHT_INITIAL; NINP],
+        [standard::WEIGHT_INITIAL; NINP],
+        [standard::WEIGHT_INITIAL; NINP],
+    );
+    let mut sum = 0i64;
+    for r in 0..rounds {
+        let [a, b, c] = K::dot::<NINP>(&x, &w1, &w2, &w3);
+        sum = sum.wrapping_add(a ^ b ^ c);
+        let e = |d: i64| ((d >> 16) as i32 & 1023) - 512;
+        K::train::<NINP>(&x, &mut w1, &mut w2, &mut w3, [e(a), e(b), e(c)]);
+        x[(r % NINP as u64) as usize] ^= 1;
+    }
+    (K::BITS, sum)
+}
+
 pub mod streams;
 
 #[cfg(target_arch = "x86_64")]
@@ -1676,6 +1716,12 @@ mod x86 {
         stops: [usize; 2],
     ) -> super::Pairs {
         super::encoder_pair::<Avx2>(history, state, data, profile, learn, stops)
+    }
+
+    /// The mixer contraction probe compiled for AVX2.
+    #[target_feature(enable = "avx2")]
+    pub(super) fn contraction(rounds: u64) -> (u32, i64) {
+        super::contraction::<Avx2>(rounds)
     }
 
     /// The decoder loop compiled for AVX2.
@@ -1796,6 +1842,8 @@ mod x86 {
     }
 
     impl Kernel for Avx2 {
+        const BITS: u32 = 256;
+
         #[inline(always)]
         fn dot<const W: usize>(
             x: &[i32; W],
@@ -1829,6 +1877,8 @@ mod arm {
     pub(super) struct Neon;
 
     impl Kernel for Neon {
+        const BITS: u32 = 128;
+
         #[inline(always)]
         fn dot<const W: usize>(
             x: &[i32; W],
@@ -1890,6 +1940,8 @@ mod wasm {
     pub(super) struct Simd128;
 
     impl Kernel for Simd128 {
+        const BITS: u32 = 128;
+
         #[inline(always)]
         fn dot<const W: usize>(
             x: &[i32; W],
