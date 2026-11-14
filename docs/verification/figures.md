@@ -19,13 +19,13 @@ reads every numeral of three kinds of source:
   (`Uorc.Integrity.*`).
 
 It compares them with `model/figures.toml`. The register was seeded on main
-`5aeeb04`. It held 8,069 sites:
+`e713d1c` (v0.6.0). It held 8,252 sites:
 
 | Source | Sites |
 | --- | --- |
-| crates/uorc, crates/uorc-wasm | 984 |
+| crates/uorc, crates/uorc-wasm | 1,116 |
 | web/*.js | 60 |
-| model (Uorc.Client closure) | 7,025 |
+| model (Uorc.Client closure) | 7,076 |
 
 ## Planted defects
 

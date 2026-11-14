@@ -12,6 +12,7 @@ const USAGE: &str = "usage:
   uorc decompress [--work N]  [--threads N] [--force|--resume] [--stats] <input|-> [-o <output|->]
   uorc inspect    [--json] <archive|->
   uorc verify     [--work N]  [--threads N] [--json] <archive|-> [original|-]
+  uorc host
   uorc --version
 
 Compress codes with the context-mixing coder (ncm), x86 code over a branch
@@ -38,6 +39,13 @@ found by content-defined anchors) is stored once, as a reference to its
 earlier copy. Without -o, compress writes <input>.uorc and decompress
 strips a .uorc suffix (or writes <input>.out). '-' reads stdin or writes
 stdout.
+
+uorc host prints the machine as the client reads it: threads, memory, base
+and large page, cache line, cache levels and its store (the user's cache
+directory). Each model table is placed on large pages when its working set
+spans one, and a warmed model state is replayed once per host and kept in
+the store when reading it back is faster there; neither changes an
+archive's bytes.
 
 Given a directory or several paths, compress stores them as one archive of
 ordered objects: a manifest of relative paths, then every file in order
@@ -437,19 +445,22 @@ fn compress_tree(options: &Options) -> Result<(), Failure> {
     let started = Instant::now();
     let mut pending = Pending::create(dest).map_err(|e| io_failure(&output, e))?;
     let mut writer = BufWriter::with_capacity(1 << 20, &mut pending);
+    let coded = uorc::ncm::model_steps();
     let totals = uorc::compress_objects_stream(&layout.lengths, input, &mut writer, steps, threads)
         .map_err(failed)?;
+    let coded = uorc::ncm::model_steps() - coded;
     drop(writer);
     pending
         .commit(dest, options.force)
         .map_err(|e| io_failure(&output, e))?;
     if options.stats {
         eprintln!(
-            "{{\"command\":\"compress\",\"entries\":{},\"input_bytes\":{},\"output_bytes\":{},\"frames\":{},\"seconds\":{:.6}}}",
+            "{{\"command\":\"compress\",\"entries\":{},\"input_bytes\":{},\"output_bytes\":{},\"frames\":{},\"model_steps\":{},\"seconds\":{:.6}}}",
             items.len(),
             totals.read - layout.manifest.len() as u64,
             totals.written,
             totals.frames,
+            coded,
             started.elapsed().as_secs_f64()
         );
     }
@@ -742,6 +753,7 @@ fn transform(options: &Options) -> Result<(), Failure> {
     let shown = format!("{input_path} -> {path}");
     let failed = stream_failure(&shown);
     let started = Instant::now();
+    let coded = uorc::ncm::model_steps();
     let totals = if path == "-" {
         run(&mut BufWriter::with_capacity(1 << 20, io::stdout().lock())).map_err(failed)?
     } else {
@@ -756,8 +768,14 @@ fn transform(options: &Options) -> Result<(), Failure> {
         totals
     };
     if options.stats {
+        // the steps the encoder's trials coded (compress only)
+        let coded = if compress {
+            format!(",\"model_steps\":{}", uorc::ncm::model_steps() - coded)
+        } else {
+            String::new()
+        };
         eprintln!(
-            "{{\"command\":\"{}\",\"input_bytes\":{},\"output_bytes\":{},\"frames\":{},\"seconds\":{:.6}}}",
+            "{{\"command\":\"{}\",\"input_bytes\":{},\"output_bytes\":{},\"frames\":{}{coded},\"seconds\":{:.6}}}",
             options.command,
             totals.read,
             totals.written,
@@ -917,6 +935,10 @@ fn main() -> ExitCode {
     match args.peek().map(String::as_str) {
         Some("--version") => {
             println!("uorc {}", env!("CARGO_PKG_VERSION"));
+            return ExitCode::SUCCESS;
+        }
+        Some("host") => {
+            println!("{}", uorc::region::Host::measured().json());
             return ExitCode::SUCCESS;
         }
         Some("--help" | "-h") | None => {

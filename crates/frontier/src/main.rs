@@ -22,8 +22,8 @@ use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
 use frontier::{
-    copy_rate, export_identity, CodecPoint, Comparator, Corpus, Error, Form, Host, Member,
-    Register, Status, FAMILIES,
+    export_identity, CodecPoint, Comparator, Corpus, Error, Form, Host, Member, Register, Status,
+    FAMILIES,
 };
 
 struct Args {
@@ -196,7 +196,6 @@ fn run() -> Result<(), String> {
             let mut refuted = 0;
             let threads = uorc::default_threads() as u64;
             let host = args.flags.iter().any(|f| f == "time").then(Host::this);
-            let mut rate = None;
             for (corpus, dir) in targets {
                 let q = Register::closed_question(&point, &corpus);
                 let settled = r.settled(&point, &corpus, &by).is_some();
@@ -214,10 +213,7 @@ fn run() -> Result<(), String> {
                         frontier::run(&point, &corpus, &files, timed).map_err(|e| e.to_string())?;
                     r.decide_run(&point, &corpus, &run, &by)
                         .map_err(|e| e.to_string())?;
-                    let measured = match (&host, timed) {
-                        (Some(h), true) => Some((h, *rate.get_or_insert_with(copy_rate))),
-                        _ => None,
-                    };
+                    let measured = host.as_ref().filter(|_| timed);
                     for c in r.decide_requirements(&point, &corpus, &run, threads, measured, &by) {
                         println!(
                             "  {} on {}: {} {} observed, bound {}, distance {}: {}",
@@ -453,7 +449,7 @@ fn report_md(r: &Register, point: &CodecPoint) -> String {
     if !requirements.is_empty() {
         md.push("## Distance to each requirement".to_owned());
         md.push(String::new());
-        md.push("Each requirement of `Uorc.Performance` derives a bound for this codec on each corpus; the row is what the run observed, the bound, and how far the observation is from it on the side the requirement forbids. A distance of 0 is the requirement met. Bytes and steps are exact and decided; rates are measured on the host named by its κ. `leastArchive`: the archive against the information the chosen model assigns to the input (what is left is the archive's form and the coder's rounding). `wholeHost`: per input, the longest chain of dependent decode steps against the total divided by the threads. `hostCeiling`: throughput against the host's copy rate, the memory term of its ceiling.".to_owned());
+        md.push("Each requirement of `Uorc.Performance` derives a bound for this codec on each corpus; the row is what the run observed, the bound, and how far the observation is from it on the side the requirement forbids. A distance of 0 is the requirement met. Bytes and steps are exact and decided; rates are measured on the host named by its κ. `leastArchive`: the archive against the information the chosen model assigns to the input (what is left is the archive's form and the coder's rounding). `wholeHost`: per input, the longest chain of dependent decode steps against the total divided by the threads. `hostCeiling`: throughput against the input over the host's ceiling (`Uorc.Host::ceilingNanos`): the slower of the steps the run took (decode: the archive's exact steps; compress: the model steps every trial coded, `uorc::ncm::model_steps`) over the host's threads at the per-core step rate of the codec's own mixer contraction and the cache lines its tables move over the host's memory rate. The compute term covers the contraction only, so the distance includes the rest of each step; both sides count the archive's moved lines, a floor on what the compress trials move.".to_owned());
         md.push(String::new());
         md.push("| requirement | quantity | corpus | at | observed | bound | distance | unit | status |".to_owned());
         md.push("| --- | --- | --- | --- | ---: | ---: | ---: | --- | --- |".to_owned());

@@ -1625,7 +1625,7 @@ definition{
   name: hostCeiling,
   parameters: [],
   result: Requirement,
-  body: (record Requirement {characteristic := "performance efficiency", subcharacteristic := "resource utilization", text := "Throughput on a host is that host's ceiling for the steps the chosen point costs: the bound is derived from the host's model (cores, vector width, memory rate), and the measure is the distance to it."})
+  body: (record Requirement {characteristic := "performance efficiency", subcharacteristic := "resource utilization", text := "Throughput on a host is that host's ceiling for the steps the chosen point costs: the bound is derived from the host's model (threads, per-core step rate at the host's vector width, memory rate) in Uorc.Host::ceilingNanos, and the measure is the distance to it (Uorc.Host::distance), recorded per release in the claim register (Uorc.Host::ceilingDerived)."})
 }
 
 definition{
@@ -1878,14 +1878,14 @@ definition{
   name: streamsPerFrame,
   parameters: [],
   result: Facet,
-  body: (record Facet {quantity := "contiguous streams a frame is coded as", fixedAt := "one: in v0.5 the frame word's streams and epoch fields are reserved and zero, and the native, WebAssembly and exported decoders refuse a frame where they are not", standing := "unmet: the streams coder (ncm::streams natively, ncm_streams.py in the IR model, byte-equal at 2, 3 and 4 streams with the merge steps counted alike) is tested but not shipped, because its exported model does not build within the export's bounds", measured := "export: the codec modules grow from 0.14 MB to 0.61-0.69 MB with the streams tables grouped (1.0-1.1 MB ungrouped); extraction exceeds Lean's heartbeat budget, and with the budget lifted runs over 80 minutes before lexlean is killed at 12.5 GB of a 15 GB limit. Coding, declared 4-thread host: 7.8 MB Python, 4 streams of 64 KiB epochs, 1.09 percent larger than one stream, merge steps 3.5 percent of the coding steps; 8 MiB ELF, 4 streams of 32 KiB epochs, 1.83 percent larger, merge 10.2 percent"})
+  body: (record Facet {quantity := "contiguous streams a frame is coded as", fixedAt := "one: the frame word's streams and epoch fields are reserved and zero, and the native, WebAssembly and exported decoders refuse a frame where they are not", standing := "unmet: the streams coder (ncm::streams natively, ncm_streams.py in the IR model, byte-equal at 2, 3 and 4 streams with the merge steps counted alike) is tested but not shipped, because its exported model does not build within the export's bounds", measured := "export: the streams lowering as one coder fits each codec module (NcmDecode 435 s and 2.7 GB, NcmEncode 617 s and 5.6 GB, against 256 s and 2.2 GB serial), but the Rust preservation certificate of the client root that steps streams (Client.stepStreams) is 24 MB of Lean plus 53 MB, and checking it passes 13.5 GB against the 15 GB limit. Coding, declared 4-thread host, with the merge over shared sites only (sites two or more streams changed in an epoch): 4-thread wall 20-28 percent below the merge of every changed site; 4 coders each run about 1.4 times slower than one (memory contention, not yet in the host model). Earlier: 7.8 MB Python, 4 streams of 64 KiB epochs, 1.09 percent larger than one stream; 8 MiB ELF, 4 streams of 32 KiB epochs, 1.83 percent larger"})
 }
 
 definition{
   name: streamEpoch,
   parameters: [],
   result: Facet,
-  body: (record Facet {quantity := "bytes a stream codes between merges of the shared state", fixedAt := "none while a frame is one stream; the unshipped derivation (ncm::streams::derive) starts at one epoch per stream and halves while the payload shrinks (bytes, then steps)", standing := "unmet: derived by trials, each a full coding of the frame; the merge steps of every power-of-two epoch can be counted in one pass, the bytes cannot yet", measured := "the trials make compressing for a declared 4-thread host 209 s on 7.8 MB Python and 351 s on 8 MiB ELF, against 11.5 s and 15.7 s for one stream"})
+  body: (record Facet {quantity := "bytes a stream codes between merges of the shared state", fixedAt := "none while a frame is one stream; the unshipped derivation (ncm::streams::derive) starts at one epoch per stream and halves while the payload shrinks (bytes, then steps)", standing := "unmet: derived by trials, each a full coding of the frame; the merge steps of every power-of-two epoch can be counted in one pass, the bytes cannot yet", measured := "the trials make compressing for a declared 4-thread host 209 s on 7.8 MB Python and 351 s on 8 MiB ELF, against 11.5 s and 15.7 s for one stream; a one-pass count of every epoch's merge steps costs 1.4 times one serial encode (trials 7-9 times) and picks the trials' plan on 8 MiB Python, but on 8 MiB ELF its plan is 11.7 percent larger, so trials decide"})
 }
 
 definition{
@@ -1906,7 +1906,7 @@ definition{
   name: probabilityBits,
   parameters: [],
   result: Facet,
-  body: (record Facet {quantity := "bits of a coded probability", fixedAt := "12", standing := "unmeasured", measured := ""})
+  body: (record Facet {quantity := "bits of a coded probability", fixedAt := "derived per frame (Client.stepProbability): the chosen coding is recoded at 16 bits (the frame word's probability field 16, bits 32-36; 0 is 12 bits) and kept only when its archive is shorter, the decode steps being equal", standing := "derived", measured := "8 MiB of zeros 2,961 to 744 bytes; 3 MB ELF 880,344 to 880,194 bytes (-0.02 percent)"})
 }
 
 definition{

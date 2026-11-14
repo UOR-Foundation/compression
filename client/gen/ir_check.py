@@ -10,6 +10,7 @@
 #   serial-encode    ncm_model.py py_encode      against ncm::encode_profile
 #   serial-decode    ncm_model.py py_decode      of the native payload, against the input
 #   serial-learn     ncm_model.py py_learn       against ncm::encode_learn (payload and profile)
+#   serial-*-p16     the same at 16-bit probabilities (frame word probability field 16, ncm::encode_bits_below)
 #   streams-encode-k ncm_streams.py py_encode_streams, against ncm::streams::encode (k streams, epoch E)
 #   streams-decode-k ncm_streams.py py_decode_streams of the native payload, against the input
 # The streams cases run only when client/gen/ncm_streams.py and the native ncm::streams API exist.
@@ -58,6 +59,10 @@ fn main() {
     let back = ncm::decode_profile(history, &p, u64::MAX, ncm::FULL).expect("native decode");
     assert_eq!(back, data, "native serial round trip");
     std::fs::write(out.join("encode.bin"), &p).unwrap();
+    let w = ncm::encode_bits_below(history, data, ncm::FULL, 16, usize::MAX).expect("native 16-bit encode");
+    let back = ncm::decode_canonical_window_bits(&[history], &w, n as u64, ncm::FULL, 16).expect("native 16-bit decode");
+    assert_eq!(back, data, "native 16-bit round trip");
+    std::fs::write(out.join("encode16.bin"), &w).unwrap();
     let (l, mask) = ncm::encode_learn(history, data, ncm::FULL).expect("native learn");
     std::fs::write(out.join("learn.bin"), &l).unwrap();
     std::fs::write(out.join("learn.mask"), mask.to_string()).unwrap();
@@ -75,7 +80,7 @@ MAIN_STREAMS = '''
 fn streams(history: &[u8], data: &[u8], ks: &[usize], epoch: usize, out: &std::path::Path) {
     use uorc::ncm::streams;
     for &k in ks {
-        let plan = streams::Plan { streams: k, epoch };
+        let plan = streams::Plan::of(k, epoch);
         let p = streams::encode(history, data, ncm::FULL, plan, 1).expect("native streams encode");
         let back = streams::decode(&[history], &p, u64::MAX, ncm::FULL, plan, 1, true)
             .expect("native streams decode");
@@ -145,6 +150,10 @@ def run_case(job):
         want, got = nat('encode.bin'), nm.py_encode(data, history, FULL)
     elif kind == 'serial-decode':
         want, got = data, nm.py_decode(nat('encode.bin'), history, FULL)
+    elif kind == 'serial-encode-p16':
+        want, got = nat('encode16.bin'), nm.py_encode(data, history, FULL | 16 << 32)
+    elif kind == 'serial-decode-p16':
+        want, got = data, nm.py_decode(nat('encode16.bin'), history, FULL | 16 << 32)
     elif kind == 'serial-learn':
         want, mask = nat('learn.bin'), int(nat('learn.mask'))
         got, gmask = nm.py_learn(data, history, FULL)
@@ -198,7 +207,7 @@ def main():
     a = {'file': args.file, 'h': args.h, 'n': args.n, 'epoch': args.epoch, 'work': work}
     jobs = []
     if not args.no_serial:
-        jobs += [(c, c, 0, a) for c in ('serial-encode', 'serial-decode', 'serial-learn')]
+        jobs += [(c, c, 0, a) for c in ('serial-encode', 'serial-decode', 'serial-learn', 'serial-encode-p16', 'serial-decode-p16')]
     for k in ks:
         jobs += [(f'streams-encode-{k}', 'streams-encode', k, a), (f'streams-decode-{k}', 'streams-decode', k, a)]
     if not jobs:
