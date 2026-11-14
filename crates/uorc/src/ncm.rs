@@ -697,14 +697,7 @@ struct Rates {
 }
 
 impl Rates {
-    #[cfg_attr(
-        not(any(
-            target_arch = "x86_64",
-            target_arch = "aarch64",
-            all(target_arch = "wasm32", target_feature = "simd128")
-        )),
-        allow(dead_code)
-    )]
+    #[cfg(target_arch = "x86_64")]
     fn as_ptr(&self) -> *const i32 {
         self.rate.as_ptr()
     }
@@ -2596,7 +2589,10 @@ mod arm {
                 let kept = (na - base).min(L);
                 let mut r = [0u32; L];
                 for k in 0..kept {
-                    r[k] = *rate.get_unchecked((sv[base + k] >> super::PROB_BITS) as usize) as u32;
+                    r[k] = *rate
+                        .rate
+                        .get_unchecked((sv[base + k] >> super::PROB_BITS) as usize)
+                        as u32;
                 }
                 let low = vdupq_n_u32(u32::from(u16::MAX));
                 let wv = vld1q_u32(sv.as_ptr().add(base));
@@ -2780,7 +2776,10 @@ mod wasm {
                 let kept = (na - base).min(L);
                 let mut r = [0u32; L];
                 for k in 0..kept {
-                    r[k] = *rate.get_unchecked((sv[base + k] >> super::PROB_BITS) as usize) as u32;
+                    r[k] = *rate
+                        .rate
+                        .get_unchecked((sv[base + k] >> super::PROB_BITS) as usize)
+                        as u32;
                 }
                 let low = u32x4_splat(u32::from(u16::MAX));
                 let wv = v128_load(sv.as_ptr().add(base).cast());
