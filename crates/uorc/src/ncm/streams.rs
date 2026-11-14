@@ -45,6 +45,9 @@ pub struct Plan {
     pub streams: usize,
     /// Bytes each stream codes per epoch (at least 1).
     pub epoch: usize,
+    /// Bits of the probability each bit is coded at: 12 (a word's
+    /// probability field zero) or 16 (the field 16).
+    pub bits: u32,
 }
 
 impl Plan {
@@ -63,23 +66,44 @@ impl Plan {
     }
 
     fn valid(&self) -> bool {
-        self.streams > 0 && self.epoch > 0 && self.streams <= 1 << 16
+        self.streams > 0
+            && self.epoch > 0
+            && self.streams <= 1 << 16
+            && (self.bits == 12 || self.bits == 16)
     }
 
     /// One stream: the serial coder.
     pub const ONE: Plan = Plan {
         streams: 1,
         epoch: 1,
+        bits: 12,
     };
+
+    /// Whether the frame's coder codes this plan at 12-bit probabilities:
+    /// one stream, the field zero.
+    #[must_use]
+    pub fn serial(&self) -> bool {
+        self.streams == 1 && self.bits == 12
+    }
+
+    /// `streams` streams of `epoch` bytes at 12-bit probabilities.
+    #[must_use]
+    pub const fn of(streams: usize, epoch: usize) -> Plan {
+        Plan {
+            streams,
+            epoch,
+            bits: 12,
+        }
+    }
 }
 
 /// Bit of a frame word where the stream count less one starts (16 bits).
 pub const STREAMS_AT: u32 = 37;
 /// Bit of a frame word where the epoch's base-2 logarithm starts (5 bits).
 pub const EPOCH_AT: u32 = 53;
-/// Bits of a frame word below [`STREAMS_AT`] that are not the model profile
-/// (the low 32 bits), reserved for its probability field.
-const RESERVED: u64 = ((1 << STREAMS_AT) - 1) & !(u32::MAX as u64);
+/// Bit of a frame word where the probability field starts (5 bits): zero
+/// for 12-bit probabilities, otherwise the bits (16).
+pub const PROB_AT: u32 = 32;
 
 /// The frame word an entry names: the model `profile` in the low 32 bits,
 /// the plan above ([`STREAMS_AT`], [`EPOCH_AT`]). One stream is the profile
@@ -90,34 +114,41 @@ pub fn word(profile: u32, plan: Plan) -> Option<u64> {
     if !plan.valid() || !plan.epoch.is_power_of_two() || plan.epoch.trailing_zeros() >= 32 {
         return None;
     }
+    let p = if plan.bits == 12 {
+        0
+    } else {
+        u64::from(plan.bits)
+    };
     if plan.streams == 1 {
-        return Some(u64::from(profile));
+        return Some(u64::from(profile) | p << PROB_AT);
     }
     let k = (plan.streams - 1) as u64;
     let e = u64::from(plan.epoch.trailing_zeros());
-    Some(u64::from(profile) | k << STREAMS_AT | e << EPOCH_AT)
+    Some(u64::from(profile) | p << PROB_AT | k << STREAMS_AT | e << EPOCH_AT)
 }
 
 /// The model profile and plan of frame `word`, when it is one [`word`]
 /// writes (a single meaning per word: one stream carries no epoch).
 #[must_use]
 pub fn split(word: u64) -> Option<(u32, Plan)> {
-    if word & RESERVED != 0 || word >> (EPOCH_AT + 5) != 0 {
+    if word >> (EPOCH_AT + 5) != 0 {
         return None;
     }
+    let bits = match (word >> PROB_AT) & 31 {
+        0 => 12,
+        16 => 16,
+        _ => return None,
+    };
     let profile = (word & u64::from(u32::MAX)) as u32;
     let streams = ((word >> STREAMS_AT) & 0xffff) as usize + 1;
     let e = ((word >> EPOCH_AT) & 31) as u32;
     if !super::valid_profile(profile) || (streams == 1 && e != 0) {
         return None;
     }
-    let plan = if streams == 1 {
-        Plan::ONE
-    } else {
-        Plan {
-            streams,
-            epoch: 1 << e,
-        }
+    let plan = Plan {
+        streams,
+        epoch: 1 << e,
+        bits,
     };
     Some((profile, plan))
 }
@@ -165,10 +196,7 @@ pub fn derive(
     let (mut steps, mut over) = (u128::from(coding), 1u128);
     let mut best: Option<Derived> = None;
     for k in 2..=(1 << 16) {
-        let plan = Plan {
-            streams: k,
-            epoch: 1,
-        };
+        let plan = Plan::of(k, 1);
         // every stream holds at least one stride unit, and the host holds
         // the decoder's working tables
         if plan.stride(n) * (k - 1) >= n || !holds(k) {
@@ -200,14 +228,10 @@ pub fn derive(
 /// The epoch of `k` streams by the least payload, then steps: one epoch per
 /// stream first, then halved while the payload shrinks.
 fn epochs(history: &[u8], data: &[u8], profile: u32, k: usize, threads: usize) -> Option<Derived> {
-    let stride = Plan {
-        streams: k,
-        epoch: 1,
-    }
-    .stride(data.len());
+    let stride = Plan::of(k, 1).stride(data.len());
     let mut epoch = stride.next_power_of_two();
     let trial = |epoch, stop| {
-        let plan = Plan { streams: k, epoch };
+        let plan = Plan::of(k, epoch);
         encode_below(history, data, profile, plan, threads, stop).map(|(payload, merge)| Derived {
             plan,
             payload,
@@ -452,6 +476,7 @@ struct Frame {
 impl Frame {
     fn new(history: &[&[u8]], n: usize, profile: u32, plan: Plan) -> Frame {
         let mut base = Model::new(n as u32, history, profile);
+        base.pbits = plan.bits;
         let before = base.hoff as usize;
         let mut hist = std::mem::take(&mut base.hist);
         hist.resize(before + n, 0);
@@ -1087,7 +1112,7 @@ fn code<K: Kernel, const W: usize>(m: &mut Model, c: &mut Coder, bytes: &[u8]) {
         for k in (0..8).rev() {
             let y = (byte >> k) & 1 == 1;
             let p = m.predict::<K, W>();
-            let xm = c.x1 + ((u64::from(c.x2 - c.x1) * u64::from(p)) >> 12) as u32;
+            let xm = c.x1 + ((u64::from(c.x2 - c.x1) * u64::from(p)) >> m.pbits) as u32;
             if y {
                 c.x2 = xm;
             } else {
@@ -1233,7 +1258,7 @@ fn uncode<K: Kernel, const W: usize>(
     for _ in 0..count {
         for _ in 0..8 {
             let p = m.predict::<K, W>();
-            let xm = c.x1 + ((u64::from(c.x2 - c.x1) * u64::from(p)) >> 12) as u32;
+            let xm = c.x1 + ((u64::from(c.x2 - c.x1) * u64::from(p)) >> m.pbits) as u32;
             let y = c.x <= xm;
             if y {
                 c.x2 = xm;
@@ -1288,10 +1313,7 @@ mod tests {
         let d = sample(40_000, 0x2545_F491);
         let w = sample(5_000, 7);
         let serial = encode_profile(&w, &d, FULL).expect("fits");
-        let plan = Plan {
-            streams: 1,
-            epoch: 4096,
-        };
+        let plan = Plan::of(1, 4096);
         assert_eq!(encode(&w, &d, FULL, plan, 1), Some(serial));
     }
 
@@ -1302,10 +1324,7 @@ mod tests {
         let d = sample(70_001, 0x2545_F491);
         let w = sample(3000, 9);
         for (k, e) in [(2, 1000), (3, 4096), (4, 64), (5, 100_000)] {
-            let plan = Plan {
-                streams: k,
-                epoch: e,
-            };
+            let plan = Plan::of(k, e);
             let p1 = encode(&w, &d, FULL, plan, 1).expect("fits");
             assert_eq!(encode(&w, &d, FULL, plan, 4).as_ref(), Some(&p1));
             for t in [1, 2, 7] {

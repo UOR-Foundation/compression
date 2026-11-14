@@ -246,11 +246,11 @@ fn mix_bit<K: Kernel, const W: usize>(
     }
     let [main, other] = coders;
     if main.live {
-        main.code(y, p);
+        main.code(y, p, m.pbits);
     }
     if other.live {
         let q = m.twin.as_deref().map_or(2048, |t| t.pr);
-        other.code(y, q);
+        other.code(y, q, m.pbits);
     }
     if learning {
         m.learn::<K, W>(y);

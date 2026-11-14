@@ -244,12 +244,14 @@ impl Apm {
     }
 
     #[inline]
-    fn refine(&mut self, stretch: &[i16; 4096], p: u32, cx: usize) -> i32 {
+    /// The map's refinement of 12-bit `p` in context `cx`, as a probability
+    /// of `bits` bits (the map's entries are 16-bit, interpolated in 128ths).
+    fn refine(&mut self, stretch: &[i16; 4096], p: u32, cx: usize, bits: u32) -> i32 {
         let s = (i32::from(stretch[p as usize]) + 2048) as usize;
         let (lo, w) = (s >> 7, (s & 127) as i32);
         let base = cx * APM_ROW + lo;
         self.idx = base + (w >> 6) as usize;
-        (i32::from(self.t[base]) * (128 - w) + i32::from(self.t[base + 1]) * w) >> 11
+        (i32::from(self.t[base]) * (128 - w) + i32::from(self.t[base + 1]) * w) >> (23 - bits)
     }
 
     #[inline]
@@ -693,6 +695,9 @@ struct Model {
     bit: u32,
     mtab: Table<u32>,
     profile: u32,
+    /// Bits of the probability the coder codes a bit at: 12, or 16 under a
+    /// frame word's probability field ([`streams::Plan::prob`]).
+    pbits: u32,
     m2tab: Table<u32>,
     m2ptr: u32,
     m2len: u32,
@@ -775,6 +780,9 @@ impl Model {
     }
 
     fn new(n: u32, history: &[&[u8]], profile: u32) -> Model {
+        // the coder's probability bits ride the profile's free top bit ([`WIDE`])
+        let pbits = if profile & WIDE == 0 { 12 } else { 16 };
+        let profile = profile & !WIDE;
         let before: usize = history.iter().map(|h| h.len()).sum();
         let (mask, mb) = Model::dims(n, profile);
         let profile = profile & FULL;
@@ -818,6 +826,7 @@ impl Model {
             bit: 0,
             mtab: Table::new(1 << mb, 0),
             profile,
+            pbits,
             m2tab: Table::new(if short { 1 << mb } else { 0 }, 0),
             m2ptr: 0,
             m2len: 0,
@@ -1212,7 +1221,7 @@ impl Model {
     /// read, so a wrong guess costs a few loads and nothing else.
     #[inline(always)]
     fn prefetch_next(&mut self, p: u32) {
-        let y = u32::from(p >= 2048);
+        let y = u32::from(p >= 1 << (self.pbits - 1));
         let (c4, c0) = self.prefetch_inputs(y);
         self.prefetch_mixers(c4, c0);
     }
@@ -1502,13 +1511,15 @@ impl Model {
         self.pm3 = sq(d3);
         // the mean of the three, in -2048..=2047
         let p = sq((((d1 + d2 + d3 + 6144) * 21846) >> 16) - 2048).clamp(1, 4095) as u32;
-        let q1 = self.a1.refine(&t.stretch, p, c1);
+        let bits = self.pbits;
+        let q1 = self.a1.refine(&t.stretch, p, c1, bits);
         let cx2 = h((self.c4 & 0xff_ffff)
             .wrapping_mul(0x2F0B_4C27)
             .wrapping_add(self.c0))
             >> (32 - APM2_BITS);
-        let q2 = self.a2.refine(&t.stretch, p, cx2 as usize);
-        let pr = ((p as i32 + q1 + 2 * q2) / 4).clamp(1, 4095) as u32;
+        let q2 = self.a2.refine(&t.stretch, p, cx2 as usize, bits);
+        let top = (1 << bits) - 1;
+        let pr = (((p << (bits - 12)) as i32 + q1 + 2 * q2) / 4).clamp(1, top) as u32;
         if let Some(tw) = self.twin.as_deref_mut() {
             let c1 = (self.c0 + 256 * if tw.sel { mstate } else { 0 }) as usize;
             tw.s1 = c1 * W;
@@ -1517,9 +1528,9 @@ impl Model {
             let d1 = (a >> 16).clamp(-2047, 2047) as i32;
             tw.pm1 = sq(d1);
             let p = sq((((d1 + d2 + d3 + 6144) * 21846) >> 16) - 2048).clamp(1, 4095) as u32;
-            let q1 = tw.a1.refine(&t.stretch, p, c1);
-            let q2 = tw.a2.refine(&t.stretch, p, cx2 as usize);
-            tw.pr = ((p as i32 + q1 + 2 * q2) / 4).clamp(1, 4095) as u32;
+            let q1 = tw.a1.refine(&t.stretch, p, c1, bits);
+            let q2 = tw.a2.refine(&t.stretch, p, cx2 as usize, bits);
+            tw.pr = (((p << (bits - 12)) as i32 + q1 + 2 * q2) / 4).clamp(1, top) as u32;
         }
         pr
     }
@@ -2942,6 +2953,35 @@ pub fn encode_below(history: &[u8], data: &[u8], profile: u32, stop: usize) -> O
     encode_any(history, data, profile, false, stop).map(|(payload, _)| payload)
 }
 
+/// Marks a profile, inside this module only, as coded at 16-bit
+/// probabilities: bit 31, which no profile word sets ([`valid_profile`]).
+const WIDE: u32 = 1 << 31;
+
+/// The profile of a frame coded at `bits`-bit probabilities (12 or 16; a
+/// frame word's probability field, [`streams::PROB_AT`]), as this module's
+/// coders take it; `None` for other bits or an invalid profile.
+fn at_bits(profile: u32, bits: u32) -> Option<u32> {
+    match bits {
+        12 if valid_profile(profile) => Some(profile),
+        WIDEST_BITS if valid_profile(profile) => Some(profile | WIDE),
+        _ => None,
+    }
+}
+
+/// [`encode_below`] at `bits`-bit probabilities: 12 is [`encode_below`];
+/// at 16 the maps refine and the coder splits its range at 16 bits
+/// (`NcmEncode.runProfile` under a frame word whose probability field is 16).
+pub fn encode_bits_below(
+    history: &[u8],
+    data: &[u8],
+    profile: u32,
+    bits: u32,
+    stop: usize,
+) -> Option<Vec<u8>> {
+    let marked = at_bits(profile, bits)?;
+    encode_any(history, data, marked, false, stop).map(|(payload, _)| payload)
+}
+
 fn encode_any(
     history: &[u8],
     data: &[u8],
@@ -3182,13 +3222,13 @@ impl Coder {
         }
     }
 
-    /// Codes bit `y` at probability `p` (of a 1, in 4096ths); a coder whose
+    /// Codes bit `y` at probability `p` (of a 1, in 2^`pbits`ths); a coder whose
     /// output reaches its cap is abandoned.
     #[inline(always)]
-    fn code(&mut self, y: bool, p: u32) {
+    fn code(&mut self, y: bool, p: u32, pbits: u32) {
         self.bits += 1;
         let (mut x1, mut x2) = (self.x1, self.x2);
-        let xm = x1 + ((u64::from(x2 - x1) * u64::from(p)) >> 12) as u32;
+        let xm = x1 + ((u64::from(x2 - x1) * u64::from(p)) >> pbits) as u32;
         if y {
             x2 = xm;
         } else {
@@ -3284,11 +3324,11 @@ fn run_bits<K: Kernel, const W: usize>(
                 let p = m.predict::<K, W>();
                 let [main, other] = &mut *coders;
                 if main.live {
-                    main.code(y, p);
+                    main.code(y, p, m.pbits);
                 }
                 if other.live {
                     let q = m.twin.as_deref().map_or(2048, |t| t.pr);
-                    other.code(y, q);
+                    other.code(y, q, m.pbits);
                 }
                 if learning {
                     m.learn::<K, W>(y);
@@ -3404,10 +3444,23 @@ pub fn decode_canonical_window(
     n: u64,
     profile: u32,
 ) -> Option<Vec<u8>> {
+    decode_canonical_window_bits(window, payload, n, profile, 12)
+}
+
+/// [`decode_canonical_window`] of a payload coded at `bits`-bit
+/// probabilities ([`encode_bits_below`]).
+pub fn decode_canonical_window_bits(
+    window: &[&[u8]],
+    payload: &[u8],
+    n: u64,
+    profile: u32,
+    bits: u32,
+) -> Option<Vec<u8>> {
+    let marked = at_bits(profile, bits)?;
     if declared_length(payload).map(u64::from) != Some(n) {
         return None;
     }
-    run_pieces(window, payload, n, true, profile)
+    dispatch!(decoder(window, &[], payload, n, true, marked))
 }
 
 fn run_decoder(history: &[u8], payload: &[u8], limit: u64, canonical: bool) -> Option<Vec<u8>> {
@@ -3454,14 +3507,19 @@ thread_local! {
 /// Bits of fraction [`information_cost`] counts in.
 pub const INFORMATION_BITS: u32 = 24;
 
-/// `cost[p]` = 2^24 log2(4096 / p): the information of a bit coded at
-/// probability p / 4096, in 2^-24 bit. Integer and exact to the last unit
-/// but one: p is normalised to 2^63 <= m < 2^64 and squared once for each
-/// fraction bit, keeping 64 bits each time.
-fn information_cost() -> &'static [u32; 4096] {
-    static COST: std::sync::OnceLock<Box<[u32; 4096]>> = std::sync::OnceLock::new();
+/// The widest probability a frame word records ([`at_bits`]): the
+/// resolution [`information_cost`] counts every coder's bits in.
+const WIDEST_BITS: u32 = 16;
+
+/// `cost[p]` = 2^24 log2(2^16 / p) ([`WIDEST_BITS`]): the information of a
+/// bit coded at probability p / 2^16, in 2^-24 bit; a `bits`-bit coder's p
+/// reads at `p << (16 - bits)`, which is exact. Integer and exact to the
+/// last unit but one: p is normalised to 2^63 <= m < 2^64 and squared once
+/// for each fraction bit, keeping 64 bits each time.
+fn information_cost() -> &'static [u32] {
+    static COST: std::sync::OnceLock<Vec<u32>> = std::sync::OnceLock::new();
     COST.get_or_init(|| {
-        let mut cost = Box::new([0u32; 4096]);
+        let mut cost = vec![0u32; 1 << WIDEST_BITS];
         for (p, c) in cost.iter_mut().enumerate().skip(1) {
             let (mut m, mut e) = (p as u128, 0u32);
             while m < 1 << 63 {
@@ -3478,7 +3536,7 @@ fn information_cost() -> &'static [u32; 4096] {
                 }
             }
             let log2p = (u64::from(63 - e) << INFORMATION_BITS) + frac;
-            *c = ((12u64 << INFORMATION_BITS) - log2p) as u32;
+            *c = ((u64::from(WIDEST_BITS) << INFORMATION_BITS) - log2p) as u32;
         }
         cost
     })
@@ -3486,8 +3544,8 @@ fn information_cost() -> &'static [u32; 4096] {
 
 /// Run `f` on this thread and return, beside its result, the information
 /// the model assigned to every bit the ncm decoder decoded meanwhile on this
-/// thread, in 2^-24 bit ([`INFORMATION_BITS`]: log2 of 4096 over the
-/// probability, out of 4096, the coded bit had), and the number of payloads
+/// thread, in 2^-24 bit ([`INFORMATION_BITS`]: log2 of the coder's whole over the
+/// probability the coded bit had), and the number of payloads
 /// decoded. It is the length the
 /// model's own predictions assign to the frame's bits, before the coder's
 /// rounding and the archive's form (`Uorc.Performance::leastArchive`). A
@@ -3545,11 +3603,8 @@ fn decode_bits<K: Kernel, const W: usize>(
     let mut emitted = 0usize;
     let (mut x1, mut x2) = (0u32, u32::MAX);
     let measuring = INFORMATION.with(|c| c.get().is_some());
-    let cost: &[u32; 4096] = if measuring {
-        information_cost()
-    } else {
-        &[0; 4096]
-    };
+    let cost: &[u32] = if measuring { information_cost() } else { &[] };
+    let (top, widen) = (1 << m.pbits, WIDEST_BITS - m.pbits);
     let mut information = 0u64;
     for i in 0..n as usize {
         if i % TICK == 0 {
@@ -3557,7 +3612,7 @@ fn decode_bits<K: Kernel, const W: usize>(
         }
         for _ in 0..8 {
             let p = m.predict::<K, W>();
-            let xm = x1 + ((u64::from(x2 - x1) * u64::from(p)) >> 12) as u32;
+            let xm = x1 + ((u64::from(x2 - x1) * u64::from(p)) >> m.pbits) as u32;
             let y = x <= xm;
             if y {
                 x2 = xm;
@@ -3565,7 +3620,7 @@ fn decode_bits<K: Kernel, const W: usize>(
                 x1 = xm + 1;
             }
             if measuring {
-                information += u64::from(cost[if y { p } else { 4096 - p } as usize]);
+                information += u64::from(cost[(if y { p } else { top - p } << widen) as usize]);
             }
             while (x1 ^ x2) >> 24 == 0 {
                 if canonical {

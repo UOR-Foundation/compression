@@ -485,16 +485,13 @@ pub extern "C" fn step_frame() -> i32 {
         let c = f.len()?;
         let chosen = f.take(c)?.to_vec();
         f.end()?;
-        // the window facets, then the table facet, as compress does
+        // the window facets, the table facet, then the probability facet,
+        // as compress does
         let host = uorc::performance::PAGE_WORKER;
         let (stepped, k) = uorc::step_window(frame, &pieces, &window, chosen, host);
-        Ok(uorc::step_table(
-            frame,
-            &pieces,
-            &window[window.len() - k..],
-            stepped,
-            host,
-        ))
+        let window = &window[window.len() - k..];
+        let stepped = uorc::step_table(frame, &pieces, window, stepped, host);
+        Ok(uorc::step_probability(frame, &pieces, window, stepped))
     }))
 }
 
@@ -631,6 +628,30 @@ mod tests {
             let stream = uorc::compress(&input, 0).expect("library stream");
             (input, stream)
         })
+    }
+
+    /// The page's frames decode through the exported model: a text frame
+    /// the page writes records its context table bits (the table facet), and
+    /// v0.5.0's model refused every such frame word.
+    #[test]
+    fn page_frames_decode_through_the_model() {
+        let text = include_bytes!("../../../README.md").to_vec();
+        window_reset();
+        let (code, mut stream) = run(&text, || compress_frame(0));
+        assert_eq!(code, OK);
+        let (code, tail) = run(&[], || compress_end(0));
+        assert_eq!(code, OK);
+        stream.extend(tail);
+        let archives = uorc::frames(&stream).expect("frames");
+        let mut back = Vec::new();
+        let mut recorded = false;
+        for a in &archives {
+            let info = uorc::inspect(a).expect("inspect");
+            recorded |= info.ncm_profile.is_some_and(uorc::ncm::records_tables);
+            back.extend(uorc::model_decompress_frame(a).expect("model decode"));
+        }
+        assert!(recorded, "the page's frame records its table bits");
+        assert_eq!(back, text);
     }
 
     /// The page's exports run the library's compress and decompress unchanged.
