@@ -1,5 +1,5 @@
-# The delta filter family as an ir.Prog: one description that irlex compiles to LexLean
-# (Uorc.Codec.Delta); the native filter is crates/uorc/src/delta.rs.
+# The delta filter family as an ir.Prog: the reference client/gen/ir_check.py runs against the native
+# filter (crates/uorc/src/delta.rs); the model states the same filter in Uorc.Codec.Delta.
 #
 # A frame read as samples w bytes wide (little-endian, w = 1, 2 or 4), interleaved in c channels:
 # each sample becomes its difference from the sample c samples before it, modulo 2^(8w), and decoding

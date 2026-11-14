@@ -52,9 +52,16 @@ fn shipped_states_make_small_text_smaller() {
             let state = states::state(s.state).expect("shipped");
             let id = states::identity(s.state).expect("named");
             let p = ncm::encode_warm(state, &input, s.profile).expect("codes");
-            archive::state_archive(false, s.profile, &id, &lengths, &p)
-                .expect("frame")
-                .len()
+            archive::state_archive(
+                false,
+                s.profile,
+                uorc::ncm::Learning::STANDARD,
+                &id,
+                &lengths,
+                &p,
+            )
+            .expect("frame")
+            .len()
         })
         .min()
         .expect("a state strategy");

@@ -180,6 +180,8 @@ impl Era {
 /// entries, and the v0.4 profiled ones): the portfolio codes a frame over at
 /// most this many, and a current profiled entry reads any number
 /// ([`window_profile_template`]), up to every earlier frame of its block.
+///
+/// Facet: windowFrames
 pub const WINDOW: usize = 2;
 
 /// A decoder of the standard basis that a linked archive applies.
@@ -935,21 +937,10 @@ pub fn reference_decode(data: &[u8], frame: &[u8]) -> Option<Vec<u8>> {
 /// entry decodes `payload` under `profile` as the continuation of the model
 /// state `S` (over the x86 filter when `x86`), reconstructing objects of
 /// `lengths`. `None` for a word that is not a [`crate::ncm::valid_profile`].
+/// The payload is coded learning under `learning`: the entry's word is the
+/// profile with the learning fields above it ([`crate::ncm::streams::word`]),
+/// the profile itself for the standard model.
 pub fn state_archive(
-    x86: bool,
-    profile: u32,
-    identity: &[u8; 32],
-    lengths: &[u64],
-    payload: &[u8],
-) -> Option<Vec<u8>> {
-    let standard = crate::ncm::Learning::STANDARD;
-    state_archive_learning(x86, profile, standard, identity, lengths, payload)
-}
-
-/// [`state_archive`] of a payload coded learning under `learning`: the
-/// entry's word is the profile with the learning fields above it
-/// ([`crate::ncm::streams::word`]), the profile itself for the standard model.
-pub fn state_archive_learning(
     x86: bool,
     profile: u32,
     learning: crate::ncm::Learning,
@@ -999,7 +990,7 @@ pub struct StateFrame<'a> {
     pub x86: bool,
     /// The ncm profile word.
     pub profile: u32,
-    /// How the model learns ([`state_archive_learning`]).
+    /// How the model learns ([`state_archive`]).
     pub learning: crate::ncm::Learning,
     /// The object lengths.
     pub lengths: Vec<u64>,
@@ -1027,9 +1018,13 @@ pub fn state_frame(data: &[u8]) -> Option<StateFrame<'_>> {
         let (payload, rest) = rest[after..].split_at(p);
         let rest = rest.strip_prefix(&[0])?;
         let (w, after) = read_word(rest, 0)?;
-        // one stream at 12 bits: only the learning fields join the profile
-        let (profile, plan) = crate::ncm::streams::split(w)
-            .filter(|(_, p)| p.streams == 1 && p.bits == 12 && p.delta.is_none())?;
+        // the serial plan: only the learning fields join the profile
+        let (profile, plan) = crate::ncm::streams::split(w).filter(|(_, p)| {
+            *p == crate::ncm::streams::Plan {
+                learning: p.learning,
+                ..crate::ncm::streams::Plan::ONE
+            }
+        })?;
         let ok = after == uleb_len(w) && rest[after..] == tail[..];
         ok.then(|| StateFrame {
             state,
@@ -1057,7 +1052,7 @@ pub fn state_decode(data: &[u8]) -> Option<Vec<u8>> {
     let (pre, seal) = data.split_at(data.len() - SEAL);
     let identity = crate::states::identity(state)?;
     let n = lengths.iter().try_fold(0u64, |a, &l| a.checked_add(l))?;
-    let rebuilt = state_archive_learning(x86, profile, learning, &identity, &lengths, payload)?;
+    let rebuilt = state_archive(x86, profile, learning, &identity, &lengths, payload)?;
     if rebuilt != data || seal != chain(pre) {
         return None;
     }
@@ -1490,7 +1485,15 @@ mod tests {
                 };
                 let payload = crate::ncm::encode_warm(&from, &input, profile).expect("codes");
                 let lengths = [data.len() as u64];
-                let a = state_archive(filtered, profile, &id, &lengths, &payload).expect("frame");
+                let a = state_archive(
+                    filtered,
+                    profile,
+                    crate::ncm::Learning::STANDARD,
+                    &id,
+                    &lengths,
+                    &payload,
+                )
+                .expect("frame");
                 assert_eq!(state_decode(&a).as_deref(), Some(data));
                 assert_eq!(window_len(&a), Some(0));
                 assert_eq!(fast_decode(&a), None);
@@ -1498,12 +1501,29 @@ mod tests {
                 let at = bad.len() - SEAL - 1;
                 bad[at] ^= 1;
                 assert_eq!(state_decode(&bad), None);
-                let other =
-                    state_archive(filtered, profile, &[7; 32], &lengths, &payload).expect("frame");
+                let other = state_archive(
+                    filtered,
+                    profile,
+                    crate::ncm::Learning::STANDARD,
+                    &[7; 32],
+                    &lengths,
+                    &payload,
+                )
+                .expect("frame");
                 assert_eq!(state_decode(&other), None);
             }
         }
-        assert_eq!(state_archive(false, 1 << 20, &id, &[1], b"x"), None);
+        assert_eq!(
+            state_archive(
+                false,
+                1 << 20,
+                crate::ncm::Learning::STANDARD,
+                &id,
+                &[1],
+                b"x"
+            ),
+            None
+        );
     }
 
     /// A profiled entry carries its profile word; the archive decodes under

@@ -81,6 +81,8 @@ pub use frame::{frame_length, frames, inspect, object_lengths, Info, Representat
 /// holds the same at any length well above [`chunk::MAX_UNIT`], while coding
 /// full 8 MiB frames through the whole portfolio cost most of the acceptance
 /// leg's time.
+///
+/// Facet: frameBytes
 pub const FRAME: usize = if cfg!(test) { 1 << 20 } else { 8 << 20 };
 
 /// Coded frames per block, the encoder's schedule: the first frame of every
@@ -90,6 +92,8 @@ pub const FRAME: usize = if cfg!(test) { 1 << 20 } else { 8 << 20 };
 /// decoder finds blocks from the frame headers alone (a frame that reads no
 /// window starts one) and decodes them on separate cores, so any block
 /// length decodes, including a v0.2 stream, which is one block.
+///
+/// Facet: blockFrames
 pub const BLOCK: usize = 4;
 
 /// Most frames a window frame reads: every earlier frame of its block.
@@ -500,7 +504,14 @@ pub fn step_table(
     };
     let frame_of = |w: u32, payload: &[u8]| -> Option<Vec<u8>> {
         if state != 0 {
-            return archive::state_archive(x86, w, identity.as_ref()?, lengths, payload);
+            return archive::state_archive(
+                x86,
+                w,
+                ncm::Learning::STANDARD,
+                identity.as_ref()?,
+                lengths,
+                payload,
+            );
         }
         let codec = if x86 {
             archive::Codec::NcmX86
@@ -696,7 +707,7 @@ pub fn step_consolidation(
     let frame_of = |learning: ncm::Learning, payload: &[u8]| -> Option<Vec<u8>> {
         if state != 0 {
             let id = identity.as_ref()?;
-            return archive::state_archive_learning(x86, profile, learning, id, lengths, payload);
+            return archive::state_archive(x86, profile, learning, id, lengths, payload);
         }
         let w = ncm::streams::word(profile, ncm::streams::Plan { learning, ..plan })?;
         match &identity {
@@ -823,9 +834,15 @@ fn portfolio_trials(
         })
     };
     let warm_stop = |strategy: portfolio::Strategy, w: &WarmInput, bound: u64| {
-        let form =
-            archive::state_archive(strategy.x86, strategy.profile, &w.identity, lengths, &[])
-                .map_or(0, |a| a.len() as u64);
+        let form = archive::state_archive(
+            strategy.x86,
+            strategy.profile,
+            ncm::Learning::STANDARD,
+            &w.identity,
+            lengths,
+            &[],
+        )
+        .map_or(0, |a| a.len() as u64);
         usize::try_from(bound.saturating_sub(form)).unwrap_or(usize::MAX)
     };
     let warm_trial = |strategy: portfolio::Strategy, w: &WarmInput, payload: Option<Vec<u8>>| {
@@ -835,6 +852,7 @@ fn portfolio_trials(
                 archive::state_archive(
                     strategy.x86,
                     strategy.profile,
+                    ncm::Learning::STANDARD,
                     &w.identity,
                     lengths,
                     &payload,
@@ -2988,8 +3006,15 @@ mod tests {
             };
             let id = states::identity(st.state).expect("named");
             let payload = ncm::encode_warm(s, &input, st.profile).expect("codes");
-            let a =
-                archive::state_archive(st.x86, st.profile, &id, &lengths, &payload).expect("frame");
+            let a = archive::state_archive(
+                st.x86,
+                st.profile,
+                ncm::Learning::STANDARD,
+                &id,
+                &lengths,
+                &payload,
+            )
+            .expect("frame");
             assert_eq!(archive::basis_of(&a), Some(id), "strategy {k}");
             least_state = least_state.min(a.len());
             assert_eq!(archive::window_len(&a), Some(0));

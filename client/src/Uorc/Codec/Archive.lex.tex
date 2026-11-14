@@ -828,6 +828,33 @@ definition{
 }
 
 definition{
+  name: wideBase,
+  parameters: [],
+  result: Nat,
+  body: 2147483648,
+  executable: true,
+  axioms: []
+}
+
+definition{
+  name: v03Profile,
+  parameters: [],
+  result: Nat,
+  body: 131071,
+  executable: true,
+  axioms: []
+}
+
+definition{
+  name: v03Depth,
+  parameters: [],
+  result: Nat,
+  body: 2,
+  executable: true,
+  axioms: []
+}
+
+definition{
   name: deltaBase,
   parameters: [],
   result: Nat,
@@ -876,7 +903,7 @@ definition{
   name: deltaWidth,
   parameters: [d : Nat],
   result: Nat,
-  body: (let code : Nat := (prim remainder d (widthBase) 0 : Nat); (if (code =? 3) then 4 else code)),
+  body: (Uorc.Codec.Delta::widthOf (prim remainder d (widthBase) 0 : Nat)),
   executable: true,
   axioms: []
 }
@@ -1552,6 +1579,15 @@ definition{
 }
 
 definition{
+  name: v03Entry,
+  parameters: [profile : Nat, window : (List Bytes)],
+  result: Bool,
+  body: ((profile =? (v03Profile)) && ((windowCount window) <=? (v03Depth))),
+  executable: true,
+  axioms: [Quot.sound, propext]
+}
+
+definition{
   name: profiledArchive,
   parameters: [x : Nat, k : Nat, identity : Bytes, n : Nat, profile : Nat, payload : Bytes],
   result: (Option Bytes),
@@ -1731,7 +1767,7 @@ definition{
   name: profileCandidate,
   parameters: [codec : Nat, profile : Nat, window : (List Bytes), input : Bytes],
   result: (Option Bytes),
-  body: (let x : Nat := (if (codec =? 2) then 1 else 0); (let history : Bytes := (windowHistory window); (let payload : Bytes := (profiledEncoder x history input profile); (if ((0 <? (prim length payload : Nat)) && (prim equal (profiledDecoder x history payload profile) input : Bool)) then (if ((profile =? 131071) && ((windowCount window) <=? 2)) then (v03Candidate x window (prim length input : Nat) payload) else (if ((profile <? 1048576) && ((windowCount window) <=? 2)) then (match (v04ProfiledIdentity window)
+  body: (let x : Nat := (if (codec =? 2) then 1 else 0); (let history : Bytes := (windowHistory window); (let payload : Bytes := (profiledEncoder x history input profile); (if ((0 <? (prim length payload : Nat)) && (prim equal (profiledDecoder x history payload profile) input : Bool)) then (if (v03Entry profile window) then (v03Candidate x window (prim length input : Nat) payload) else (if ((profile <? 1048576) && ((windowCount window) <=? 2)) then (match (v04ProfiledIdentity window)
     | Option.none => (ctor Option.none [Bytes])
     | Option.some identity => (v04ProfiledArchive x (windowCount window) identity (prim length input : Nat) profile payload)) else (match (profiledIdentity window)
     | Option.none => (ctor Option.none [Bytes])
