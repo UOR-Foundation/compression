@@ -1,7 +1,7 @@
 // node --test scripts/factory.test.mjs
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {covered, route, reweigh, schedule, parseStore, releaseStep, RELEASE_STAGES, trainQueue, trainStep, mergeTrain, REQUIRED_CHECKS, TRAIN_LABEL} from './factory.mjs';
+import {covered, route, reweigh, schedule, parseStore, releaseStep, RELEASE_STAGES, trainQueue, trainStep, mergeTrain, REQUIRED_CHECKS, TRAIN_LABEL, unrecorded} from './factory.mjs';
 
 const graph = {obligations: [
   {name: 'leg', kind: 'hermetic', needs: [], inputs: []},
@@ -172,4 +172,21 @@ test('a merge train run creates its label when the repository has none', async (
   const {writes} = await ride({label: false});
   assert.match(writes[0], new RegExp(`^POST labels .*"name":"${TRAIN_LABEL}"`));
   assert.equal(writes.filter(w => w.startsWith('POST labels')).length, 1);
+});
+
+test('dispatched runs the store has not seen are collected, oldest first, from this repository only', async () => {
+  const g = {obligations: [{name: 'leg', workflow: 'bootstrap.yml'}, {name: 'build', workflow: 'release.yml'}, {name: 'gate'}]};
+  const store = parseStore(`${receipt('a', 'leg', 'pass', 7)}\nseen 7 1`);
+  assert.deepEqual([...store.seen], ['7 1']);
+  const asked = [];
+  const runs = {
+    'bootstrap.yml': [{id: 7, run_attempt: 1, updated_at: '2026-01-01T00:00:00Z', head_repository: {full_name: 'o/r'}},
+                      {id: 9, run_attempt: 1, updated_at: '2026-01-03T00:00:00Z', head_repository: {full_name: 'o/r'}},
+                      {id: 10, run_attempt: 1, updated_at: '2026-01-04T00:00:00Z', head_repository: {full_name: 'fork/r'}}],
+    'release.yml': [{id: 7, run_attempt: 2, updated_at: '2026-01-02T00:00:00Z', head_repository: {full_name: 'o/r'}}],
+  };
+  const call = async url => { asked.push(url); const w = url.match(/workflows\/([^/]+)\/runs/)[1]; return {ok: true, json: async () => ({workflow_runs: runs[w]})}; };
+  assert.deepEqual(await unrecorded(g, store, {repository: 'o/r', token: 't', call}), ['7 2', '9 1']);
+  assert.equal(asked.length, 2);
+  assert.ok(asked.every(u => u.includes('event=workflow_dispatch') && u.includes('status=completed') && u.includes('actor=github-actions%5Bbot%5D')));
 });
