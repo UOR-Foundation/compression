@@ -176,6 +176,7 @@ fn usizes<const N: usize>(a: &[usize; N]) -> [u32; N] {
 fn save(m: &Model, w: impl Write) -> io::Result<()> {
     let Model {
         t: _,
+        slots,
         act,
         na,
         stride,
@@ -287,6 +288,7 @@ fn save(m: &Model, w: impl Write) -> io::Result<()> {
     ] {
         o.u(u64::from(v))?;
     }
+    o.u(u64::from(slots.top))?;
     for v in [*rok, *ra] {
         o.u(u64::from(v))?;
     }
@@ -340,10 +342,15 @@ fn load(r: impl Read, left: u64) -> io::Result<Model> {
     }
     let [mask, mb, hoff, pos, seen, c4, c8, wordh, word1, c0, bit, profile, m2ptr, m2len, m2exp, m2b, rd, rrun, rexp, mptr, mlen, mexp, mbucket, r] =
         w;
+    let top = i.u32()?;
     let (rok, ra) = (i.b()?, i.b()?);
     let (pm1, pm2, pm3) = (i.i32()?, i.i32()?, i.i32()?);
     Ok(Model {
         t: super::tables(),
+        slots: super::Rates {
+            top,
+            ..super::tables().rate
+        },
         act,
         na,
         stride,
@@ -445,7 +452,7 @@ fn build() -> Option<&'static [u8]> {
 /// `K` from `state` under `profile` with table mask `mask`.
 fn place<K: Kernel>(
     state: &[u8],
-    profile: u32,
+    profile: super::Point,
     (mask, mb): (u32, u32),
     form: u8,
 ) -> Option<(PathBuf, [u8; 32])> {
@@ -469,7 +476,7 @@ fn place<K: Kernel>(
 /// shared pass's twin (1 not learning, 2 learning).
 pub(super) fn read<K: Kernel>(
     state: &[u8],
-    profile: u32,
+    profile: super::Point,
     dims: (u32, u32),
     form: u8,
 ) -> Option<Model> {
@@ -498,7 +505,7 @@ pub(super) fn read<K: Kernel>(
 pub(super) fn write<K: Kernel>(
     m: &Model,
     state: &[u8],
-    profile: u32,
+    profile: super::Point,
     dims: (u32, u32),
     form: u8,
     replay: Duration,
@@ -586,7 +593,7 @@ mod tests {
     }
 
     fn same_after_image(state: &[u8], data: &[u8], total: u32, profile: u32, twin: bool) {
-        let mut m = Model::new(total, &[], profile);
+        let mut m = Model::new(total, &[], u64::from(profile));
         if twin {
             m.twin = Some(Box::new(Twin {
                 sel: profile & F_SEL == 0,

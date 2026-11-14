@@ -1,4 +1,5 @@
 \begin{lexlean}{Uorc.Codec.Archive}
+\importmodule{Uorc.Codec.Delta}
 \importmodule{Uorc.Codec.LzDecode}
 \importmodule{Uorc.Codec.LzEncode}
 \importmodule{Uorc.Codec.NcmDecode}
@@ -773,10 +774,163 @@ definition{
 }
 
 definition{
+  name: profileBase,
+  parameters: [],
+  result: Nat,
+  body: 4294967296,
+  executable: true,
+  axioms: []
+}
+
+definition{
+  name: learningBase,
+  parameters: [],
+  result: Nat,
+  body: (prim multiply (profileBase) (profileBase) : Nat),
+  executable: true,
+  axioms: []
+}
+
+definition{
+  name: countBitsStandard,
+  parameters: [],
+  result: Nat,
+  body: 7,
+  executable: true,
+  axioms: []
+}
+
+definition{
+  name: countBitsMax,
+  parameters: [],
+  result: Nat,
+  body: 8,
+  executable: true,
+  axioms: []
+}
+
+definition{
+  name: learningWord,
+  parameters: [word : Nat],
+  result: Bool,
+  body: ((prim quotient word (learningBase) 0 : Nat) <=? (countBitsMax)),
+  executable: true,
+  axioms: []
+}
+
+definition{
+  name: planField,
+  parameters: [word : Nat],
+  result: Nat,
+  body: (prim remainder (prim quotient word (profileBase) 0 : Nat) (profileBase) 0 : Nat),
+  executable: true,
+  axioms: []
+}
+
+definition{
+  name: wideBase,
+  parameters: [],
+  result: Nat,
+  body: 2147483648,
+  executable: true,
+  axioms: []
+}
+
+definition{
+  name: v03Profile,
+  parameters: [],
+  result: Nat,
+  body: 131071,
+  executable: true,
+  axioms: []
+}
+
+definition{
+  name: v03Depth,
+  parameters: [],
+  result: Nat,
+  body: 2,
+  executable: true,
+  axioms: []
+}
+
+definition{
+  name: deltaBase,
+  parameters: [],
+  result: Nat,
+  body: 67108864,
+  executable: true,
+  axioms: []
+}
+
+definition{
+  name: widthBase,
+  parameters: [],
+  result: Nat,
+  body: 4,
+  executable: true,
+  axioms: []
+}
+
+definition{
+  name: deltaChannels,
+  parameters: [],
+  result: Nat,
+  body: 16,
+  executable: true,
+  axioms: []
+}
+
+definition{
+  name: deltaField,
+  parameters: [word : Nat],
+  result: Nat,
+  body: (prim quotient (planField word) (deltaBase) 0 : Nat),
+  executable: true,
+  axioms: []
+}
+
+definition{
+  name: deltaWord,
+  parameters: [word : Nat],
+  result: Bool,
+  body: (let d : Nat := (deltaField word); ((d =? 0) || (0 <? (prim remainder d (widthBase) 0 : Nat)))),
+  executable: true,
+  axioms: []
+}
+
+definition{
+  name: deltaWidth,
+  parameters: [d : Nat],
+  result: Nat,
+  body: (Uorc.Codec.Delta::widthOf (prim remainder d (widthBase) 0 : Nat)),
+  executable: true,
+  axioms: []
+}
+
+definition{
+  name: deltaFilter,
+  parameters: [dir : Nat, word : Nat, data : Bytes],
+  result: Bytes,
+  body: (let d : Nat := (deltaField word); (if (d =? 0) then data else (Uorc.Codec.Delta::run dir (deltaWidth d) ((prim quotient d (widthBase) 0 : Nat) + 1) data))),
+  executable: true,
+  axioms: [Quot.sound, propext]
+}
+
+definition{
   name: frameWord,
   parameters: [word : Nat],
   result: Bool,
-  body: (let p : Nat := (prim quotient word 4294967296 0 : Nat); (((p =? 0) || (p =? 16)) && (profileWord (prim remainder word 4294967296 0 : Nat)))),
+  body: (let p : Nat := (prim remainder (planField word) (deltaBase) 0 : Nat); (((p =? 0) || (p =? 16)) && ((deltaWord word) && ((learningWord word) && (profileWord (prim remainder word (profileBase) 0 : Nat)))))),
+  executable: true,
+  axioms: []
+}
+
+definition{
+  name: stateWord,
+  parameters: [word : Nat],
+  result: Bool,
+  body: (((planField word) =? 0) && ((learningWord word) && (profileWord (prim remainder word (profileBase) 0 : Nat)))),
   executable: true,
   axioms: []
 }
@@ -794,7 +948,7 @@ definition{
   name: profiledDecoder,
   parameters: [x : Nat, history : Bytes, payload : Bytes, profile : Nat],
   result: Bytes,
-  body: (if (x =? 0) then (Uorc.Codec.NcmDecode::runProfile history payload profile) else (Uorc.Codec.X86::run 1 (prim length history : Nat) (Uorc.Codec.NcmDecode::runProfile (Uorc.Codec.X86::run 0 0 history) payload profile))),
+  body: (if (x =? 0) then (deltaFilter 1 profile (Uorc.Codec.NcmDecode::runProfile (deltaFilter 0 profile history) payload profile)) else (Uorc.Codec.X86::run 1 (prim length history : Nat) (Uorc.Codec.NcmDecode::runProfile (Uorc.Codec.X86::run 0 0 history) payload profile))),
   executable: true,
   axioms: [Quot.sound, propext]
 }
@@ -803,7 +957,7 @@ definition{
   name: profiledEncoder,
   parameters: [x : Nat, history : Bytes, input : Bytes, profile : Nat],
   result: Bytes,
-  body: (if (x =? 0) then (Uorc.Codec.NcmEncode::runProfile history input profile) else (let h : Bytes := (Uorc.Codec.X86::run 0 0 history); (let f : Bytes := (Uorc.Codec.X86::run 0 (prim length history : Nat) input); (Uorc.Codec.NcmEncode::runProfile h f profile)))),
+  body: (if (x =? 0) then (Uorc.Codec.NcmEncode::runProfile (deltaFilter 0 profile history) (deltaFilter 0 profile input) profile) else (let h : Bytes := (Uorc.Codec.X86::run 0 0 history); (let f : Bytes := (Uorc.Codec.X86::run 0 (prim length history : Nat) input); (Uorc.Codec.NcmEncode::runProfile h f profile)))),
   executable: true,
   axioms: [Quot.sound, propext]
 }
@@ -1425,10 +1579,19 @@ definition{
 }
 
 definition{
+  name: v03Entry,
+  parameters: [profile : Nat, window : (List Bytes)],
+  result: Bool,
+  body: ((profile =? (v03Profile)) && ((windowCount window) <=? (v03Depth))),
+  executable: true,
+  axioms: [Quot.sound, propext]
+}
+
+definition{
   name: profiledArchive,
   parameters: [x : Nat, k : Nat, identity : Bytes, n : Nat, profile : Nat, payload : Bytes],
   result: (Option Bytes),
-  body: (if (frameWord profile) then (seal (windowPreimage identity n (profiledBody x k profile payload))) else (ctor Option.none [Bytes])),
+  body: (if ((frameWord profile) && ((x =? 0) || ((deltaField profile) =? 0))) then (seal (windowPreimage identity n (profiledBody x k profile payload))) else (ctor Option.none [Bytes])),
   executable: true,
   axioms: [Quot.sound, propext]
 }
@@ -1604,7 +1767,7 @@ definition{
   name: profileCandidate,
   parameters: [codec : Nat, profile : Nat, window : (List Bytes), input : Bytes],
   result: (Option Bytes),
-  body: (let x : Nat := (if (codec =? 2) then 1 else 0); (let history : Bytes := (windowHistory window); (let payload : Bytes := (profiledEncoder x history input profile); (if ((0 <? (prim length payload : Nat)) && (prim equal (profiledDecoder x history payload profile) input : Bool)) then (if ((profile =? 131071) && ((windowCount window) <=? 2)) then (v03Candidate x window (prim length input : Nat) payload) else (if ((profile <? 1048576) && ((windowCount window) <=? 2)) then (match (v04ProfiledIdentity window)
+  body: (let x : Nat := (if (codec =? 2) then 1 else 0); (let history : Bytes := (windowHistory window); (let payload : Bytes := (profiledEncoder x history input profile); (if ((0 <? (prim length payload : Nat)) && (prim equal (profiledDecoder x history payload profile) input : Bool)) then (if (v03Entry profile window) then (v03Candidate x window (prim length input : Nat) payload) else (if ((profile <? 1048576) && ((windowCount window) <=? 2)) then (match (v04ProfiledIdentity window)
     | Option.none => (ctor Option.none [Bytes])
     | Option.some identity => (v04ProfiledArchive x (windowCount window) identity (prim length input : Nat) profile payload)) else (match (profiledIdentity window)
     | Option.none => (ctor Option.none [Bytes])
@@ -1711,7 +1874,7 @@ definition{
   name: stateArchive,
   parameters: [x : Nat, identity : Bytes, n : Nat, profile : Nat, payload : Bytes],
   result: (Option Bytes),
-  body: (if (profileWord profile) then (seal (windowPreimage identity n (stateBody x profile payload))) else (ctor Option.none [Bytes])),
+  body: (if (stateWord profile) then (seal (windowPreimage identity n (stateBody x profile payload))) else (ctor Option.none [Bytes])),
   executable: true,
   axioms: [Quot.sound, propext]
 }

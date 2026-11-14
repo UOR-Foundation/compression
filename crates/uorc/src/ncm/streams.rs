@@ -48,6 +48,13 @@ pub struct Plan {
     /// Bits of the probability each bit is coded at: 12 (a word's
     /// probability field zero) or 16 (the field 16).
     pub bits: u32,
+    /// How the model learns ([`super::Learning`]; the word's learning
+    /// fields, [`COUNT_AT`]).
+    pub learning: super::Learning,
+    /// The delta filter the frame is coded over, if any (the word's delta
+    /// field, [`DELTA_AT`]): the coder codes the filtered bytes after the
+    /// filtered window, and the decoder inverts the filter on its output.
+    pub delta: Option<crate::delta::Delta>,
 }
 
 impl Plan {
@@ -70,6 +77,8 @@ impl Plan {
             && self.epoch > 0
             && self.streams <= 1 << 16
             && (self.bits == 12 || self.bits == 16)
+            && self.learning.valid()
+            && self.delta.is_none_or(crate::delta::Delta::valid)
     }
 
     /// One stream: the serial coder.
@@ -77,13 +86,16 @@ impl Plan {
         streams: 1,
         epoch: 1,
         bits: 12,
+        learning: super::Learning::STANDARD,
+        delta: None,
     };
 
-    /// Whether the frame's coder codes this plan at 12-bit probabilities:
-    /// one stream, the field zero.
+    /// Whether the frame's coder is the v0.4 coder: one stream at 12-bit
+    /// probabilities (the field zero), learning as the standard model, over
+    /// no delta filter.
     #[must_use]
     pub fn serial(&self) -> bool {
-        self.streams == 1 && self.bits == 12
+        self.streams == 1 && self.bits == 12 && self.learning.standard() && self.delta.is_none()
     }
 
     /// `streams` streams of `epoch` bytes at 12-bit probabilities.
@@ -93,55 +105,90 @@ impl Plan {
             streams,
             epoch,
             bits: 12,
+            learning: super::Learning::STANDARD,
+            delta: None,
         }
     }
 }
 
 /// Bit of a frame word where the stream count less one starts (16 bits).
 pub const STREAMS_AT: u32 = 37;
-/// Bit of a frame word where the epoch's base-2 logarithm starts (5 bits).
+/// Bit of a frame word where the epoch's base-2 logarithm starts.
 pub const EPOCH_AT: u32 = 53;
+/// Bits of the epoch field: an epoch's logarithm below 2^5.
+pub const EPOCH_FIELD: u32 = 5;
 /// Bit of a frame word where the probability field starts (5 bits): zero
 /// for 12-bit probabilities, otherwise the bits (16).
 pub const PROB_AT: u32 = 32;
+/// Bits of a frame word below the learning fields: the profile, the plan
+/// and the delta field.
+pub const PLAN_BITS: u32 = u64::BITS;
+/// Bit of a frame word where the delta field starts, the last bits below
+/// [`PLAN_BITS`]: the width field, then the channels field
+/// ([`crate::delta::Delta::field`]), 0 for no delta filter.
+pub const DELTA_AT: u32 = EPOCH_AT + EPOCH_FIELD;
+/// Bit of a frame word where the consolidation field starts (4 bits): a
+/// context slot's count bits ([`super::Learning::count_bits`]), 0 for the
+/// standard count.
+pub const COUNT_AT: u32 = PLAN_BITS;
+/// Width of the consolidation field: it holds 0 to
+/// [`super::Learning::COUNT_BITS_MAX`].
+pub const COUNT_FIELD: u32 = u32::BITS - super::Learning::COUNT_BITS_MAX.leading_zeros();
+/// Bit of a frame word past its last field.
+pub const WORD_END: u32 = COUNT_AT + COUNT_FIELD;
+
+/// A frame word: the profile, the plan and the learning fields.
+pub type Word = u128;
 
 /// The frame word an entry names: the model `profile` in the low 32 bits,
 /// the plan above ([`STREAMS_AT`], [`EPOCH_AT`]). One stream is the profile
 /// itself, so every frame coded before streams keeps its word. `None` for a
 /// plan the word cannot carry (an epoch not a power of two).
 #[must_use]
-pub fn word(profile: u32, plan: Plan) -> Option<u64> {
+pub fn word(profile: u32, plan: Plan) -> Option<Word> {
     if !plan.valid() || !plan.epoch.is_power_of_two() || plan.epoch.trailing_zeros() >= 32 {
         return None;
     }
     let p = if plan.bits == 12 {
         0
     } else {
-        u64::from(plan.bits)
+        Word::from(plan.bits)
     };
+    let learning = Word::from(plan.learning.count_bits) << COUNT_AT;
+    let delta = Word::from(plan.delta.map_or(0, crate::delta::Delta::field)) << DELTA_AT;
+    let low = Word::from(profile) | p << PROB_AT | learning | delta;
     if plan.streams == 1 {
-        return Some(u64::from(profile) | p << PROB_AT);
+        return Some(low);
     }
-    let k = (plan.streams - 1) as u64;
-    let e = u64::from(plan.epoch.trailing_zeros());
-    Some(u64::from(profile) | p << PROB_AT | k << STREAMS_AT | e << EPOCH_AT)
+    let k = (plan.streams - 1) as Word;
+    let e = Word::from(plan.epoch.trailing_zeros());
+    Some(low | k << STREAMS_AT | e << EPOCH_AT)
 }
 
 /// The model profile and plan of frame `word`, when it is one [`word`]
 /// writes (a single meaning per word: one stream carries no epoch).
 #[must_use]
-pub fn split(word: u64) -> Option<(u32, Plan)> {
-    if word >> (EPOCH_AT + 5) != 0 {
+pub fn split(word: Word) -> Option<(u32, Plan)> {
+    // nothing past the learning fields
+    if word >> WORD_END != 0 {
         return None;
     }
+    let field = ((word >> DELTA_AT) & ((1 << (PLAN_BITS - DELTA_AT)) - 1)) as u32;
+    let delta = crate::delta::Delta::of_field(field);
+    if field != 0 && delta.is_none() {
+        return None;
+    }
+    let learning = super::Learning {
+        count_bits: ((word >> COUNT_AT) & ((1 << COUNT_FIELD) - 1)) as u32,
+    };
     let bits = match (word >> PROB_AT) & 31 {
         0 => 12,
         16 => 16,
         _ => return None,
     };
-    let profile = (word & u64::from(u32::MAX)) as u32;
+    let profile = (word & Word::from(u32::MAX)) as u32;
     let streams = ((word >> STREAMS_AT) & 0xffff) as usize + 1;
-    let e = ((word >> EPOCH_AT) & 31) as u32;
+    let e = ((word >> EPOCH_AT) & ((1 << EPOCH_FIELD) - 1)) as u32;
     if !super::valid_profile(profile) || (streams == 1 && e != 0) {
         return None;
     }
@@ -149,8 +196,10 @@ pub fn split(word: u64) -> Option<(u32, Plan)> {
         streams,
         epoch: 1 << e,
         bits,
+        learning,
+        delta,
     };
-    Some((profile, plan))
+    plan.valid().then_some((profile, plan))
 }
 
 /// A frame cut into streams for a decode host: its plan, payload and merge
@@ -475,7 +524,7 @@ struct Frame {
 
 impl Frame {
     fn new(history: &[&[u8]], n: usize, profile: u32, plan: Plan) -> Frame {
-        let mut base = Model::new(n as u32, history, profile);
+        let mut base = Model::new(n as u32, history, plan.learning.point(profile));
         base.pbits = plan.bits;
         let before = base.hoff as usize;
         let mut hist = std::mem::take(&mut base.hist);
