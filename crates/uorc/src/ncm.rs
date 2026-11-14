@@ -2938,7 +2938,7 @@ const WIDE: u32 = 1 << 31;
 fn at_bits(profile: u32, bits: u32) -> Option<u32> {
     match bits {
         12 if valid_profile(profile) => Some(profile),
-        16 if valid_profile(profile) => Some(profile | WIDE),
+        WIDEST_BITS if valid_profile(profile) => Some(profile | WIDE),
         _ => None,
     }
 }
@@ -3472,14 +3472,19 @@ thread_local! {
 /// Bits of fraction [`information_cost`] counts in.
 pub const INFORMATION_BITS: u32 = 24;
 
-/// `cost[p]` = 2^24 log2(4096 / p): the information of a bit coded at
-/// probability p / 4096, in 2^-24 bit. Integer and exact to the last unit
-/// but one: p is normalised to 2^63 <= m < 2^64 and squared once for each
-/// fraction bit, keeping 64 bits each time.
-fn information_cost() -> &'static [u32; 4096] {
-    static COST: std::sync::OnceLock<Box<[u32; 4096]>> = std::sync::OnceLock::new();
+/// The widest probability a frame word records ([`at_bits`]): the
+/// resolution [`information_cost`] counts every coder's bits in.
+const WIDEST_BITS: u32 = 16;
+
+/// `cost[p]` = 2^24 log2(2^16 / p) ([`WIDEST_BITS`]): the information of a
+/// bit coded at probability p / 2^16, in 2^-24 bit; a `bits`-bit coder's p
+/// reads at `p << (16 - bits)`, which is exact. Integer and exact to the
+/// last unit but one: p is normalised to 2^63 <= m < 2^64 and squared once
+/// for each fraction bit, keeping 64 bits each time.
+fn information_cost() -> &'static [u32] {
+    static COST: std::sync::OnceLock<Vec<u32>> = std::sync::OnceLock::new();
     COST.get_or_init(|| {
-        let mut cost = Box::new([0u32; 4096]);
+        let mut cost = vec![0u32; 1 << WIDEST_BITS];
         for (p, c) in cost.iter_mut().enumerate().skip(1) {
             let (mut m, mut e) = (p as u128, 0u32);
             while m < 1 << 63 {
@@ -3496,7 +3501,7 @@ fn information_cost() -> &'static [u32; 4096] {
                 }
             }
             let log2p = (u64::from(63 - e) << INFORMATION_BITS) + frac;
-            *c = ((12u64 << INFORMATION_BITS) - log2p) as u32;
+            *c = ((u64::from(WIDEST_BITS) << INFORMATION_BITS) - log2p) as u32;
         }
         cost
     })
@@ -3504,8 +3509,8 @@ fn information_cost() -> &'static [u32; 4096] {
 
 /// Run `f` on this thread and return, beside its result, the information
 /// the model assigned to every bit the ncm decoder decoded meanwhile on this
-/// thread, in 2^-24 bit ([`INFORMATION_BITS`]: log2 of 4096 over the
-/// probability, out of 4096, the coded bit had), and the number of payloads
+/// thread, in 2^-24 bit ([`INFORMATION_BITS`]: log2 of the coder's whole over the
+/// probability the coded bit had), and the number of payloads
 /// decoded. It is the length the
 /// model's own predictions assign to the frame's bits, before the coder's
 /// rounding and the archive's form (`Uorc.Performance::leastArchive`). A
@@ -3563,11 +3568,8 @@ fn decode_bits<K: Kernel, const W: usize>(
     let mut emitted = 0usize;
     let (mut x1, mut x2) = (0u32, u32::MAX);
     let measuring = INFORMATION.with(|c| c.get().is_some());
-    let cost: &[u32; 4096] = if measuring {
-        information_cost()
-    } else {
-        &[0; 4096]
-    };
+    let cost: &[u32] = if measuring { information_cost() } else { &[] };
+    let (top, widen) = (1 << m.pbits, WIDEST_BITS - m.pbits);
     let mut information = 0u64;
     for i in 0..n as usize {
         if i % TICK == 0 {
@@ -3583,7 +3585,7 @@ fn decode_bits<K: Kernel, const W: usize>(
                 x1 = xm + 1;
             }
             if measuring {
-                information += u64::from(cost[if y { p } else { 4096 - p } as usize]);
+                information += u64::from(cost[(if y { p } else { top - p } << widen) as usize]);
             }
             while (x1 ^ x2) >> 24 == 0 {
                 if canonical {
