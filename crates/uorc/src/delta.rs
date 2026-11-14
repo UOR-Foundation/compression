@@ -24,13 +24,17 @@ pub struct Delta {
 }
 
 impl Delta {
+    /// The widest sample: the samples a 32-bit word holds.
+    pub const WIDEST: u32 = u32::BITS / u8::BITS;
+    /// The widths, 2^0 to [`Delta::WIDEST`] bytes.
+    pub const WIDTHS: u32 = Delta::WIDEST.trailing_zeros() + 1;
     /// Bits of the width field: it holds the base-2 logarithm of the width
-    /// plus one, 0 for no delta.
-    pub const WIDTH_FIELD: u32 = 2;
-    /// Bits of the channels field: it holds the channels less one.
-    pub const CHANNEL_FIELD: u32 = 4;
-    /// The widths the width field names: 2^0 to 2^(field max - 1) bytes.
-    pub const WIDTHS: u32 = (1 << Delta::WIDTH_FIELD) - 1;
+    /// plus one (1 to [`Delta::WIDTHS`]), 0 for no delta.
+    pub const WIDTH_FIELD: u32 = u32::BITS - Delta::WIDTHS.leading_zeros();
+    /// Bits of the channels field, the delta field's remaining bits: it
+    /// holds the channels less one.
+    pub const CHANNEL_FIELD: u32 =
+        crate::ncm::streams::PLAN_BITS - crate::ncm::streams::DELTA_AT - Delta::WIDTH_FIELD;
     /// The most channels the channels field names.
     pub const CHANNELS: u32 = 1 << Delta::CHANNEL_FIELD;
 
@@ -131,8 +135,9 @@ pub fn filter(data: &[u8], decode: bool, d: Delta) -> Vec<u8> {
 }
 
 /// The magnitude bits of `data`'s samples under `d`: of its differences, or
-/// with `raw` of the samples themselves.
-fn magnitude_bits(data: &[u8], d: Delta, raw: bool) -> u64 {
+/// with `raw` of the samples themselves (`Delta.measure`).
+#[must_use]
+pub fn magnitude_bits(data: &[u8], d: Delta, raw: bool) -> u64 {
     let samples = data.len() / d.width as usize;
     let c = d.channels as usize;
     (0..samples)
@@ -165,8 +170,8 @@ pub fn candidate(frame: &[u8]) -> Option<Delta> {
         .collect();
     let mut best: Option<(u64, Delta)> = None;
     for d in Delta::all() {
-        let saved = raw[d.width.trailing_zeros() as usize]
-            .saturating_sub(magnitude_bits(frame, d, false));
+        let saved =
+            raw[d.width.trailing_zeros() as usize].saturating_sub(magnitude_bits(frame, d, false));
         if saved > best.map_or(0, |(s, _)| s) {
             best = Some((saved, d));
         }

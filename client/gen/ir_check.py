@@ -11,6 +11,7 @@
 #   serial-decode    ncm_model.py py_decode      of the native payload, against the input
 #   serial-learn     ncm_model.py py_learn       against ncm::encode_learn (payload and profile)
 #   serial-*-p16     the same at 16-bit probabilities (frame word probability field 16, ncm::encode_bits_below)
+#   delta            client/gen/delta_model.py filter, inverse and magnitude bits against crates/uorc/src/delta.rs
 #   serial-*-cb2     consolidation field 2 (a context slot's count stops at 3, ncm::encode_plan_below), and at 16 bits
 #   streams-encode-k ncm_streams.py py_encode_streams, against ncm::streams::encode (k streams, epoch E)
 #   streams-decode-k ncm_streams.py py_decode_streams of the native payload, against the input
@@ -64,6 +65,18 @@ fn main() {
     let back = ncm::decode_canonical_window_bits(&[history], &w, n as u64, ncm::FULL, 16).expect("native 16-bit decode");
     assert_eq!(back, data, "native 16-bit round trip");
     std::fs::write(out.join("encode16.bin"), &w).unwrap();
+    // the delta filter family: each direction, and the magnitude bits (raw and differences)
+    let mut bits = String::new();
+    for (width, channels) in [(1, 1), (2, 2), (4, 3)] {
+        let d = uorc::delta::Delta { width, channels };
+        for (dir, name) in [(false, "filter"), (true, "inverse")] {
+            std::fs::write(out.join(format!("delta-{name}-{width}-{channels}.bin")), uorc::delta::filter(data, dir, d)).unwrap();
+        }
+        for raw in [false, true] {
+            bits.push_str(&format!("{width} {channels} {} {}\n", u8::from(raw), uorc::delta::magnitude_bits(data, d, raw)));
+        }
+    }
+    std::fs::write(out.join("delta-bits.txt"), bits).unwrap();
     // consolidation: two count bits (a slot stops at count 3), at 12 and 16 bits
     for (bits, name) in [(12, "consolidate.bin"), (16, "consolidate16.bin")] {
         let plan = ncm::streams::Plan { bits, learning: ncm::Learning { count_bits: 2 }, ..ncm::streams::Plan::ONE };
@@ -163,6 +176,16 @@ def run_case(job):
         want, got = nat('encode16.bin'), nm.py_encode(data, history, FULL | 16 << 32)
     elif kind == 'serial-decode-p16':
         want, got = data, nm.py_decode(nat('encode16.bin'), history, FULL | 16 << 32)
+    elif kind == 'delta':
+        import delta_model as dm
+        want, got = [], []
+        for width, channels in ((1, 1), (2, 2), (4, 3)):
+            for dirn, way in ((0, 'filter'), (1, 'inverse')):
+                want.append(nat(f'delta-{way}-{width}-{channels}.bin'))
+                got.append(dm.py_filter(data, dirn, width, channels))
+        rows = [l.split() for l in nat('delta-bits.txt').decode().splitlines()]
+        want += [int(r[3]) for r in rows]
+        got += [dm.py_measure(data, int(r[0]), int(r[1]), int(r[2])) for r in rows]
     elif kind == 'serial-encode-cb2':
         want, got = nat('consolidate.bin'), nm.py_encode(data, history, FULL | 2 << 64)
     elif kind == 'serial-decode-cb2':
@@ -223,7 +246,8 @@ def main():
     jobs = []
     if not args.no_serial:
         jobs += [(c, c, 0, a) for c in ('serial-encode', 'serial-decode', 'serial-learn', 'serial-encode-p16', 'serial-decode-p16',
-                                               'serial-encode-cb2', 'serial-decode-cb2', 'serial-encode-cb2-p16')]
+                                               'serial-encode-cb2', 'serial-decode-cb2', 'serial-encode-cb2-p16',
+                                               'delta')]
     for k in ks:
         jobs += [(f'streams-encode-{k}', 'streams-encode', k, a), (f'streams-decode-{k}', 'streams-decode', k, a)]
     if not jobs:

@@ -98,7 +98,7 @@ fn strategy_frame(frame: &[u8], strategy: portfolio::Strategy) -> Option<Vec<u8>
     let payload = ncm::encode_profile(&[], &data, strategy.profile)?;
     archive::linked_archive_profile(
         codec,
-        u64::from(strategy.profile),
+        uorc::ncm::streams::Word::from(strategy.profile),
         &[frame.len() as u64],
         &payload,
     )

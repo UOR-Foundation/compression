@@ -593,7 +593,7 @@ mod tests {
     }
 
     fn same_after_image(state: &[u8], data: &[u8], total: u32, profile: u32, twin: bool) {
-        let mut m = Model::new(total, &[], profile);
+        let mut m = Model::new(total, &[], u64::from(profile));
         if twin {
             m.twin = Some(Box::new(Twin {
                 sel: profile & F_SEL == 0,

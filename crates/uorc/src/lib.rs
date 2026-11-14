@@ -59,6 +59,7 @@ use std::io::{self, Read, Seek, SeekFrom, Write};
 
 pub mod archive;
 pub mod chunk;
+pub mod delta;
 mod frame;
 pub mod ncm;
 pub mod performance;
@@ -69,7 +70,6 @@ mod store;
 pub mod tree;
 pub mod ulz;
 pub mod weights;
-pub mod delta;
 pub mod x86;
 
 pub use frame::{frame_length, frames, inspect, object_lengths, Info, Representation, HEADER_HINT};
@@ -618,8 +618,8 @@ pub fn step_probability(
 }
 
 /// The consolidation facet stepped last on the frame's chosen archive
-/// (`Client.stepConsolidation`): the chosen coding (x86 or not, profile,
-/// probability bits) is recoded with one bit fewer in a context slot's count
+/// (`Client.stepConsolidation`): the chosen coding (x86, delta member or
+/// neither, profile, probability bits, or the state it continues) is recoded with one bit fewer in a context slot's count
 /// at a time ([`ncm::Learning::count_bits`]), each step kept only while the
 /// archive gets strictly shorter; when the first step does not pay, one bit
 /// more is tried instead. Fewer bits consolidate a slot sooner, so it keeps
@@ -627,8 +627,7 @@ pub fn step_probability(
 /// steps are the same at every count, so bytes decide. The frame records
 /// its count bits in its word only when they differ from the standard
 /// model's, so a frame where no step pays is the archive chosen before, byte
-/// for byte. Raw frames, state frames and the fixed v0.3 entries are kept as
-/// they are.
+/// for byte. Raw frames and the fixed v0.3 entries are kept as they are.
 pub fn step_consolidation(
     frame: &[u8],
     lengths: &[u64],
@@ -666,11 +665,19 @@ pub fn step_consolidation(
         joined = window.concat();
         &joined
     };
+    // the bytes the payload codes: under x86, or under the frame's delta
+    // member (never both, [`archive::frame_word`])
     let filtered;
     let (data, past) = if x86 {
         filtered = (
             x86::filter(frame, false, history.len() as u64).0,
             x86::filter(history, false, 0).0,
+        );
+        (&filtered.0[..], &filtered.1[..])
+    } else if let Some(d) = plan.delta {
+        filtered = (
+            delta::filter(frame, false, d),
+            delta::filter(history, false, d),
         );
         (&filtered.0[..], &filtered.1[..])
     } else {
@@ -2804,7 +2811,11 @@ mod tests {
                     |c: archive::Codec| archive::window_archive(c, k, &[0; 32], &[5], &[1, 2, 3]);
                 let p = ncm::FULL;
                 let generic = archive::window_profile_template(k, x86);
-                let built = fixed(archive::Codec::profiled(u64::from(p), x86)).expect("entry");
+                let built = fixed(archive::Codec::profiled(
+                    crate::ncm::streams::Word::from(p),
+                    x86,
+                ))
+                .expect("entry");
                 let body_at = built.len() - archive::SEAL;
                 let body = &built[..body_at];
                 assert!(body.windows(generic.0.len()).any(|w| w == &generic.0[..]));
@@ -2837,7 +2848,7 @@ mod tests {
                 let id = archive::window_identity(&window);
                 let a = archive::window_archive_profile(
                     codec,
-                    u64::from(ncm::FULL),
+                    crate::ncm::streams::Word::from(ncm::FULL),
                     &window,
                     &id,
                     &[frame.len() as u64],

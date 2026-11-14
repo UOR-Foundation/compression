@@ -1,0 +1,295 @@
+\begin{lexlean}{Uorc.Codec.Delta}
+\importmodule{Uorc.Codec.Table}
+\title{Parameters}
+\begin{semanticmodule}
+structure{
+  name: DeltStS,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: input, type: Bytes}
+  ]
+}
+
+definition{
+  name: pow2,
+  parameters: [k : Nat],
+  result: Nat,
+  body: (match k
+    | Nat.zero => 1
+    | Nat.succ m => (prim multiply 2 (pow2 m) : Nat)),
+  executable: true,
+  axioms: [Quot.sound, propext],
+  recursive_argument: k
+}
+
+definition{
+  name: getAt,
+  parameters: [w : Nat, t : Bytes, at : Nat],
+  result: Nat,
+  body: (Uorc.Codec.Table::getLoop w t at 0),
+  executable: true,
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: putAt,
+  parameters: [w : Nat, t : Bytes, at : Nat, v : Nat],
+  result: Bytes,
+  body: (Uorc.Codec.Table::setLoop w t (prim subtract (at + w) 1 : Nat) v),
+  executable: true,
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: sqt,
+  parameters: [],
+  result: Bytes,
+  body: 0x0001000200030006000a0010001b002d0049007800c2013601e802eb044d060a07ff09f50bb20d140e170ec90f3d0f870fb60fd20fe40fef0ff50ff90ffc0ffd0ffe,
+  executable: true,
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: squash,
+  parameters: [d : Nat],
+  result: Nat,
+  body: (let i : Nat := (prim quotient d 128 0 : Nat); (let w : Nat := (prim remainder d 128 0 : Nat); (prim quotient ((prim multiply (getAt 2 (sqt) (prim multiply 2 i : Nat)) (prim subtract 128 w : Nat) : Nat) + ((prim multiply (getAt 2 (sqt) (prim multiply 2 (i + 1) : Nat)) w : Nat) + 64)) 128 0 : Nat))),
+  executable: true,
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: hash,
+  parameters: [a : Nat],
+  result: Nat,
+  body: (let m0 : Nat := (prim remainder (prim multiply 2654435761 a : Nat) 4294967296 0 : Nat); (let a0 : Nat := (prim remainder (m0 + (prim quotient m0 32768 0 : Nat)) 4294967296 0 : Nat); (let m1 : Nat := (prim remainder (prim multiply 739982445 a0 : Nat) 4294967296 0 : Nat); (let a1 : Nat := (prim remainder (m1 + (prim quotient m1 4096 0 : Nat)) 4294967296 0 : Nat); (let m2 : Nat := (prim remainder (prim multiply 695872825 a1 : Nat) 4294967296 0 : Nat); (let a2 : Nat := (prim remainder (m2 + (prim quotient m2 32768 0 : Nat)) 4294967296 0 : Nat); a2)))))),
+  executable: true,
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: putGlob,
+  parameters: [s : (Bytes * (Bytes * (Bytes * DeltStS))), w : Nat, k : Nat, v : Nat],
+  result: (Bytes * (Bytes * (Bytes * DeltStS))),
+  body: (let glob1 : Bytes := (first s); (let r1_0 : (Bytes * (Bytes * DeltStS)) := (second s); (let mem1 : Bytes := (first r1_0); (let r1_1 : (Bytes * DeltStS) := (second r1_0); (let OUT1 : Bytes := (first r1_1); (let r1_2 : DeltStS := (second r1_1); (let sc1 : DeltStS := r1_2; (let nglob1 : Bytes := (putAt w glob1 k v); (nglob1, (mem1, (OUT1, (record DeltStS {input := (project sc1 input)})))))))))))),
+  executable: true,
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: putMem,
+  parameters: [s : (Bytes * (Bytes * (Bytes * DeltStS))), w : Nat, k : Nat, v : Nat],
+  result: (Bytes * (Bytes * (Bytes * DeltStS))),
+  body: (let glob2 : Bytes := (first s); (let r2_0 : (Bytes * (Bytes * DeltStS)) := (second s); (let mem2 : Bytes := (first r2_0); (let r2_1 : (Bytes * DeltStS) := (second r2_0); (let OUT2 : Bytes := (first r2_1); (let r2_2 : DeltStS := (second r2_1); (let sc2 : DeltStS := r2_2; (let nmem2 : Bytes := (putAt w mem2 k v); (glob2, (nmem2, (OUT2, (record DeltStS {input := (project sc2 input)})))))))))))),
+  executable: true,
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: putOUT,
+  parameters: [s : (Bytes * (Bytes * (Bytes * DeltStS))), w : Nat, k : Nat, v : Nat],
+  result: (Bytes * (Bytes * (Bytes * DeltStS))),
+  body: (let glob3 : Bytes := (first s); (let r3_0 : (Bytes * (Bytes * DeltStS)) := (second s); (let mem3 : Bytes := (first r3_0); (let r3_1 : (Bytes * DeltStS) := (second r3_0); (let OUT3 : Bytes := (first r3_1); (let r3_2 : DeltStS := (second r3_1); (let sc3 : DeltStS := r3_2; (let nOUT3 : Bytes := (putAt w OUT3 k v); (glob3, (mem3, (nOUT3, (record DeltStS {input := (project sc3 input)})))))))))))),
+  executable: true,
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: filterLoop9,
+  parameters: [fuel : Nat, vi : Nat, s : (Bytes * (Bytes * (Bytes * DeltStS)))],
+  result: (Bytes * (Bytes * (Bytes * DeltStS))),
+  body: (match fuel
+    | Nat.zero => s
+    | Nat.succ m => (let next : (Bytes * (Bytes * (Bytes * DeltStS))) := (let k10 : Nat := vi; (let t11 : Nat := (if (vi <? (prim length (project (second (second (second s))) input) : Nat)) then (Uorc.Codec.Table::readByte (project (second (second (second s))) input) vi) else 255); (let s12 : (Bytes * (Bytes * (Bytes * DeltStS))) := (putOUT s 1 k10 t11); s12))); (filterLoop9 m (vi + 1) next ))),
+  executable: true,
+  axioms: [Quot.sound, propext],
+  recursive_argument: fuel
+}
+
+definition{
+  name: filterLoop14Loop17,
+  parameters: [fuel : Nat, vj : Nat, s : (Bytes * (Bytes * (Bytes * DeltStS))), vt : Nat],
+  result: (Bytes * (Bytes * (Bytes * DeltStS))),
+  body: (match fuel
+    | Nat.zero => s
+    | Nat.succ m => (let next : (Bytes * (Bytes * (Bytes * DeltStS))) := (let t18 : Nat := ((getAt 8 (first s) 8) + (prim multiply (pow2 (prim multiply 8 vj : Nat)) (if (((prim multiply (vt + (getAt 1 (first s) 6)) (getAt 1 (first s) 5) : Nat) + vj) <? (prim length (project (second (second (second s))) input) : Nat)) then (Uorc.Codec.Table::readByte (project (second (second (second s))) input) ((prim multiply (vt + (getAt 1 (first s) 6)) (getAt 1 (first s) 5) : Nat) + vj)) else 255) : Nat)); (let s19 : (Bytes * (Bytes * (Bytes * DeltStS))) := (putGlob s 8 8 t18); s19)); (filterLoop14Loop17 m (vj + 1) next vt))),
+  executable: true,
+  axioms: [Quot.sound, propext],
+  recursive_argument: fuel
+}
+
+definition{
+  name: filterLoop14TLoop23,
+  parameters: [fuel : Nat, vj : Nat, s : (Bytes * (Bytes * (Bytes * DeltStS))), vt : Nat],
+  result: (Bytes * (Bytes * (Bytes * DeltStS))),
+  body: (match fuel
+    | Nat.zero => s
+    | Nat.succ m => (let next : (Bytes * (Bytes * (Bytes * DeltStS))) := (let t24 : Nat := ((getAt 8 (first s) 16) + (prim multiply (pow2 (prim multiply 8 vj : Nat)) (if (((prim multiply vt (getAt 1 (first s) 5) : Nat) + vj) <? (prim length (project (second (second (second s))) input) : Nat)) then (Uorc.Codec.Table::readByte (project (second (second (second s))) input) ((prim multiply vt (getAt 1 (first s) 5) : Nat) + vj)) else 255) : Nat)); (let s25 : (Bytes * (Bytes * (Bytes * DeltStS))) := (putGlob s 8 16 t24); s25)); (filterLoop14TLoop23 m (vj + 1) next vt))),
+  executable: true,
+  axioms: [Quot.sound, propext],
+  recursive_argument: fuel
+}
+
+definition{
+  name: filterLoop14FLoop29,
+  parameters: [fuel : Nat, vj : Nat, s : (Bytes * (Bytes * (Bytes * DeltStS))), vt : Nat],
+  result: (Bytes * (Bytes * (Bytes * DeltStS))),
+  body: (match fuel
+    | Nat.zero => s
+    | Nat.succ m => (let next : (Bytes * (Bytes * (Bytes * DeltStS))) := (let t30 : Nat := ((getAt 8 (first s) 16) + (prim multiply (pow2 (prim multiply 8 vj : Nat)) (getAt 1 (first (second (second s))) ((prim multiply vt (getAt 1 (first s) 5) : Nat) + vj)) : Nat)); (let s31 : (Bytes * (Bytes * (Bytes * DeltStS))) := (putGlob s 8 16 t30); s31)); (filterLoop14FLoop29 m (vj + 1) next vt))),
+  executable: true,
+  axioms: [Quot.sound, propext],
+  recursive_argument: fuel
+}
+
+definition{
+  name: filterLoop14Loop35,
+  parameters: [fuel : Nat, vj : Nat, s : (Bytes * (Bytes * (Bytes * DeltStS))), vt : Nat, vr : Nat],
+  result: (Bytes * (Bytes * (Bytes * DeltStS))),
+  body: (match fuel
+    | Nat.zero => s
+    | Nat.succ m => (let next : (Bytes * (Bytes * (Bytes * DeltStS))) := (let k36 : Nat := ((prim multiply (vt + (getAt 1 (first s) 6)) (getAt 1 (first s) 5) : Nat) + vj); (let t37 : Nat := (prim remainder (prim quotient vr (pow2 (prim multiply 8 vj : Nat)) 0 : Nat) 256 0 : Nat); (let s38 : (Bytes * (Bytes * (Bytes * DeltStS))) := (putOUT s 1 k36 t37); s38))); (filterLoop14Loop35 m (vj + 1) next vt vr))),
+  executable: true,
+  axioms: [Quot.sound, propext],
+  recursive_argument: fuel
+}
+
+definition{
+  name: filterLoop14,
+  parameters: [fuel : Nat, vt : Nat, s : (Bytes * (Bytes * (Bytes * DeltStS)))],
+  result: (Bytes * (Bytes * (Bytes * DeltStS))),
+  body: (match fuel
+    | Nat.zero => s
+    | Nat.succ m => (let next : (Bytes * (Bytes * (Bytes * DeltStS))) := (let t15 : Nat := 0; (let s16 : (Bytes * (Bytes * (Bytes * DeltStS))) := (putGlob s 8 8 t15); (let s20 : (Bytes * (Bytes * (Bytes * DeltStS))) := (filterLoop14Loop17 (getAt 1 (first s16) 5) 0 s16 vt); (let s33 : (Bytes * (Bytes * (Bytes * DeltStS))) := (if ((getAt 1 (first s20) 4) =? 0) then (let t21 : Nat := 0; (let s22 : (Bytes * (Bytes * (Bytes * DeltStS))) := (putGlob s20 8 16 t21); (let s26 : (Bytes * (Bytes * (Bytes * DeltStS))) := (filterLoop14TLoop23 (getAt 1 (first s22) 5) 0 s22 vt); s26))) else (let t27 : Nat := 0; (let s28 : (Bytes * (Bytes * (Bytes * DeltStS))) := (putGlob s20 8 16 t27); (let s32 : (Bytes * (Bytes * (Bytes * DeltStS))) := (filterLoop14FLoop29 (getAt 1 (first s28) 5) 0 s28 vt); s32)))); (let vr34 : Nat := (if ((getAt 1 (first s33) 4) =? 0) then (prim remainder (prim subtract ((getAt 8 (first s33) 8) + (pow2 (prim multiply 8 (getAt 1 (first s33) 5) : Nat))) (getAt 8 (first s33) 16) : Nat) (pow2 (prim multiply 8 (getAt 1 (first s33) 5) : Nat)) 0 : Nat) else (prim remainder ((getAt 8 (first s33) 8) + (getAt 8 (first s33) 16)) (pow2 (prim multiply 8 (getAt 1 (first s33) 5) : Nat)) 0 : Nat)); (let s39 : (Bytes * (Bytes * (Bytes * DeltStS))) := (filterLoop14Loop35 (getAt 1 (first s33) 5) 0 s33 vt vr34); s39)))))); (filterLoop14 m (vt + 1) next ))),
+  executable: true,
+  axioms: [Quot.sound, propext],
+  recursive_argument: fuel
+}
+
+definition{
+  name: filter,
+  parameters: [s : (Bytes * (Bytes * (Bytes * DeltStS))), vsize : Nat, vd : Nat, vwidth : Nat, vchannels : Nat],
+  result: (Bytes * (Bytes * (Bytes * DeltStS))),
+  body: (let t1 : Nat := vsize; (let s2 : (Bytes * (Bytes * (Bytes * DeltStS))) := (putGlob s 4 0 t1); (let t3 : Nat := vd; (let s4 : (Bytes * (Bytes * (Bytes * DeltStS))) := (putGlob s2 1 4 t3); (let t5 : Nat := vwidth; (let s6 : (Bytes * (Bytes * (Bytes * DeltStS))) := (putGlob s4 1 5 t5); (let t7 : Nat := vchannels; (let s8 : (Bytes * (Bytes * (Bytes * DeltStS))) := (putGlob s6 1 6 t7); (let s13 : (Bytes * (Bytes * (Bytes * DeltStS))) := (filterLoop9 (getAt 4 (first s8) 0) 0 s8 ); (let s40 : (Bytes * (Bytes * (Bytes * DeltStS))) := (filterLoop14 (prim subtract (prim quotient (getAt 4 (first s13) 0) (getAt 1 (first s13) 5) 0 : Nat) (if ((getAt 1 (first s13) 6) <? (prim quotient (getAt 4 (first s13) 0) (getAt 1 (first s13) 5) 0 : Nat)) then (getAt 1 (first s13) 6) else (prim quotient (getAt 4 (first s13) 0) (getAt 1 (first s13) 5) 0 : Nat)) : Nat) 0 s13 ); s40)))))))))),
+  executable: true,
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: measureLoop51Loop54,
+  parameters: [fuel : Nat, vj : Nat, s : (Bytes * (Bytes * (Bytes * DeltStS))), vk : Nat],
+  result: (Bytes * (Bytes * (Bytes * DeltStS))),
+  body: (match fuel
+    | Nat.zero => s
+    | Nat.succ m => (let next : (Bytes * (Bytes * (Bytes * DeltStS))) := (let t55 : Nat := ((getAt 8 (first s) 8) + (prim multiply (pow2 (prim multiply 8 vj : Nat)) (if (((prim multiply vk (getAt 1 (first s) 5) : Nat) + vj) <? (prim length (project (second (second (second s))) input) : Nat)) then (Uorc.Codec.Table::readByte (project (second (second (second s))) input) ((prim multiply vk (getAt 1 (first s) 5) : Nat) + vj)) else 255) : Nat)); (let s56 : (Bytes * (Bytes * (Bytes * DeltStS))) := (putGlob s 8 8 t55); s56)); (measureLoop51Loop54 m (vj + 1) next vk))),
+  executable: true,
+  axioms: [Quot.sound, propext],
+  recursive_argument: fuel
+}
+
+definition{
+  name: measureLoop51TLoop60,
+  parameters: [fuel : Nat, vj : Nat, s : (Bytes * (Bytes * (Bytes * DeltStS))), vk : Nat],
+  result: (Bytes * (Bytes * (Bytes * DeltStS))),
+  body: (match fuel
+    | Nat.zero => s
+    | Nat.succ m => (let next : (Bytes * (Bytes * (Bytes * DeltStS))) := (let t61 : Nat := ((getAt 8 (first s) 16) + (prim multiply (pow2 (prim multiply 8 vj : Nat)) (if (((prim multiply (prim subtract vk (if ((getAt 1 (first s) 6) <? vk) then (getAt 1 (first s) 6) else vk) : Nat) (getAt 1 (first s) 5) : Nat) + vj) <? (prim length (project (second (second (second s))) input) : Nat)) then (Uorc.Codec.Table::readByte (project (second (second (second s))) input) ((prim multiply (prim subtract vk (if ((getAt 1 (first s) 6) <? vk) then (getAt 1 (first s) 6) else vk) : Nat) (getAt 1 (first s) 5) : Nat) + vj)) else 255) : Nat)); (let s62 : (Bytes * (Bytes * (Bytes * DeltStS))) := (putGlob s 8 16 t61); s62)); (measureLoop51TLoop60 m (vj + 1) next vk))),
+  executable: true,
+  axioms: [Quot.sound, propext],
+  recursive_argument: fuel
+}
+
+definition{
+  name: measureLoop51Part71Loop72,
+  parameters: [fuel : Nat, vb : Nat, s : (Bytes * (Bytes * (Bytes * DeltStS))), vm : Nat],
+  result: (Bytes * (Bytes * (Bytes * DeltStS))),
+  body: (match fuel
+    | Nat.zero => s
+    | Nat.succ m => (let next : (Bytes * (Bytes * (Bytes * DeltStS))) := (let s75 : (Bytes * (Bytes * (Bytes * DeltStS))) := (if ((pow2 vb) <=? vm) then (let t73 : Nat := (1 + vb); (let s74 : (Bytes * (Bytes * (Bytes * DeltStS))) := (putGlob s 1 32 t73); s74)) else s); s75); (measureLoop51Part71Loop72 m (vb + 1) next vm))),
+  executable: true,
+  axioms: [Quot.sound, propext],
+  recursive_argument: fuel
+}
+
+definition{
+  name: measureLoop51Part71,
+  parameters: [s : (Bytes * (Bytes * (Bytes * DeltStS))), vm : Nat],
+  result: (Bytes * (Bytes * (Bytes * DeltStS))),
+  body: (let s76 : (Bytes * (Bytes * (Bytes * DeltStS))) := (measureLoop51Part71Loop72 (prim multiply 8 (getAt 1 (first s) 5) : Nat) 0 s vm); (let t77 : Nat := ((getAt 8 (first s76) 24) + (getAt 1 (first s76) 32)); (let s78 : (Bytes * (Bytes * (Bytes * DeltStS))) := (putGlob s76 8 24 t77); s78))),
+  executable: true,
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: measureLoop51,
+  parameters: [fuel : Nat, vk : Nat, s : (Bytes * (Bytes * (Bytes * DeltStS)))],
+  result: (Bytes * (Bytes * (Bytes * DeltStS))),
+  body: (match fuel
+    | Nat.zero => s
+    | Nat.succ m => (let next : (Bytes * (Bytes * (Bytes * DeltStS))) := (let t52 : Nat := 0; (let s53 : (Bytes * (Bytes * (Bytes * DeltStS))) := (putGlob s 8 8 t52); (let s57 : (Bytes * (Bytes * (Bytes * DeltStS))) := (measureLoop51Loop54 (getAt 1 (first s53) 5) 0 s53 vk); (let s66 : (Bytes * (Bytes * (Bytes * DeltStS))) := (if (((getAt 1 (first s57) 7) =? 0) && ((getAt 1 (first s57) 6) <=? vk)) then (let t58 : Nat := 0; (let s59 : (Bytes * (Bytes * (Bytes * DeltStS))) := (putGlob s57 8 16 t58); (let s63 : (Bytes * (Bytes * (Bytes * DeltStS))) := (measureLoop51TLoop60 (getAt 1 (first s59) 5) 0 s59 vk); s63))) else (let t64 : Nat := 0; (let s65 : (Bytes * (Bytes * (Bytes * DeltStS))) := (putGlob s57 8 16 t64); s65))); (let vv67 : Nat := (prim remainder (prim subtract ((getAt 8 (first s66) 8) + (pow2 (prim multiply 8 (getAt 1 (first s66) 5) : Nat))) (getAt 8 (first s66) 16) : Nat) (pow2 (prim multiply 8 (getAt 1 (first s66) 5) : Nat)) 0 : Nat); (let vm68 : Nat := (if (vv67 <? (pow2 (prim subtract (prim multiply 8 (getAt 1 (first s66) 5) : Nat) 1 : Nat))) then vv67 else (prim subtract (prim subtract (pow2 (prim multiply 8 (getAt 1 (first s66) 5) : Nat)) 1 : Nat) vv67 : Nat)); (let t69 : Nat := 0; (let s70 : (Bytes * (Bytes * (Bytes * DeltStS))) := (putGlob s66 1 32 t69); (measureLoop51Part71 s70 vm68))))))))); (measureLoop51 m (vk + 1) next ))),
+  executable: true,
+  axioms: [Quot.sound, propext],
+  recursive_argument: fuel
+}
+
+definition{
+  name: measure,
+  parameters: [s : (Bytes * (Bytes * (Bytes * DeltStS))), vsize : Nat, vwidth : Nat, vchannels : Nat, vr : Nat],
+  result: (Bytes * (Bytes * (Bytes * DeltStS))),
+  body: (let t41 : Nat := vsize; (let s42 : (Bytes * (Bytes * (Bytes * DeltStS))) := (putGlob s 4 0 t41); (let t43 : Nat := vwidth; (let s44 : (Bytes * (Bytes * (Bytes * DeltStS))) := (putGlob s42 1 5 t43); (let t45 : Nat := vchannels; (let s46 : (Bytes * (Bytes * (Bytes * DeltStS))) := (putGlob s44 1 6 t45); (let t47 : Nat := vr; (let s48 : (Bytes * (Bytes * (Bytes * DeltStS))) := (putGlob s46 1 7 t47); (let t49 : Nat := 0; (let s50 : (Bytes * (Bytes * (Bytes * DeltStS))) := (putGlob s48 8 24 t49); (let s79 : (Bytes * (Bytes * (Bytes * DeltStS))) := (measureLoop51 (prim quotient (getAt 4 (first s50) 0) (getAt 1 (first s50) 5) 0 : Nat) 0 s50 ); s79))))))))))),
+  executable: true,
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: depthFor,
+  parameters: [fuel : Nat, n : Nat, depth : Nat],
+  result: Nat,
+  body: (match fuel
+    | Nat.zero => depth
+    | Nat.succ m => (if (n <=? (pow2 depth)) then depth else (depthFor m n (depth + 1)))),
+  executable: true,
+  axioms: [Quot.sound, propext],
+  recursive_argument: fuel
+}
+
+definition{
+  name: zeros,
+  parameters: [depth : Nat],
+  result: Bytes,
+  body: (Uorc.Codec.Table::fill 1 depth 0),
+  executable: true,
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: start,
+  parameters: [input : Bytes, n : Nat],
+  result: (Bytes * (Bytes * (Bytes * DeltStS))),
+  body: ((zeros (8 + (prim multiply 0 n : Nat))), ((zeros (prim multiply 0 n : Nat)), ((zeros (depthFor (n + 1) n 0)), (record DeltStS {input := input})))),
+  executable: true,
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: run,
+  parameters: [d : Nat, w : Nat, c : Nat, input : Bytes],
+  result: Bytes,
+  body: (let n : Nat := (prim length input : Nat); (let s1 : (Bytes * (Bytes * (Bytes * DeltStS))) := (filter (start input n) n d w c); (match (prim slice (first (second (second s1))) 0 n : (Option Bytes))
+    | Option.none => 0x
+    | Option.some b => b))),
+  executable: true,
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: bits,
+  parameters: [w : Nat, c : Nat, raw : Nat, input : Bytes],
+  result: Nat,
+  body: (let n : Nat := (prim length input : Nat); (let s1 : (Bytes * (Bytes * (Bytes * DeltStS))) := (measure (start input n) n w c raw); (getAt 8 (first s1) 24))),
+  executable: true,
+  axioms: [Quot.sound, propext]
+}
+\end{semanticmodule}
+\end{lexlean}

@@ -113,8 +113,10 @@ impl Plan {
 
 /// Bit of a frame word where the stream count less one starts (16 bits).
 pub const STREAMS_AT: u32 = 37;
-/// Bit of a frame word where the epoch's base-2 logarithm starts (5 bits).
+/// Bit of a frame word where the epoch's base-2 logarithm starts.
 pub const EPOCH_AT: u32 = 53;
+/// Bits of the epoch field: an epoch's logarithm below 2^5.
+pub const EPOCH_FIELD: u32 = 5;
 /// Bit of a frame word where the probability field starts (5 bits): zero
 /// for 12-bit probabilities, otherwise the bits (16).
 pub const PROB_AT: u32 = 32;
@@ -124,8 +126,7 @@ pub const PLAN_BITS: u32 = u64::BITS;
 /// Bit of a frame word where the delta field starts, the last bits below
 /// [`PLAN_BITS`]: the width field, then the channels field
 /// ([`crate::delta::Delta::field`]), 0 for no delta filter.
-pub const DELTA_AT: u32 =
-    PLAN_BITS - crate::delta::Delta::WIDTH_FIELD - crate::delta::Delta::CHANNEL_FIELD;
+pub const DELTA_AT: u32 = EPOCH_AT + EPOCH_FIELD;
 /// Bit of a frame word where the consolidation field starts (4 bits): a
 /// context slot's count bits ([`super::Learning::count_bits`]), 0 for the
 /// standard count.
@@ -168,10 +169,8 @@ pub fn word(profile: u32, plan: Plan) -> Option<Word> {
 /// writes (a single meaning per word: one stream carries no epoch).
 #[must_use]
 pub fn split(word: Word) -> Option<(u32, Plan)> {
-    // nothing between the plan and the delta field, nor past the learning fields
-    if (word >> (EPOCH_AT + 5)) & ((1 << (DELTA_AT - EPOCH_AT - 5)) - 1) != 0
-        || word >> WORD_END != 0
-    {
+    // nothing past the learning fields
+    if word >> WORD_END != 0 {
         return None;
     }
     let field = ((word >> DELTA_AT) & ((1 << (PLAN_BITS - DELTA_AT)) - 1)) as u32;
@@ -189,7 +188,7 @@ pub fn split(word: Word) -> Option<(u32, Plan)> {
     };
     let profile = (word & Word::from(u32::MAX)) as u32;
     let streams = ((word >> STREAMS_AT) & 0xffff) as usize + 1;
-    let e = ((word >> EPOCH_AT) & 31) as u32;
+    let e = ((word >> EPOCH_AT) & ((1 << EPOCH_FIELD) - 1)) as u32;
     if !super::valid_profile(profile) || (streams == 1 && e != 0) {
         return None;
     }
