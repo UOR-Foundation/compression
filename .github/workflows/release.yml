@@ -496,3 +496,22 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
         run: gh workflow run pages.yml --repo "$GITHUB_REPOSITORY" --ref "$DEFAULT_BRANCH" -f run_id="$GITHUB_RUN_ID"
+
+  # A run this repository's token dispatched (the factory's rehearsal and
+  # publish runs) starts no workflow_run when it completes, so it hands itself
+  # to the factory, which waits for it to finish, records its receipts and
+  # takes the next release step.
+  handoff:
+    name: hand the run to the factory
+    needs: [factory, native, wasm, corpora, bench, frontier, publish, pages]
+    if: always() && github.event_name == 'workflow_dispatch' && github.actor == 'github-actions[bot]'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      actions: write
+    steps:
+      - name: Dispatch the factory on the default branch
+        env:
+          GH_TOKEN: ${{ github.token }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        run: gh workflow run factory.yml --repo "$GITHUB_REPOSITORY" --ref "$DEFAULT_BRANCH" -f after="$GITHUB_RUN_ID"
