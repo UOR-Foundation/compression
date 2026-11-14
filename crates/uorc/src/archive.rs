@@ -234,7 +234,7 @@ impl Codec {
 }
 
 /// The model profile and plan of a frame word this client reads and writes:
-/// in v0.5 the streams and epoch fields are reserved and must be zero (one
+/// the streams and epoch fields are reserved and must be zero (one
 /// stream), as in the exported decoder (`Archive.profileWord`), so every
 /// archive decodes alike in both clients. The streams coder
 /// ([`crate::ncm::streams`]) is tested here but not yet shipped: its
