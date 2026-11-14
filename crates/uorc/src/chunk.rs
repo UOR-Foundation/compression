@@ -19,8 +19,8 @@
 //! candidate.
 //!
 //! The encoder ([`Framer`]) keeps the units of the frames it has written in
-//! an index by κ-label. Input is cut into [`crate::FRAME`]-byte frames as
-//! before; where a run of at least [`MIN_RUN`] bytes repeats units of an
+//! an index by κ-label. Input is cut into frames of [`crate::frame_bytes`]
+//! as before; where a run of at least [`MIN_RUN`] bytes repeats units of an
 //! earlier frame outside the window of the frame being cut, the frame before
 //! it ends there and the run becomes a reference frame. A repeat inside the
 //! window is left to the ncm match model, which codes it in a few bytes per
@@ -30,7 +30,7 @@
 
 use std::collections::{HashMap, HashSet, VecDeque};
 
-use crate::{archive, FRAME};
+use crate::archive;
 
 /// Fewest bytes in a unit (a frame's last unit may be shorter).
 pub const MIN_UNIT: usize = 4 << 10;
@@ -227,7 +227,8 @@ impl Pieces {
     /// The pieces of the next frame, of `n` bytes; `end` when no bytes follow.
     /// An object that starts exactly where a full frame ends goes to the next
     /// frame; one that starts at the end of a shorter last frame stays in it.
-    fn cut(&mut self, n: u64, first: bool, end: bool) -> Vec<u64> {
+    /// `full` is a full frame's length.
+    fn cut(&mut self, n: u64, first: bool, end: bool, full: u64) -> Vec<u64> {
         let Pieces::Objects { lengths, left } = self else {
             return vec![n];
         };
@@ -241,7 +242,7 @@ impl Pieces {
         }
         while *left == 0 {
             let Some(&len) = lengths.front() else { break };
-            if used == n && !(end && n < FRAME as u64) {
+            if used == n && !(end && n < full) {
                 break;
             }
             lengths.pop_front();
@@ -270,9 +271,6 @@ pub struct Frame {
     pub pieces: Vec<u64>,
     /// For a repeated run, its κ-label, which an earlier frame's run has.
     pub reference: Option<[u8; 32]>,
-    /// How many frames before it the frame reads as its window (0 for a
-    /// reference frame and for a frame that starts a block).
-    pub window: usize,
 }
 
 /// Cuts a stream's input into frames (see the module documentation). The
@@ -297,15 +295,10 @@ pub struct Framer {
     whole: Option<(usize, [u8; 32])>,
     pieces: Pieces,
     frames: u64,
-    /// Frames since the current block began, and coded (not reference)
-    /// frames among them: a block holds [`crate::BLOCK`] coded frames, so
-    /// reference frames do not shorten the stretch a core decodes.
-    in_block: usize,
-    coded_in_block: usize,
-    /// The last frame was a reference frame. The next coded frame starts a
-    /// block: a reference may wait for a frame another core is still
-    /// decoding, and nothing after it should wait with it.
-    after_reference: bool,
+    /// Input bytes of a full frame ([`crate::frame_bytes`]): the longest
+    /// span the declared host holds, which the encoder cuts further where
+    /// that pays ([`crate::compress_span`]).
+    frame: usize,
 }
 
 impl Framer {
@@ -319,9 +312,7 @@ impl Framer {
             whole: None,
             pieces,
             frames: 0,
-            in_block: 0,
-            coded_in_block: 0,
-            after_reference: false,
+            frame: crate::frame_bytes(),
         }
     }
 
@@ -344,7 +335,7 @@ impl Framer {
         let mut out = Vec::new();
         // More than a frame is pending, so the next frame's bytes are known
         // and so is that more input follows them.
-        while self.pending.len() > FRAME {
+        while self.pending.len() > self.frame {
             out.push(self.step(false));
         }
         out
@@ -364,7 +355,7 @@ impl Framer {
 
     /// Cut units over the first frame's worth of pending input.
     fn refresh(&mut self) {
-        let window = self.pending.len().min(FRAME);
+        let window = self.pending.len().min(self.frame);
         if !self.settled {
             self.units.pop();
             self.settled = true;
@@ -382,19 +373,16 @@ impl Framer {
     /// Cut the next frame. `end`: no input follows `pending`.
     fn step(&mut self, end: bool) -> Frame {
         self.refresh();
-        let more = !end || self.pending.len() > FRAME;
+        let more = !end || self.pending.len() > self.frame;
         // A last unit cut where the frame runs out still names exactly its
         // bytes, and a frame that takes it ends there, so it matches too.
         let labels: Vec<[u8; 32]> = self.units.iter().map(|u| u.1).collect();
         let firm = labels.len();
-        // The frames the next frame surely reads as its window (the
-        // portfolio's, [`archive::WINDOW`]): the ncm match model already
-        // codes a repeat of them, so only a repeat of that whole frame
-        // becomes a reference there, which leaves the framing of what follows
-        // unchanged. Frames the window step may add further back are not
-        // relied on, since the declared host may refuse them.
-        let near = self.frames - self.reach().min(archive::WINDOW) as u64;
-        let window = self.pending.len().min(FRAME);
+        // Every earlier span is outside the window of the span being cut
+        // (a span reads no earlier one), so a long repeat of any of them
+        // becomes a reference.
+        let window = self.pending.len().min(self.frame);
+        let near = self.frames;
         let label = archive::frame_label(&self.pending[..window]);
         self.whole = Some((window, label));
         if self.wholes.contains(&label) {
@@ -451,18 +439,6 @@ impl Framer {
         self.emit(n, reference, last)
     }
 
-    /// How many frames before it the next coded frame may read: every
-    /// earlier frame of its block, none when it starts one. The portfolio
-    /// codes over the last [`archive::WINDOW`] of them and the window step
-    /// over all ([`crate::step_window`]).
-    fn reach(&self) -> usize {
-        if self.coded_in_block == crate::BLOCK || self.after_reference {
-            0
-        } else {
-            self.in_block
-        }
-    }
-
     fn emit(&mut self, n: usize, reference: Option<[u8; 32]>, last: bool) -> Frame {
         let bytes: Vec<u8> = self.pending.drain(..n).collect();
         let label = match self.whole.take() {
@@ -470,27 +446,14 @@ impl Framer {
             _ => archive::frame_label(&bytes),
         };
         self.wholes.insert(label);
-        let pieces = self.pieces.cut(n as u64, self.frames == 0, last);
-        let window = match reference {
-            Some(_) => 0,
-            None => {
-                let window = self.reach();
-                if self.coded_in_block == crate::BLOCK || self.after_reference {
-                    self.in_block = 0;
-                    self.coded_in_block = 0;
-                }
-                self.coded_in_block += 1;
-                window
-            }
-        };
-        self.in_block += 1;
+        let pieces = self
+            .pieces
+            .cut(n as u64, self.frames == 0, last, self.frame as u64);
         self.frames += 1;
-        self.after_reference = reference.is_some();
         Frame {
             bytes,
             pieces,
             reference,
-            window,
         }
     }
 }
@@ -498,6 +461,7 @@ impl Framer {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::FRAME;
 
     fn noise(n: usize, seed: u64) -> Vec<u8> {
         let mut x = seed.wrapping_mul(0x9E37_79B9_7F4A_7C15) | 1;
@@ -555,12 +519,10 @@ mod tests {
         let frames = frames_of(&mut Framer::plain(), &plain, FRAME);
         let sizes: Vec<usize> = frames.iter().map(|f| f.bytes.len()).collect();
         assert_eq!(sizes, vec![FRAME, FRAME, 1000]);
-        let windows: Vec<usize> = frames.iter().map(|f| f.window).collect();
-        assert_eq!(windows, vec![0, 1, 2]);
         assert!(frames.iter().all(|f| f.reference.is_none()));
 
-        // The copy starts in frame 3, whose window (frames 1 and 2) does not
-        // reach the first.
+        // The copy starts in frame 3; a span reads no earlier span, so the
+        // copy of the first is a reference.
         let a = noise(3 << 20, 4);
         let input = [&a[..], &noise(3 * FRAME + 777, 5), &a, &noise(5_000, 6)].concat();
         let frames = frames_of(&mut Framer::plain(), &input, 1 << 20);
@@ -569,16 +531,7 @@ mod tests {
         assert!(repeated + 2 * MAX_UNIT > a.len(), "{repeated}");
         for f in &refs {
             assert_eq!(f.reference, Some(archive::frame_label(&f.bytes)));
-            assert_eq!(f.window, 0);
         }
-        // Blocks hold four coded frames; reference frames do not count; a
-        // coded frame may read every earlier frame of its block.
-        let coded: Vec<usize> = frames
-            .iter()
-            .filter(|f| f.reference.is_none())
-            .map(|f| f.window)
-            .collect();
-        assert_eq!(&coded[..5], &[0, 1, 2, 3, 0]);
         let joined: Vec<u8> = frames.iter().flat_map(|f| f.bytes.clone()).collect();
         assert!(joined == input);
         for step in [1 << 16, 3 << 20, input.len()] {

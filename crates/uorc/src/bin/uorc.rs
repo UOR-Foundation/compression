@@ -28,11 +28,15 @@ is one of the page's workers (512 MiB, with the tables it keeps between
 frames), so every archive decodes on the page; --host-memory B declares a
 native decoder of B bytes instead.
 
-Input of any size streams through 8 MiB frames, compressed --threads N at a
-time (default: every core) and written back to back; each frame may match
-into up to two frames before it in its block of four, and blocks decompress
-on separate cores. Archives are written for a decode host that runs a frame
-on one thread (one of the page's workers).
+Input of any size streams through frames as long as the declared host's
+decoder holds (160 MiB on a page worker; with --host-memory B, B less the
+coder's tables), compressed --threads N at a time (default: every core) and
+written back to back. Each span is cut into frames by outcome: in halves,
+the second reading the first, while the halves are smaller. The frames of a
+span form an epoch, and a frame steps how many earlier frames of its epoch it
+reads while that makes it smaller; epochs decompress on separate cores. Archives are
+written for a decode host that runs a frame on one thread (one of the page's
+workers).
 The archive depends on the input and the declared host, never on --threads.
 Content repeated anywhere in the input (64 KiB or more,
 found by content-defined anchors) is stored once, as a reference to its

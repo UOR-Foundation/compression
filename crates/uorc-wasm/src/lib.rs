@@ -124,8 +124,7 @@ pub extern "C" fn compress_end(steps: u64) -> i32 {
 }
 
 /// Whether the archive whose header is in the input buffer may be a
-/// reference frame (it has a reference frame's length), so the page should
-/// [`note_frame`] it whole.
+/// reference frame (it has a reference frame's length).
 #[no_mangle]
 pub extern "C" fn may_be_reference() -> i32 {
     INPUT.with(|input| i32::from(uorc::may_be_reference(&input.borrow())))
@@ -133,8 +132,9 @@ pub extern "C" fn may_be_reference() -> i32 {
 
 /// Note the whole archive in the input buffer before decompressing the stream
 /// since [`window_reset`]: a reference frame names an earlier frame the
-/// decoder must keep. The page reads the headers first and notes every
-/// archive that [`may_be_reference`].
+/// decoder must keep, and every archive how many frames before it it reads
+/// ([`uorc::FrameDecoder::note`]). The page notes every archive, in order,
+/// before the first [`decompress_frame`].
 #[no_mangle]
 pub extern "C" fn note_frame() {
     INPUT.with(|input| DECODER.with(|decoder| decoder.borrow_mut().note(&input.borrow())));
@@ -147,17 +147,11 @@ pub extern "C" fn decompress_frame() -> i32 {
     finish(INPUT.with(|input| DECODER.with(|decoder| decoder.borrow_mut().push(&input.borrow()))))
 }
 
-/// Most frames before it a frame may read ([`uorc::REACH`]): the page keeps
-/// that many frames to hand each frame its window.
-#[no_mangle]
-pub extern "C" fn reach() -> usize {
-    uorc::REACH
-}
-
-/// Input bytes per frame.
+/// Input bytes per frame ([`uorc::frame_bytes`]): the page reads its input
+/// a frame at a time.
 #[no_mangle]
 pub extern "C" fn frame_size() -> usize {
-    uorc::FRAME
+    uorc::frame_bytes()
 }
 
 /// Bytes of header the page should read before a first [`frame_length`].
@@ -340,18 +334,13 @@ fn plan_records(planned: Vec<uorc::Planned>) -> Vec<u8> {
                 out.extend((archive.len() as u64).to_le_bytes());
                 out.extend(archive);
             }
-            uorc::Planned::Code {
-                bytes,
-                pieces,
-                window,
-            } => {
+            uorc::Planned::Code { bytes, pieces } => {
                 out.push(1);
                 out.extend((bytes.len() as u64).to_le_bytes());
                 out.extend((pieces.len() as u32).to_le_bytes());
                 for p in pieces {
                     out.extend(p.to_le_bytes());
                 }
-                out.extend((window.len() as u32).to_le_bytes());
             }
         }
     }
@@ -362,8 +351,8 @@ fn plan_records(planned: Vec<uorc::Planned>) -> Vec<u8> {
 /// other cores: the output is `u32 count` then, per frame the input buffer
 /// completes, `u8 0, u64 frameLength, u64 archiveLength, archive` for a
 /// finished repeat, or
-/// `u8 1, u64 frameLength, u32 pieceCount, u64 piece*, u32 window` for a frame
-/// to code with [`code_frame`] after the `window` frames before it. Frames
+/// `u8 1, u64 frameLength, u32 pieceCount, u64 piece*` for a span to code
+/// with [`code_frame`] (with no window: a span reads no earlier span). Spans
 /// follow the stream's input back to back, repeats included.
 #[no_mangle]
 pub extern "C" fn plan_frame() -> i32 {
@@ -387,7 +376,9 @@ pub extern "C" fn plan_end() -> i32 {
 /// frame, back to back. With `which` from 0 to [`strategies`] less one the
 /// output is that scheduled strategy's archive, or empty when the frame
 /// schedules no such strategy or it cannot beat the raw archive (pass them
-/// all to [`choose_frame`]); with any other `which`, the frame's archive.
+/// all to [`choose_frame`]); with any other `which`, the span's archives
+/// ([`uorc::compress_span`]: one frame, or the frames it is cut into where
+/// that pays), back to back.
 #[no_mangle]
 pub extern "C" fn code_frame(which: i32, steps: u64) -> i32 {
     finish(INPUT.with(|input| {
@@ -413,12 +404,7 @@ pub extern "C" fn code_frame(which: i32, steps: u64) -> i32 {
                         .unwrap_or_default(),
                 )
             }
-            _ => uorc::Planned::Code {
-                bytes: frame.to_vec(),
-                pieces,
-                window: window.iter().map(|w| w.to_vec()).collect(),
-            }
-            .code(steps),
+            _ => Ok(uorc::compress_span(frame, &pieces, &window, steps, 1)?.concat()),
         }
     }))
 }
@@ -705,12 +691,10 @@ mod tests {
         }));
         window_reset();
         for archive in &archives {
-            if run(archive, || may_be_reference()).0 == 1 {
-                run(archive, || {
-                    note_frame();
-                    OK
-                });
-            }
+            run(archive, || {
+                note_frame();
+                OK
+            });
         }
         let mut back = Vec::new();
         for archive in &archives {
@@ -823,8 +807,8 @@ mod tests {
         assert!(files.next().is_none());
     }
 
-    /// Frames planned in one place and coded elsewhere, a strategy at a
-    /// time, write the library's stream: what the page's workers do.
+    /// Spans planned in one place and coded elsewhere, a span to a worker,
+    /// write the library's stream: what the page's workers do.
     #[test]
     fn planned_frames_coded_by_strategy_are_the_library_stream() {
         let (input, library) = repeated_frame();
@@ -836,7 +820,7 @@ mod tests {
             records.push(out);
         }
         records.push(run(&[], || plan_end()).1);
-        let (mut stream, mut at, mut frames) = (Vec::new(), 0usize, Vec::<&[u8]>::new());
+        let (mut stream, mut at) = (Vec::new(), 0usize);
         let mut references = 0;
         for record in &records {
             let mut f = Fields {
@@ -853,49 +837,17 @@ mod tests {
                     references += 1;
                 } else {
                     let pieces = f.pieces().unwrap();
-                    let before = &frames[frames.len() - f.u32().unwrap()..];
-                    let mut head = (pieces.len() as u32).to_le_bytes().to_vec();
+                    // a span reads no earlier span: what a pool worker codes
+                    let mut request = (pieces.len() as u32).to_le_bytes().to_vec();
                     for p in &pieces {
-                        head.extend(p.to_le_bytes());
+                        request.extend(p.to_le_bytes());
                     }
-                    let mut request = head.clone();
-                    request.extend((before.len() as u32).to_le_bytes());
-                    for w in before {
-                        request.extend((w.len() as u64).to_le_bytes());
-                    }
-                    for w in before {
-                        request.extend(*w);
-                    }
+                    request.extend(0u32.to_le_bytes());
                     request.extend(frame);
-                    let parts: Vec<Vec<u8>> = (0..strategies())
-                        .map(|k| {
-                            let (c, part) = run(&request, || code_frame(k, 0));
-                            assert_eq!(c, OK);
-                            part
-                        })
-                        .collect();
-                    let mut choice = head;
-                    for part in std::iter::once(frame).chain(parts.iter().map(|p| &p[..])) {
-                        choice.extend((part.len() as u64).to_le_bytes());
-                        choice.extend(part);
-                    }
-                    let (code, chosen) = run(&choice, || choose_frame());
+                    let (code, archive) = run(&request, || code_frame(-1, 0));
                     assert_eq!(code, OK);
-                    // then the window and table facets, as the page does (`stepRequest`)
-                    let mut step = request.clone();
-                    step.extend((chosen.len() as u64).to_le_bytes());
-                    step.extend(chosen);
-                    let (code, archive) = run(&step, || step_frame());
-                    assert_eq!(code, OK);
-                    // The whole-frame export over the same request: the tail
-                    // shows it (the library stream checks the chosen archive
-                    // of the large frame already; coding it again adds nothing).
-                    if at + n == input.len() {
-                        assert_eq!(archive, run(&request, || code_frame(-1, 0)).1);
-                    }
                     stream.extend(archive);
                 }
-                frames.push(frame);
                 at += n;
             }
         }
@@ -908,12 +860,10 @@ mod tests {
         }));
         window_reset();
         for archive in &archives {
-            if run(archive, || may_be_reference()).0 == 1 {
-                run(archive, || {
-                    note_frame();
-                    OK
-                });
-            }
+            run(archive, || {
+                note_frame();
+                OK
+            });
         }
         let mut back = Vec::new();
         for archive in &archives {

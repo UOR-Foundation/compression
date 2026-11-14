@@ -1850,21 +1850,28 @@ definition{
   name: frameBytes,
   parameters: [],
   result: Facet,
-  body: (record Facet {quantity := "bytes coded as one frame", fixedAt := "8 MiB", standing := "binding", measured := "32 MiB Python tar: one 32 MiB frame is 2.1 percent smaller than four 8 MiB frames, and 5.3 percent smaller with 2^28 table slots; 2^28 slots alone are 1.8 percent smaller"})
+  body: (record Facet {quantity := "bytes coded as one frame", fixedAt := "derived per input: the framer cuts spans as long as the declared host's decoder holds at full tables (performance::Host::frame_bytes: 160 MiB on a page worker, B less the tables with --host-memory B), and each span is cut in halves, the second reading the first, while the halves are shorter (lib::cut_span), so frames are epochs of one stream", standing := "derived", measured := "against v0.6.0 (8 MiB frames): 8 MiB ELF -13.7 percent, 32 MiB ELF -3.3 percent, 34 MB Python tar -5.6 percent, 54 MB Python tar -4.7 percent, 8 MiB Python equal; compressing takes 1.8 to 8 times as long (the trials of every cut), decoding within 1.5 times. Spans do not read earlier spans, which only matters past 160 MiB"})
 }
 
 definition{
   name: windowFrames,
   parameters: [],
   result: Facet,
-  body: (record Facet {quantity := "earlier frames a frame's model reads", fixedAt := "2", standing := "unmeasured", measured := ""})
+  body: (record Facet {quantity := "earlier frames a frame's model reads", fixedAt := "derived per frame: the portfolio codes over the last two frames and the window steps deeper toward the start of its epoch while the archive is shorter (Client.stepWindow)", standing := "derived", measured := "reading the whole epoch unconditionally is larger on some inputs (UC-PERF-16), so depth stays decided by outcome"})
 }
 
 definition{
   name: blockFrames,
   parameters: [],
   result: Facet,
-  body: (record Facet {quantity := "frames in a block that decodes on one thread", fixedAt := "4", standing := "unmet: not yet derived from the input and the declared host", measured := ""})
+  body: (record Facet {quantity := "frames in a block that decodes on one thread", fixedAt := "none: blocks are epochs, read from the frame headers (lib::Epochs: an epoch starts at a frame no later frame reads across), and decode in parallel up to threads times the longest epoch", standing := "derived", measured := "decode of 8 MiB ELF 16 s as in v0.6.0; 54 MB Python tar 104 s against 68 s, its spans being fewer and longer than v0.6.0's frames"})
+}
+
+definition{
+  name: sealBytes,
+  parameters: [],
+  result: Facet,
+  body: (record Facet {quantity := "bytes of a frame's integrity seal", fixedAt := "32: the SHA-256 chain seal", standing := "unmet: a k-byte seal gives at most 8k bits of integrity, so no shorter seal keeps the same integrity; the seal is not sized to the input", measured := "64 B of input: 107 B archive (6 B magic, 2 B zero and kind, 3 lengths, 32 B seal), gzip 77 B; 600 B: 193 B"})
 }
 
 definition{
