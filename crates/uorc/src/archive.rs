@@ -1189,8 +1189,9 @@ fn ncm_decode(
     n: u64,
     (profile, plan): (u32, crate::ncm::streams::Plan),
 ) -> Option<Vec<u8>> {
-    if plan.serial() {
-        return crate::ncm::decode_canonical_window(window, payload, n, profile);
+    // one stream merges nothing: the serial decoder at the plan's bits
+    if plan.streams == 1 {
+        return crate::ncm::decode_canonical_window_bits(window, payload, n, profile, plan.bits);
     }
     let threads = crate::ncm::streams::threads(plan);
     let out = crate::ncm::streams::decode(window, payload, n, profile, plan, threads, true)?;

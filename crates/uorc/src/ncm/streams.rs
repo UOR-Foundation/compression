@@ -1764,11 +1764,12 @@ mod tests {
     }
 
     /// One stream at 16-bit probabilities is the serial 16-bit coder, byte
-    /// for byte, so the probability facet's trial runs on the serial coder.
+    /// for byte, both ways, so one stream codes and decodes on the serial
+    /// coder.
     #[test]
     fn one_wide_stream_is_serial() {
-        let d = sample(40_000, 0x2545_F491);
-        let w = sample(5_000, 7);
+        let d = sample(8_000, 0x2545_F491);
+        let w = sample(1_000, 7);
         let wide = Plan {
             bits: 16,
             ..Plan::ONE
@@ -1776,6 +1777,9 @@ mod tests {
         let serial = super::super::encode_bits_below(&w, &d, FULL, wide.bits, usize::MAX);
         let lanes = encode_with(&w, &d, FULL, wide, 1, usize::MAX, false).map(|(p, _, _)| p);
         assert_eq!(lanes, serial);
+        let serial = serial.expect("fits");
+        let back = decode(&[&w], &serial, d.len() as u64, FULL, wide, 1, true);
+        assert_eq!(back.as_deref(), Some(&d[..]));
     }
 
     /// One stream shares no site; two streams share some.
