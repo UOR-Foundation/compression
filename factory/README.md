@@ -8,7 +8,7 @@ identity text (`prism-factory/obligation/1`), receipts on a `factory-receipts`
 branch, refutation of hermetic failures, retried fetches, and a 16-level weight
 that orders remaining work. Here the decisions are a small Node host
 (`scripts/factory.mjs`, tests in `scripts/factory.test.mjs`) over the graph in
-`graph.json`, not a kernel-checked model: uorc's graph is sixteen rows.
+`graph.json`, not a kernel-checked model: uorc's graph is eighteen rows.
 
 ## The graph
 
@@ -19,10 +19,11 @@ that orders remaining work. Here the decisions are a small Node host
 | `varint` | hermetic | the import closure of `Uorc.Varint`, `Uorc.VarintContract`; the project files, xtask, scripts | bootstrap `template-gate` |
 | `integrity` | hermetic | the import closure of every `Uorc.Integrity` module (SHA-256, the bounded chain and their contract); `standards/`; the project files, xtask, scripts | bootstrap `template-gate` |
 | `claims`, `reproducibility` | hermetic | the formal set | bootstrap `template-gate` |
+| `figures` | hermetic | what the release ships: the shipped crates (`crates/uorc/`, `crates/uorc-wasm/`), the page (`web/`, the brand manifest), the import closure of `Uorc.Client`; `crates/figures/`, `model/figures.toml`, `factory/graph.json`, `Uorc.Performance`, the wire modules; the workspace manifests | bootstrap `template-gate`: `just figures` (seconds) |
 | `offline` | fetch | the formal set | offline-validation |
 | `export` | fetch, host | the import closure of `Uorc.Client` (client/src over src), the LexLean project files, the export scripts | `node scripts/client-export.mjs` on a workstation |
 | `pages` | fetch | the client set, `crates/uorc-wasm/`, `web/`, the brand files, `scripts/site.mjs`, `scripts/page-acceptance.mjs`, its workflow | pages-client `acceptance` (UC-WEB-01) |
-| `gate` | gate | the identities of the seven bootstrap legs and `pages` | proved when all eight are |
+| `gate` | gate | the identities of the eight bootstrap legs and `pages` | proved when all nine are |
 | `native-<target>` (2), `wasm` | fetch | the client set (+ `crates/uorc-wasm/`) | release `native`, `wasm` |
 | `bench` | fetch | `scripts/bench.mjs`, release.yml, `native-x86_64` | release `bench` |
 | `frontier` | hermetic | the client set, `crates/frontier/`, `frontier.toml`, release.yml; needs `native-x86_64` | release `frontier`: decides the closed claims of the release's codec point over every κ-named corpus in `frontier.toml` |

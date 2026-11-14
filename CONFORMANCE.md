@@ -45,6 +45,12 @@ The three honesty levels (R2):
 | --- | --- | --- |
 | `UC-BAS-01` | `build` | Conditional archives name the client's standard basis, the ulz and ncm decoder libraries, by its UORC-BASIS-V1 identity and decode only against that actual basis. |
 
+## implementation-figures
+
+| ID | Level | Statement |
+| --- | --- | --- |
+| `UC-FIG-01` | `build` | No number enters what the release ships unless the Prism model accounts for it: every numeral of the shipped crates' src, the page's JavaScript and the definitions of the model the client is exported from is an identity (0, 1), a value a wire module names, or a fixed figure listed in model/figures.toml, the measured distance of Uorc.Performance::implementationFigures; a change that adds a fixed figure is rejected, a register that lists a retired one is stale, and the register's writer never raises a count. |
+
 ## integrity
 
 | ID | Level | Statement |
@@ -196,3 +202,4 @@ The three honesty levels (R2):
 | `UC-PERF-16` | `build` | `build_evidence` | `not_measured` | A frame's window facets step on its chosen archive (Client.stepWindow): its coding is recoded over one more earlier frame of its block at a time, then with one more match table bit at a time, and each step is kept only while the archive gets strictly shorter and the decoder fits the declared decode host; each facet stops at the first step that does not pay or does not fit, so no depth or table size is fixed. A frame is therefore the portfolio's archive byte for byte or a strictly shorter one, and it decodes to the frame. |
 | `UC-PERF-17` | `build` | `build_evidence` | `not_measured` | The profiled window entry over k earlier frames is one form for every k of at least 1 (Archive.profilePrefix, Archive.profileTail): three graph nodes per frame concatenate basis roots 1 to k in order, and the call to the coder reaches its payload and profile word three nodes further back per frame. For one and two frames it is the fixed entry byte for byte, and the decoder reads k from the entry, so window depth is a facet of the archive rather than a constant of the format. |
 | `UC-WEB-02` | `build` | `build_evidence` | `not_measured` | The product shows the codec as a point of its modelled space: uorc inspect, the library's Info JSON and the Pages client name each frame's codec point (basis, ncm profile word, consolidated model state, lanes and its κ) and the exact steps its decode takes, as Uorc.Performance defines them, from the header alone; the page's model view shows the release's performance theorems, its closed claims with codec point, corpus κ, bytes, steps and the factory's decision, and the engine's tick, rule30 register and weights, exactly as the release publishes them in model.json. |
+| `UC-FIG-01` | `build` | `build_evidence` | `not_measured` | No number enters what the release ships unless the Prism model accounts for it: every numeral of the shipped crates' src, the page's JavaScript and the definitions of the model the client is exported from is an identity (0, 1), a value a wire module names, or a fixed figure listed in model/figures.toml, the measured distance of Uorc.Performance::implementationFigures; a change that adds a fixed figure is rejected, a register that lists a retired one is stale, and the register's writer never raises a count. |

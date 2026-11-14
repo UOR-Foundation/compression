@@ -22,6 +22,8 @@ pub const FIXED_INPUTS: u32 = 3;
 /// Inputs each optional model (short match, repeat distance) adds.
 pub const FEATURE_INPUTS: u32 = 2;
 /// Context bits of a profile word.
+///
+/// Facet: contextCount
 pub const CONTEXT_BITS: u32 = 17;
 /// The most inputs any profile evaluates: 17 contexts, the fixed 3, two features.
 pub const MAX_INPUTS: u32 = CONTEXT_BITS + FIXED_INPUTS + 2 * FEATURE_INPUTS;
