@@ -1436,6 +1436,11 @@ pub fn encode_below(
     threads: usize,
     stop: usize,
 ) -> Option<(Vec<u8>, u64)> {
+    // One stream merges nothing and is the serial coder byte for byte
+    // (`one_wide_stream_is_serial`), which codes it without the lanes.
+    if plan.streams == 1 {
+        return super::encode_bits_below(history, data, profile, plan.bits, stop).map(|p| (p, 0));
+    }
     encode_with(history, data, profile, plan, threads, stop, false).map(|(p, s, _)| (p, s))
 }
 
@@ -1756,6 +1761,21 @@ mod tests {
         let serial = encode_profile(&w, &d, FULL).expect("fits");
         let plan = Plan::of(1, 4096);
         assert_eq!(encode(&w, &d, FULL, plan, 1), Some(serial));
+    }
+
+    /// One stream at 16-bit probabilities is the serial 16-bit coder, byte
+    /// for byte, so the probability facet's trial runs on the serial coder.
+    #[test]
+    fn one_wide_stream_is_serial() {
+        let d = sample(40_000, 0x2545_F491);
+        let w = sample(5_000, 7);
+        let wide = Plan {
+            bits: 16,
+            ..Plan::ONE
+        };
+        let serial = super::super::encode_bits_below(&w, &d, FULL, wide.bits, usize::MAX);
+        let lanes = encode_with(&w, &d, FULL, wide, 1, usize::MAX, false).map(|(p, _, _)| p);
+        assert_eq!(lanes, serial);
     }
 
     /// One stream shares no site; two streams share some.
