@@ -289,14 +289,14 @@ fn template(codec: Codec, k: usize, era: Era) -> Option<(Cow<'static, [u8]>, Vec
     Some((Cow::Borrowed(prefix), suffix.to_vec()))
 }
 
-/// The bytes before and after an entry's payload.
-type Around = (Cow<'static, [u8]>, Cow<'static, [u8]>);
+/// A template's bytes before and after the payload.
+type Template = (Cow<'static, [u8]>, Cow<'static, [u8]>);
 
 /// (prefix, tail) of the profiled entry over `k` window frames in a basis of
 /// `era` (profiled entries exist from v0.4 on). A current-basis entry reads
 /// any number of frames ([`window_profile_template`]); v0.4 entries read at
 /// most two.
-fn profile_template(k: usize, x86: bool, era: Era) -> Option<Around> {
+fn profile_template(k: usize, x86: bool, era: Era) -> Option<Template> {
     let current = era == Era::Current;
     if !current && era != Era::V04 {
         return None;

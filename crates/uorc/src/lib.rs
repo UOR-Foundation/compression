@@ -634,7 +634,6 @@ pub fn step_streams(
         }
     };
     let host_threads = usize::try_from(host.threads).unwrap_or(usize::MAX).max(1);
-    let threads = ncm::streams::threads(ncm::streams::Plan::of(host_threads, 1));
     // the probability field, by bytes (the steps are equal)
     let wide = ncm::streams::Plan {
         bits: 16,
@@ -656,16 +655,8 @@ pub fn step_streams(
     let h = history.len() as u64;
     let coding = performance::trial_steps(profile, n);
     let holds = |k: usize| host.holds_streams(n, h, profile, k as u64);
-    let Some(d) = ncm::streams::derive(
-        past,
-        data,
-        profile,
-        bits,
-        host_threads,
-        coding,
-        threads,
-        holds,
-    ) else {
+    let Some(d) = ncm::streams::derive(past, data, profile, bits, host_threads, coding, holds)
+    else {
         return best;
     };
     archive_of(d.plan, &d.payload).unwrap_or(best)

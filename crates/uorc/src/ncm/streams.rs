@@ -234,12 +234,13 @@ pub fn derive(
     bits: u32,
     host: usize,
     coding: u64,
-    threads: usize,
     holds: impl Fn(usize) -> bool,
 ) -> Option<Derived> {
     if host <= 1 || !super::valid_profile(profile) {
         return None;
     }
+    // the trials run on the threads a frame of `host` streams runs on
+    let threads = threads(Plan::of(host, 1));
     let n = data.len();
     // the chain of the best count so far, as (steps, threads) over which they run
     let (mut steps, mut over) = (u128::from(coding), 1u128);
@@ -1483,6 +1484,11 @@ pub fn encode_below(
     threads: usize,
     stop: usize,
 ) -> Option<(Vec<u8>, u64)> {
+    // One stream merges nothing and is the serial coder byte for byte
+    // (`one_wide_stream_is_serial`), which codes it without the lanes.
+    if plan.streams == 1 {
+        return super::encode_plan_below(history, data, profile, plan, stop).map(|p| (p, 0));
+    }
     encode_with(history, data, profile, plan, threads, stop, false).map(|(p, s, _)| (p, s))
 }
 
@@ -1803,6 +1809,25 @@ mod tests {
         let serial = encode_profile(&w, &d, FULL).expect("fits");
         let plan = Plan::of(1, 4096);
         assert_eq!(encode(&w, &d, FULL, plan, 1), Some(serial));
+    }
+
+    /// One stream at 16-bit probabilities is the serial 16-bit coder, byte
+    /// for byte, both ways, so one stream codes and decodes on the serial
+    /// coder.
+    #[test]
+    fn one_wide_stream_is_serial() {
+        let d = sample(8_000, 0x2545_F491);
+        let w = sample(1_000, 7);
+        let wide = Plan {
+            bits: 16,
+            ..Plan::ONE
+        };
+        let serial = super::super::encode_plan_below(&w, &d, FULL, wide, usize::MAX);
+        let lanes = encode_with(&w, &d, FULL, wide, 1, usize::MAX, false).map(|(p, _, _)| p);
+        assert_eq!(lanes, serial);
+        let serial = serial.expect("fits");
+        let back = decode(&[&w], &serial, d.len() as u64, FULL, wide, 1, true);
+        assert_eq!(back.as_deref(), Some(&d[..]));
     }
 
     /// One stream shares no site; two streams share some.
