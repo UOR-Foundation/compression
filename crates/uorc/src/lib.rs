@@ -69,6 +69,7 @@ mod store;
 pub mod tree;
 pub mod ulz;
 pub mod weights;
+pub mod delta;
 pub mod x86;
 
 pub use frame::{frame_length, frames, inspect, object_lengths, Info, Representation, HEADER_HINT};
@@ -253,8 +254,9 @@ fn compress_pieces_on(
 
 /// Every facet stepped on the frame's chosen archive, in order: the window
 /// facets ([`step_window`], over the frames of `reach`), the table facet
-/// ([`step_table`]), the probability facet ([`step_probability`]) and the
-/// consolidation facet ([`step_consolidation`]); each keeps a step only
+/// ([`step_table`]), the probability facet ([`step_probability`]), the
+/// delta filter ([`step_delta`]) and the consolidation facet
+/// ([`step_consolidation`]); each keeps a step only
 /// while the archive gets strictly shorter. The page's workers step the
 /// frames they code the same way, so the archive is the same wherever it
 /// is coded.
@@ -269,7 +271,64 @@ pub fn step_facets(
     let window = &reach[reach.len() - k..];
     let stepped = step_table(frame, lengths, window, stepped, host);
     let stepped = step_probability(frame, lengths, window, stepped);
+    let stepped = step_delta(frame, lengths, window, stepped);
     step_consolidation(frame, lengths, window, stepped)
+}
+
+/// The delta filter tried on the frame's chosen archive (`Client.stepDelta`):
+/// a frame that is neither x86 code ([`x86::dense`]) nor text
+/// ([`portfolio::text`]) is
+/// recoded over the member of the delta family whose differences need the
+/// fewest magnitude bits ([`delta::candidate`]), the window filtered alike,
+/// under the chosen coding (profile and probability bits); the recoding is
+/// kept only when its archive is strictly shorter. The frame records the
+/// member in its word ([`ncm::streams::DELTA_AT`]). Raw frames, state
+/// frames, x86 frames and the fixed v0.3 entries are kept as they are.
+pub fn step_delta(frame: &[u8], lengths: &[u64], window: &[&[u8]], chosen: Vec<u8>) -> Vec<u8> {
+    let Some(archive::Codec::Profile(word)) = archive::frame_codec(&chosen) else {
+        return chosen;
+    };
+    let Some((profile, plan)) = archive::frame_word(word) else {
+        return chosen;
+    };
+    if plan.delta.is_some() || x86::dense(frame) || portfolio::text(frame) {
+        return chosen;
+    }
+    let Some(d) = delta::candidate(frame) else {
+        return chosen;
+    };
+    let at = ncm::streams::Plan {
+        delta: Some(d),
+        ..plan
+    };
+    let Some(w) = ncm::streams::word(profile, at) else {
+        return chosen;
+    };
+    let frame_of = |payload: &[u8]| {
+        if window.is_empty() {
+            archive::linked_archive_profile(archive::Codec::Ncm, w, lengths, payload)
+        } else {
+            let identity = archive::window_identity(window);
+            archive::window_archive_profile(
+                archive::Codec::Ncm,
+                w,
+                window,
+                &identity,
+                lengths,
+                payload,
+            )
+        }
+    };
+    let Some(form) = frame_of(&[]).map(|a| a.len()) else {
+        return chosen;
+    };
+    let past = delta::filter(&window.concat(), false, d);
+    let data = delta::filter(frame, false, d);
+    let stop = chosen.len().saturating_sub(form);
+    match ncm::encode_plan_below(&past, &data, profile, at, stop).and_then(|p| frame_of(&p)) {
+        Some(a) if a.len() < chosen.len() => a,
+        _ => chosen,
+    }
 }
 
 /// The window facets stepped on the frame's chosen archive

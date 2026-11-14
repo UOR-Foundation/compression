@@ -51,6 +51,10 @@ pub struct Plan {
     /// How the model learns ([`super::Learning`]; the word's learning
     /// fields, [`COUNT_AT`]).
     pub learning: super::Learning,
+    /// The delta filter the frame is coded over, if any (the word's delta
+    /// field, [`DELTA_AT`]): the coder codes the filtered bytes after the
+    /// filtered window, and the decoder inverts the filter on its output.
+    pub delta: Option<crate::delta::Delta>,
 }
 
 impl Plan {
@@ -74,6 +78,7 @@ impl Plan {
             && self.streams <= 1 << 16
             && (self.bits == 12 || self.bits == 16)
             && self.learning.valid()
+            && self.delta.is_none_or(crate::delta::Delta::valid)
     }
 
     /// One stream: the serial coder.
@@ -82,13 +87,15 @@ impl Plan {
         epoch: 1,
         bits: 12,
         learning: super::Learning::STANDARD,
+        delta: None,
     };
 
     /// Whether the frame's coder is the v0.4 coder: one stream at 12-bit
-    /// probabilities (the field zero), learning as the standard model.
+    /// probabilities (the field zero), learning as the standard model, over
+    /// no delta filter.
     #[must_use]
     pub fn serial(&self) -> bool {
-        self.streams == 1 && self.bits == 12 && self.learning.standard()
+        self.streams == 1 && self.bits == 12 && self.learning.standard() && self.delta.is_none()
     }
 
     /// `streams` streams of `epoch` bytes at 12-bit probabilities.
@@ -99,6 +106,7 @@ impl Plan {
             epoch,
             bits: 12,
             learning: super::Learning::STANDARD,
+            delta: None,
         }
     }
 }
@@ -110,9 +118,14 @@ pub const EPOCH_AT: u32 = 53;
 /// Bit of a frame word where the probability field starts (5 bits): zero
 /// for 12-bit probabilities, otherwise the bits (16).
 pub const PROB_AT: u32 = 32;
-/// Bits of a frame word below the learning fields: the profile and the plan
-/// (bits 58-63 are free for the frame's own fields).
+/// Bits of a frame word below the learning fields: the profile, the plan
+/// and the delta field.
 pub const PLAN_BITS: u32 = u64::BITS;
+/// Bit of a frame word where the delta field starts, the last bits below
+/// [`PLAN_BITS`]: the width field, then the channels field
+/// ([`crate::delta::Delta::field`]), 0 for no delta filter.
+pub const DELTA_AT: u32 =
+    PLAN_BITS - crate::delta::Delta::WIDTH_FIELD - crate::delta::Delta::CHANNEL_FIELD;
 /// Bit of a frame word where the consolidation field starts (4 bits): a
 /// context slot's count bits ([`super::Learning::count_bits`]), 0 for the
 /// standard count.
@@ -141,7 +154,8 @@ pub fn word(profile: u32, plan: Plan) -> Option<Word> {
         Word::from(plan.bits)
     };
     let learning = Word::from(plan.learning.count_bits) << COUNT_AT;
-    let low = Word::from(profile) | p << PROB_AT | learning;
+    let delta = Word::from(plan.delta.map_or(0, crate::delta::Delta::field)) << DELTA_AT;
+    let low = Word::from(profile) | p << PROB_AT | learning | delta;
     if plan.streams == 1 {
         return Some(low);
     }
@@ -154,10 +168,15 @@ pub fn word(profile: u32, plan: Plan) -> Option<Word> {
 /// writes (a single meaning per word: one stream carries no epoch).
 #[must_use]
 pub fn split(word: Word) -> Option<(u32, Plan)> {
-    // nothing between the plan and the learning fields, nor past them
-    if (word >> (EPOCH_AT + 5)) & ((1 << (COUNT_AT - EPOCH_AT - 5)) - 1) != 0
+    // nothing between the plan and the delta field, nor past the learning fields
+    if (word >> (EPOCH_AT + 5)) & ((1 << (DELTA_AT - EPOCH_AT - 5)) - 1) != 0
         || word >> WORD_END != 0
     {
+        return None;
+    }
+    let field = ((word >> DELTA_AT) & ((1 << (PLAN_BITS - DELTA_AT)) - 1)) as u32;
+    let delta = crate::delta::Delta::of_field(field);
+    if field != 0 && delta.is_none() {
         return None;
     }
     let learning = super::Learning {
@@ -179,6 +198,7 @@ pub fn split(word: Word) -> Option<(u32, Plan)> {
         epoch: 1 << e,
         bits,
         learning,
+        delta,
     };
     plan.valid().then_some((profile, plan))
 }

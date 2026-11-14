@@ -254,6 +254,9 @@ fn template(codec: Codec, k: usize, era: Era) -> Option<(Cow<'static, [u8]>, Vec
         if era != Era::Current && (crate::ncm::records_tables(model) || !plan.serial()) {
             return None;
         }
+        if codec.x86() && plan.delta.is_some() {
+            return None;
+        }
         let (prefix, tail) = profile_template(k, codec.x86(), era)?;
         let mut suffix = vec![0];
         push_word(&mut suffix, p);
@@ -385,9 +388,11 @@ fn parse_body(body: &[u8], k: usize, era: Era) -> Option<(Codec, &[u8])> {
         let (payload, rest) = split(&prefix)?;
         let rest = rest.strip_prefix(&[0])?;
         let (p, after) = read_word(rest, 0)?;
+        // a frame is coded over the x86 filter or a delta filter, not both
         let ok = after == uleb_len(p)
             && frame_word(p).is_some_and(|(model, plan)| {
-                era == Era::Current || (!crate::ncm::records_tables(model) && plan.serial())
+                (era == Era::Current || (!crate::ncm::records_tables(model) && plan.serial()))
+                    && !(x86 && plan.delta.is_some())
             })
             && rest[after..] == tail[..];
         ok.then_some((Codec::profiled(p, x86), payload))
@@ -1029,7 +1034,8 @@ pub fn state_frame(data: &[u8]) -> Option<StateFrame<'_>> {
         let (w, after) = read_word(rest, 0)?;
         // one stream at 12 bits: only the learning fields join the profile
         let (profile, plan) =
-            crate::ncm::streams::split(w).filter(|(_, p)| p.streams == 1 && p.bits == 12)?;
+            crate::ncm::streams::split(w)
+            .filter(|(_, p)| p.streams == 1 && p.bits == 12 && p.delta.is_none())?;
         let ok = after == uleb_len(w) && rest[after..] == tail[..];
         ok.then(|| StateFrame {
             state,
@@ -1246,8 +1252,15 @@ fn ncm_decode(
     n: u64,
     (profile, plan): (u32, crate::ncm::streams::Plan),
 ) -> Option<Vec<u8>> {
-    // one stream ([`frame_word`]), at the word's probability bits and learning
-    crate::ncm::decode_canonical_window_plan(window, payload, n, profile, plan)
+    // one stream ([`frame_word`]), at the word's probability bits and
+    // learning; over a delta filter the payload codes the filtered bytes
+    // after the filtered window
+    let Some(d) = plan.delta else {
+        return crate::ncm::decode_canonical_window_plan(window, payload, n, profile, plan);
+    };
+    let past = crate::delta::filter(&window.concat(), false, d);
+    let out = crate::ncm::decode_canonical_window_plan(&[&past], payload, n, profile, plan)?;
+    Some(crate::delta::filter(&out, true, d))
 }
 
 /// `Archive.fastDecode`, natively: the output of an archive this client wrote

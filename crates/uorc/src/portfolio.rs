@@ -218,16 +218,26 @@ pub const fn learn(w: u8, success: bool) -> u8 {
 pub fn family(frame: &[u8]) -> usize {
     let n = frame.len();
     if crate::x86::dense(frame) {
-        2
+        X86
     } else if n < 4096 {
         0
     } else if n < 65536 {
         1
-    } else if 10 * printable(frame) >= 9 * n {
-        3
+    } else if text(frame) {
+        TEXT
     } else {
         4
     }
+}
+
+/// The family of x86 code.
+pub const X86: usize = 2;
+/// The family of text.
+pub const TEXT: usize = 3;
+
+/// Whether a frame is text: nine in ten of its bytes or more printable.
+pub fn text(frame: &[u8]) -> bool {
+    10 * printable(frame) >= 9 * frame.len()
 }
 
 fn printable(frame: &[u8]) -> usize {
