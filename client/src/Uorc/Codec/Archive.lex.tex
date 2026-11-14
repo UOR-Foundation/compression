@@ -767,6 +767,24 @@ definition{
   name: profileWord,
   parameters: [profile : Nat],
   result: Bool,
+  body: (let t : Nat := (prim remainder (prim quotient profile 1048576 0 : Nat) 64 0 : Nat); ((profile <? 2147483648) && ((t =? 0) || ((5 <=? t) && (t <=? 32))))),
+  executable: true,
+  axioms: []
+}
+
+definition{
+  name: frameWord,
+  parameters: [word : Nat],
+  result: Bool,
+  body: (let p : Nat := (prim quotient word 4294967296 0 : Nat); (((p =? 0) || (p =? 16)) && (profileWord (prim remainder word 4294967296 0 : Nat)))),
+  executable: true,
+  axioms: []
+}
+
+definition{
+  name: v04ProfileWord,
+  parameters: [profile : Nat],
+  result: Bool,
   body: (profile <? 1048576),
   executable: true,
   axioms: []
@@ -1583,7 +1601,7 @@ definition{
   name: v04ProfiledArchive,
   parameters: [x : Nat, k : Nat, identity : Bytes, n : Nat, profile : Nat, payload : Bytes],
   result: (Option Bytes),
-  body: (if ((k <=? 2) && (profileWord profile)) then (seal (windowPreimage identity n (cat (cat (cat (cat (profilePrefix x k) (number (prim length payload : Nat))) payload) (cat 0x00 (number profile))) (v04ProfileTail x k)))) else (ctor Option.none [Bytes])),
+  body: (if ((k <=? 2) && (v04ProfileWord profile)) then (seal (windowPreimage identity n (cat (cat (cat (cat (profilePrefix x k) (number (prim length payload : Nat))) payload) (cat 0x00 (number profile))) (v04ProfileTail x k)))) else (ctor Option.none [Bytes])),
   executable: true,
   axioms: [Quot.sound, propext]
 }

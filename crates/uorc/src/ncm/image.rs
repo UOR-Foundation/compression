@@ -226,6 +226,9 @@ fn save(m: &Model, w: impl Write) -> io::Result<()> {
         spec_key,
         spec_hb,
         bb,
+        // derived again from bb before the next bit's update reads them
+        distinct: _,
+        sv: _,
         ix,
         st,
         mi,
@@ -359,6 +362,10 @@ fn load(r: impl Read, left: u64) -> io::Result<Model> {
         spec_key: i.arr()?,
         spec_hb: i.arr()?,
         bb: i.arr()?,
+        // a repeated bucket's slots adapt one after another until the next
+        // nibble checks them; sensing reads the words before an update
+        distinct: false,
+        sv: [0; NC],
         ix: i.arr()?,
         st: i.arr()?,
         hist: i.vec()?,
@@ -593,11 +600,11 @@ mod tests {
                 gain: Some(Box::new([0; NC])),
             }));
         }
-        if m.stride == NINP_NARROW {
-            m.warm::<Scalar, NINP_NARROW>(state);
+        m = if m.stride == NINP_NARROW {
+            m.warm::<Scalar, NINP_NARROW>(state)
         } else {
-            m.warm::<Scalar, NINP>(state);
-        }
+            m.warm::<Scalar, NINP>(state)
+        };
         let mut img = Vec::new();
         super::save(&m, &mut img).expect("saves");
         let back = super::load(&img[..], img.len() as u64).expect("loads");

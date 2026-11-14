@@ -458,19 +458,22 @@ fn compress_tree(options: &Options) -> Result<(), Failure> {
     let started = Instant::now();
     let mut pending = Pending::create(dest).map_err(|e| io_failure(&output, e))?;
     let mut writer = BufWriter::with_capacity(1 << 20, &mut pending);
+    let coded = uorc::ncm::model_steps();
     let totals = uorc::compress_objects_stream(&layout.lengths, input, &mut writer, steps, threads)
         .map_err(failed)?;
+    let coded = uorc::ncm::model_steps() - coded;
     drop(writer);
     pending
         .commit(dest, options.force)
         .map_err(|e| io_failure(&output, e))?;
     if options.stats {
         eprintln!(
-            "{{\"command\":\"compress\",\"entries\":{},\"input_bytes\":{},\"output_bytes\":{},\"frames\":{},\"seconds\":{:.6}}}",
+            "{{\"command\":\"compress\",\"entries\":{},\"input_bytes\":{},\"output_bytes\":{},\"frames\":{},\"model_steps\":{},\"seconds\":{:.6}}}",
             items.len(),
             totals.read - layout.manifest.len() as u64,
             totals.written,
             totals.frames,
+            coded,
             started.elapsed().as_secs_f64()
         );
     }
@@ -763,6 +766,7 @@ fn transform(options: &Options) -> Result<(), Failure> {
     let shown = format!("{input_path} -> {path}");
     let failed = stream_failure(&shown);
     let started = Instant::now();
+    let coded = uorc::ncm::model_steps();
     let totals = if path == "-" {
         run(&mut BufWriter::with_capacity(1 << 20, io::stdout().lock())).map_err(failed)?
     } else {
@@ -777,8 +781,14 @@ fn transform(options: &Options) -> Result<(), Failure> {
         totals
     };
     if options.stats {
+        // the steps the encoder's trials coded (compress only)
+        let coded = if compress {
+            format!(",\"model_steps\":{}", uorc::ncm::model_steps() - coded)
+        } else {
+            String::new()
+        };
         eprintln!(
-            "{{\"command\":\"{}\",\"input_bytes\":{},\"output_bytes\":{},\"frames\":{},\"seconds\":{:.6}}}",
+            "{{\"command\":\"{}\",\"input_bytes\":{},\"output_bytes\":{},\"frames\":{}{coded},\"seconds\":{:.6}}}",
             options.command,
             totals.read,
             totals.written,
@@ -941,7 +951,7 @@ fn main() -> ExitCode {
             return ExitCode::SUCCESS;
         }
         Some("host") => {
-            println!("{}", uorc::region::Host::current().json());
+            println!("{}", uorc::region::Host::measured().json());
             return ExitCode::SUCCESS;
         }
         Some("--help" | "-h") | None => {

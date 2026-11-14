@@ -416,7 +416,8 @@ P.func('decodeStart', [], dstart)
 P.func('decode', [], [('call', 'decodeStart', []), ('loop', G('n'), 'i', [('call', 'decodeByte', [])])])
 # against a window: H already holds the h history bytes
 P.func('decodeWith', ['h'], [('set', 'hoff', V('h')), ('call', 'decode', [])])
-P.func('decodeProfile', ['h', 'pf'], [('set', 'prof', V('pf')), ('call', 'decodeWith', [V('h')])])
+# a frame word: the profile in bits 0-31, the probability field in bits 32-36 (0: 12 bits, 16: 16 bits, pz 15)
+P.func('decodeProfile', ['h', 'pf'], [('set', 'prof', mod(V('pf'), 1 << 32)), ('set', 'pz', sel(eq(mod(div(V('pf'), 1 << 32), 32), 0), 0, 15)), ('call', 'decodeWith', [V('h')])])
 # from a kappa-named model state: H starts holding the state's w bytes, which the whole model codes first as
 # though they were the frame's opening bytes (every context, mixer and map learns them, nothing is emitted), so
 # the frame is coded as their continuation. The tables are sized for w + n bytes.
@@ -472,7 +473,7 @@ P.func('encode', ['size', 'limit'], [('set', 'n', V('size')), ('set', 'cap', V('
                                      ('loop', G('n'), 'i', [('call', 'encodeByte', [V('i')])]),
                                      ('call', 'emit', [div(G('x1'), 1 << 24)])])
 P.func('encodeWith', ['size', 'limit', 'h'], [('set', 'hoff', V('h')), ('call', 'encode', [V('size'), V('limit')])])
-P.func('encodeProfile', ['size', 'limit', 'h', 'pf'], [('set', 'prof', V('pf')), ('call', 'encodeWith', [V('size'), V('limit'), V('h')])])
+P.func('encodeProfile', ['size', 'limit', 'h', 'pf'], [('set', 'prof', mod(V('pf'), 1 << 32)), ('set', 'pz', sel(eq(mod(div(V('pf'), 1 << 32), 32), 0), 0, 15)), ('call', 'encodeWith', [V('size'), V('limit'), V('h')])])
 P.func('encodeWarm', ['size', 'limit', 'w', 'pf'], [('set', 'prof', V('pf')), ('set', 'hoff', 0), ('set', 'n', add(V('size'), V('w'))),
                                                   ('set', 'cap', V('limit')), ('call', 'setup', []), ('set', 'n', V('size')),
                                                   ('call', 'warmState', [V('w')]),

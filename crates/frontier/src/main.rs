@@ -4,7 +4,7 @@
 //! frontier check    [--register frontier.toml]
 //! frontier pin      NAME --source SRC [--public] (--dir DIR | --git REV PATH...)
 //! frontier compare  NAME [--dir DIR] [--source TEXT]
-//! frontier decide   [--corpus NAME[=DIR]]... [--point KAPPA] [--label TEXT] [--by WHO]
+//! frontier decide   [--corpus NAME[=DIR]]... [--point KAPPA] [--label TEXT] [--by WHO] [--time]
 //! frontier report   [--point KAPPA] --out DIR
 //! ```
 //!
@@ -13,14 +13,16 @@
 //! `decide` with no `--corpus` decides every corpus whose bytes it can reach
 //! offline (git sources); with no `--point` it decides the shipped client's
 //! point. `--by` is `local` unless the factory names itself
-//! (`factory:<identity>`).
+//! (`factory:<identity>`). `decide` also records the distance of the run
+//! to each bound of `Uorc.Performance` (requirement claims); with `--time` it
+//! times the run on this host too, named by its κ.
 
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
 use frontier::{
-    export_identity, CodecPoint, Comparator, Corpus, Error, Form, Member, Register, Status,
+    export_identity, CodecPoint, Comparator, Corpus, Error, Form, Host, Member, Register, Status,
     FAMILIES,
 };
 
@@ -42,7 +44,7 @@ fn parse() -> Result<Args, String> {
     };
     while let Some(a) = it.next() {
         match a.strip_prefix("--") {
-            Some(flag @ "public") => args.flags.push(flag.to_owned()),
+            Some(flag @ ("public" | "time")) => args.flags.push(flag.to_owned()),
             Some(key) => {
                 let v = it.next().ok_or_else(|| format!("--{key} needs a value"))?;
                 args.options.entry(key.to_owned()).or_default().push(v);
@@ -192,30 +194,49 @@ fn run() -> Result<(), String> {
                     .collect::<Result<_, String>>()?
             };
             let mut refuted = 0;
+            let threads = uorc::default_threads() as u64;
+            let host = args.flags.iter().any(|f| f == "time").then(Host::this);
             for (corpus, dir) in targets {
                 let q = Register::closed_question(&point, &corpus);
-                let needs_run = r.known(&q.id).is_none_or(|k| {
-                    !(k.final_() || (!by.starts_with("factory:") && k.status != Status::Minted))
+                let settled = r.settled(&point, &corpus, &by).is_some();
+                let timed = host.as_ref().is_some_and(|h| {
+                    !r.requirements_settled(&point, &corpus, threads, Some(h), &by)
                 });
-                let files = if needs_run {
-                    corpus
+                let needs_run = !settled
+                    || timed
+                    || !r.requirements_settled(&point, &corpus, threads, None, &by);
+                if needs_run {
+                    let files = corpus
                         .materialize(dir.as_deref(), &repo)
-                        .map_err(|e| e.to_string())?
-                } else {
-                    Vec::new()
-                };
-                let closed = r
-                    .decide(&point, &corpus, &files, &by)
-                    .map_err(|e| e.to_string())?;
+                        .map_err(|e| e.to_string())?;
+                    let run =
+                        frontier::run(&point, &corpus, &files, timed).map_err(|e| e.to_string())?;
+                    r.decide_run(&point, &corpus, &run, &by)
+                        .map_err(|e| e.to_string())?;
+                    let measured = host.as_ref().filter(|_| timed);
+                    for c in r.decide_requirements(&point, &corpus, &run, threads, measured, &by) {
+                        println!(
+                            "  {} on {}: {} {} observed, bound {}, distance {}: {}",
+                            c.requirement.as_deref().unwrap_or(""),
+                            corpus.name,
+                            c.observed.unwrap_or(0),
+                            c.unit.as_deref().unwrap_or(""),
+                            c.derived.unwrap_or(0),
+                            c.distance.unwrap_or(0),
+                            c.status.name()
+                        );
+                        refuted += usize::from(c.status == Status::Refuted);
+                    }
+                }
                 let claim = r.known(&q.id).cloned().ok_or("decided claim")?;
                 println!(
                     "closed {} on {}: {} bytes, {} steps: {}{}",
                     &point.kappa()[..12],
                     corpus.name,
-                    closed.bytes,
-                    closed.steps,
+                    claim.observed_bytes.or(claim.bytes).unwrap_or(0),
+                    claim.observed_steps.or(claim.steps).unwrap_or(0),
                     claim.status.name(),
-                    if needs_run { "" } else { " (known by κ)" }
+                    if settled { " (known by κ)" } else { "" }
                 );
                 refuted += usize::from(claim.status == Status::Refuted);
                 for b in r.decide_bounds(&point, &corpus, &by) {
@@ -231,7 +252,7 @@ fn run() -> Result<(), String> {
             }
             if refuted > 0 {
                 return Err(format!(
-                    "{refuted} closed claim(s) refuted: the codec did not reproduce them"
+                    "{refuted} claim(s) refuted: the codec did not reproduce them"
                 ));
             }
             Ok(())
@@ -416,6 +437,52 @@ fn report_md(r: &Register, point: &CodecPoint) -> String {
                 b.bound.unwrap_or(0),
                 own,
                 b.status.name()
+            ));
+        }
+        md.push(String::new());
+    }
+    let requirements: Vec<_> = r
+        .claim
+        .iter()
+        .filter(|c| c.form == Form::Requirement && c.codec.as_deref() == Some(&k))
+        .collect();
+    if !requirements.is_empty() {
+        md.push("## Distance to each requirement".to_owned());
+        md.push(String::new());
+        md.push("Each requirement of `Uorc.Performance` derives a bound for this codec on each corpus; the row is what the run observed, the bound, and how far the observation is from it on the side the requirement forbids. A distance of 0 is the requirement met. Bytes and steps are exact and decided; rates are measured on the host named by its κ. `leastArchive`: the archive against the information the chosen model assigns to the input (what is left is the archive's form and the coder's rounding). `wholeHost`: per input, the longest chain of dependent decode steps against the total divided by the threads. `hostCeiling`: throughput against the input over the host's ceiling (`Uorc.Host::ceilingNanos`): the slower of the steps the run took (decode: the archive's exact steps; compress: the model steps every trial coded, `uorc::ncm::model_steps`) over the host's threads at the per-core step rate of the codec's own mixer contraction and the cache lines its tables move over the host's memory rate. The compute term covers the contraction only, so the distance includes the rest of each step; both sides count the archive's moved lines, a floor on what the compress trials move.".to_owned());
+        md.push(String::new());
+        md.push("| requirement | quantity | corpus | at | observed | bound | distance | unit | status |".to_owned());
+        md.push("| --- | --- | --- | --- | ---: | ---: | ---: | --- | --- |".to_owned());
+        for c in &requirements {
+            let at = match (c.threads, &c.host) {
+                (Some(t), _) => match c.met_up_to {
+                    Some(m) => format!("{t} threads (met up to {m})"),
+                    None => format!("{t} threads (met at any)"),
+                },
+                (None, Some(h)) => {
+                    let host = r.host.iter().find(|x| &x.kappa == h);
+                    format!(
+                        "host `{}` ({})",
+                        &h[..12],
+                        host.map_or("?".to_owned(), |x| format!(
+                            "{}, {} threads, {}",
+                            x.cpu, x.threads, x.vector
+                        ))
+                    )
+                }
+                _ => "-".to_owned(),
+            };
+            md.push(format!(
+                "| {} | {} | {} | {} | {} | {} | {} | {} | {} |",
+                c.requirement.as_deref().unwrap_or(""),
+                c.quantity.as_deref().unwrap_or(""),
+                name(&c.corpus),
+                at,
+                c.observed.map_or("-".into(), |v| v.to_string()),
+                c.derived.map_or("-".into(), |v| v.to_string()),
+                c.distance.map_or("-".into(), |v| v.to_string()),
+                c.unit.as_deref().unwrap_or(""),
+                c.status.name()
             ));
         }
         md.push(String::new());

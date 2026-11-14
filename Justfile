@@ -11,7 +11,7 @@ export LEXLEAN_VERIFY_HINTS := env_var_or_default("LEXLEAN_VERIFY_HINTS", justfi
 default: vv
 
 # The whole gate.
-vv: lexlean-authority template-check fmt-check model lint test features bdd deny lexlean-artifacts claim-dispositions varint-proofs reproducibility integrity formal-tests
+vv: lexlean-authority template-check fmt-check model lint test features bdd deny lexlean-artifacts claim-dispositions varint-proofs reproducibility integrity figures formal-tests
     @echo "vv: the acceptance gate passed"
 
 # The UORC authority files are real LexLean source, not merely files with a
@@ -64,7 +64,7 @@ lint:
 # runtimes (tens of minutes) and is its own recipe, `formal-tests`.
 test:
     cargo test --locked --workspace --exclude xtask
-    node --test scripts/site.test.mjs
+    node --test scripts/site.test.mjs scripts/corpora.test.mjs
 
 # UC-WEB-01: build the Pages site as the release does (a stand-in benchmark
 # page beside it) and walk every journey of the page's Prism product model in
@@ -119,7 +119,33 @@ reproducibility:
 varint-proofs:
     node scripts/varint-validation.mjs
 
+# Numbers in what the release ships (the client crates, the page's JavaScript
+# and the LexLean model the client is exported from), held against the Prism
+# model (crates/figures): a numeral that is not an identity (0, 1) or a value
+# a wire module states is a fixed figure, an unmet facet of
+# Uorc.Performance::implementationFigures. A change that adds one fails; the
+# register (model/figures.toml) lists those already there, and only falls.
+figures:
+    cargo run --locked -q -p figures -- check
+
+# Record figures a change derived or removed (never admits a new one).
+figures-write:
+    cargo run --locked -q -p figures -- write
+
 # Source-owned SHA-256 and bounded chain: independent data and mutation controls.
 integrity:
     node --test scripts/integrity-vectors.test.mjs
     node scripts/integrity-validation.mjs
+
+# Developer and agent measurements (scripts/lab.mjs; no CI job runs them).
+# Host use: wall, CPU, busy cores over time and peak RSS at 1 and N threads.
+lab-hosts *ARGS:
+    node scripts/lab.mjs hosts {{ARGS}}
+
+# A/B against a reference rev or binary: `just lab-ab --ref main [--identical]`.
+lab-ab *ARGS:
+    node scripts/lab.mjs ab {{ARGS}}
+
+# Per-line instruction cost of a 512 KiB decode under cachegrind.
+lab-cost *ARGS:
+    node scripts/lab.mjs cost {{ARGS}}

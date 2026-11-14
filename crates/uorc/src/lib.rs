@@ -74,7 +74,15 @@ pub mod x86;
 pub use frame::{frame_length, frames, inspect, object_lengths, Info, Representation, HEADER_HINT};
 
 /// Input bytes per frame. Each frame becomes one self-contained archive.
-pub const FRAME: usize = 8 << 20;
+///
+/// Unit tests cut frames at 1 MiB: every framing rule (cuts, references,
+/// windows, blocks) reads the frame length only through this constant and
+/// holds the same at any length well above [`chunk::MAX_UNIT`], while coding
+/// full 8 MiB frames through the whole portfolio cost most of the acceptance
+/// leg's time.
+///
+/// Facet: frameBytes
+pub const FRAME: usize = if cfg!(test) { 1 << 20 } else { 8 << 20 };
 
 /// Coded frames per block, the encoder's schedule: the first frame of every
 /// block reads no window, and the others read up to every frame before them
@@ -83,6 +91,8 @@ pub const FRAME: usize = 8 << 20;
 /// decoder finds blocks from the frame headers alone (a frame that reads no
 /// window starts one) and decodes them on separate cores, so any block
 /// length decodes, including a v0.2 stream, which is one block.
+///
+/// Facet: blockFrames
 pub const BLOCK: usize = 4;
 
 /// Most frames a window frame reads: every earlier frame of its block.
@@ -765,11 +775,28 @@ fn portfolio_trials(
     if side_by_side && cfg!(not(target_family = "wasm")) {
         // each group on its own core, bounded by the raw archive
         let coded: Vec<(Trial, Trial)> = std::thread::scope(|s| {
+            // each group's thread holds a core of the compression's pool
+            // (taken before any starts), so its encoders borrow only cores
+            // no group runs on
+            let pool = ncm::Cores::current();
+            let held: Vec<_> = leads[1..]
+                .iter()
+                .map(|_| pool.as_ref().map(ncm::Cores::hold))
+                .collect();
             let others: Vec<_> = leads[1..]
                 .iter()
-                .map(|&k| s.spawn(move || group(k, raw)))
+                .zip(held)
+                .map(|(&k, held)| {
+                    s.spawn(move || match held {
+                        Some(h) => h.run(|| group(k, raw)),
+                        None => group(k, raw),
+                    })
+                })
                 .collect();
-            std::iter::once(group(leads[0], raw))
+            let first = group(leads[0], raw);
+            // this thread only waits from here: its core is spare
+            let _idle = pool.as_ref().map(ncm::Cores::idle);
+            std::iter::once(first)
                 .chain(
                     others
                         .into_iter()
@@ -1210,6 +1237,112 @@ fn decode_next(
     Ok(output)
 }
 
+/// What the decoder's schedule of a stream costs (`Uorc.Performance::wholeHost`,
+/// `Uorc.Performance::leastArchive`), from [`decode_schedule`].
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Schedule {
+    /// Decode steps of every frame ([`performance::frame_steps`]).
+    pub total: u64,
+    /// The longest chain of dependent decode steps: frames of a block decode
+    /// in order on one core, a reference frame waits for the frame that holds
+    /// its run, and blocks are otherwise free to run at once (the schedule
+    /// [`decompress_stream`] keeps on any number of threads).
+    pub chain: u64,
+    /// The information the frames' models assign to their output, in 2^-24
+    /// bit ([`ncm::INFORMATION_BITS`]): the ncm decoder's sum
+    /// ([`ncm::measure_information`]) for coded frames, 8 bits per byte for
+    /// raw frames, none for a reference frame.
+    pub information: u64,
+    /// Frames of the stream.
+    pub frames: u64,
+}
+
+/// Decode `stream` on this thread in stream order, and measure the schedule
+/// the decoder keeps on more threads ([`Schedule`]). Exact: it depends on
+/// the stream's bytes alone. Fails as [`decompress`] does, and for a frame
+/// the step measure has no value for (ulz and program frames).
+pub fn decode_schedule(stream: &[u8], work: u64) -> Result<(Vec<u8>, Schedule), Error> {
+    let archives = frames(stream)?;
+    let mut wanted: std::collections::HashMap<[u8; 32], u64> = Default::default();
+    for a in &archives {
+        if let Some((label, n)) = archive::reference_target(a) {
+            wanted.insert(label, n);
+        }
+    }
+    let reads: Vec<Option<usize>> = archives.iter().map(|a| archive::window_len(a)).collect();
+    // the frame each wanted run is first found in, and the run's bytes
+    let mut held: std::collections::HashMap<[u8; 32], (usize, Vec<u8>)> = Default::default();
+    let mut finish: Vec<u64> = Vec::with_capacity(archives.len());
+    let mut window: Vec<Vec<u8>> = Vec::new();
+    let mut out = Vec::new();
+    let (mut total, mut information) = (0u64, 0u64);
+    for (i, a) in archives.iter().enumerate() {
+        let info = inspect(a)?;
+        let steps = performance::frame_steps(&info).ok_or(Error::Decode)?;
+        total = total.checked_add(steps).ok_or(Error::Decode)?;
+        let starts = i == 0 || starts_block(reads[i], reads[i + 1..].iter().copied());
+        let mut ready = if starts { 0 } else { finish[i - 1] };
+        let output = match archive::reference_of(a) {
+            Some(label) => {
+                let (at, run) = held.get(&label).ok_or(Error::Decode)?;
+                ready = ready.max(finish[*at]);
+                match archive::reference_decode(a, run) {
+                    Some(output) => output,
+                    None => decompress_frame_with(a, &[run], work)?,
+                }
+            }
+            None => {
+                let view: Vec<&[u8]> = window.iter().map(Vec::as_slice).collect();
+                let (output, bits, payloads) =
+                    ncm::measure_information(|| decompress_frame_with(a, &view, work));
+                let output = output?;
+                match info.representation {
+                    Representation::Raw => {
+                        information += (8 << ncm::INFORMATION_BITS) * output.len() as u64
+                    }
+                    Representation::Ncm | Representation::NcmX86 => {
+                        // every coded frame is decoded by the native ncm decoder
+                        // (its single payload), so its information is counted
+                        if payloads != 1 {
+                            return Err(Error::Decode);
+                        }
+                        information += bits;
+                    }
+                    _ => return Err(Error::Decode),
+                }
+                output
+            }
+        };
+        finish.push(ready + steps);
+        let mut missing: std::collections::HashMap<u64, std::collections::HashSet<[u8; 32]>> =
+            Default::default();
+        for (label, n) in &wanted {
+            if !held.contains_key(label) {
+                missing.entry(*n).or_default().insert(*label);
+            }
+        }
+        if !missing.is_empty() {
+            for (label, run) in chunk::runs(&output, missing) {
+                held.insert(label, (i, output[run].to_vec()));
+            }
+        }
+        out.extend_from_slice(&output);
+        window.push(output);
+        if window.len() > REACH {
+            window.remove(0);
+        }
+    }
+    Ok((
+        out,
+        Schedule {
+            total,
+            chain: finish.iter().copied().max().unwrap_or(0),
+            information,
+            frames: archives.len() as u64,
+        },
+    ))
+}
+
 /// Apply `f` to every item on up to `threads` workers, keeping order.
 fn parallel<T: Sync, U: Send>(items: &[T], threads: usize, f: impl Fn(&T) -> U + Sync) -> Vec<U> {
     if threads <= 1 || items.len() <= 1 {
@@ -1448,15 +1581,19 @@ fn compress_frames(
             .collect();
         // a frame codes its two strategies side by side when the batch leaves a core free
         let spare = 2 * jobs.len() <= threads;
+        // the cores no frame's worker holds, lent to the encoders as they start
+        let cores = ncm::Cores::new(threads.saturating_sub(jobs.len().max(1)));
         let mut coded = parallel(&jobs, threads, |&k| {
             let frame = &batch[k - before.len()];
-            compress_pieces(
-                all[k],
-                &frame.pieces,
-                &all[k - frame.window..k],
-                steps,
-                spare,
-            )
+            cores.enter(|| {
+                compress_pieces(
+                    all[k],
+                    &frame.pieces,
+                    &all[k - frame.window..k],
+                    steps,
+                    spare,
+                )
+            })
         })
         .into_iter();
         drop(all);
@@ -1753,6 +1890,9 @@ fn decode_stream(
     // Cores decoding coded frames: a block whose reference frame waits for a
     // frame of another block holds none, so other blocks run meanwhile.
     let cores = &Cores::new(threads);
+    // The same cores as the encoder's pool: a decoder holds one, and the
+    // model states it warms (an encode without a coder) borrow the rest.
+    let lend = &ncm::Cores::new(threads);
     let mut totals = Totals::default();
     let mut carry = Vec::new();
     std::thread::scope(|scope| {
@@ -1792,14 +1932,23 @@ fn decode_stream(
                         for (at, archive) in inbox {
                             let core = archive::reference_of(&archive)
                                 .is_none()
-                                .then(|| cores.take());
-                            let decoded = object_lengths(&archive).and_then(|lengths| {
-                                Ok((
-                                    lengths,
-                                    decode_into(&mut window, &archive, at, store, work)?,
-                                ))
-                            });
-                            drop(core);
+                                .then(|| (cores.take(), lend.hold()));
+                            let mut decode = || {
+                                object_lengths(&archive).and_then(|lengths| {
+                                    Ok((
+                                        lengths,
+                                        decode_into(&mut window, &archive, at, store, work)?,
+                                    ))
+                                })
+                            };
+                            let decoded = match core {
+                                Some((core, held)) => {
+                                    let decoded = held.run(decode);
+                                    drop(core);
+                                    decoded
+                                }
+                                None => decode(),
+                            };
                             let failed = decoded.is_err();
                             if send.send(decoded).is_err() || failed {
                                 // Frames after this one will not be offered.
@@ -2298,7 +2447,7 @@ mod tests {
     /// library) and an ncm window frame over the two frames before.
     #[test]
     fn released_streams_decode() {
-        let frame: Vec<u8> = (0..FRAME)
+        let frame: Vec<u8> = (0..8 << 20)
             .map(|i| ((((i >> 4) * 7 + (i >> 12)) & 0x3f) + 0x20) as u8)
             .collect();
         let input = [&frame[..], &frame[..], &frame[1000..5096]].concat();
@@ -2528,6 +2677,53 @@ mod tests {
         }
     }
 
+    /// The exported model decodes every frame word the native client
+    /// writes: recorded context table bits, recorded match table bits, and
+    /// the 16-bit probability field, alone and together (v0.5.0's model
+    /// refused any profile word of 2^20 or more, so every frame with recorded
+    /// table bits, which the table facet writes from about 8 KiB on), and the
+    /// client's own frame of the README.
+    #[test]
+    fn model_decodes_every_frame_word_native_writes() {
+        let text: Vec<u8> = (0..3000u32)
+            .flat_map(|i| format!("row {} of {}\n", i % 97, i / 7).into_bytes())
+            .take(12_000)
+            .collect();
+        let n = text.len() as u64;
+        let tables = ncm::with_table_bits(ncm::FULL, 22);
+        let both = ncm::with_match_bits(tables, 20);
+        let mut words = Vec::new();
+        for profile in [ncm::FULL, tables, both] {
+            for bits in [12, 16] {
+                words.push((profile, bits));
+            }
+        }
+        for (profile, bits) in words {
+            let plan = ncm::streams::Plan {
+                bits,
+                ..ncm::streams::Plan::ONE
+            };
+            let word = ncm::streams::word(profile, plan).expect("word");
+            let payload =
+                ncm::encode_bits_below(&[], &text, profile, bits, usize::MAX).expect("payload");
+            let a = archive::linked_archive_profile(archive::Codec::Ncm, word, &[n], &payload)
+                .expect("archive");
+            assert_eq!(
+                decompress_frame(&a, DEFAULT_DECODE_WORK).expect("native"),
+                text
+            );
+            assert_eq!(
+                model_decompress_frame(&a).expect("model"),
+                text,
+                "model decode of word {word:#x}"
+            );
+        }
+        // and the client's own frame
+        let readme = include_bytes!("../../../README.md");
+        let own = compress_frame(readme, 0).expect("compress");
+        assert_eq!(model_decompress_frame(&own).expect("model"), readme);
+    }
+
     /// UC-PERF-08: the shipped compress keeps exactly `performance::chosen`
     /// over the raw archive and the trials it coded: least in bytes, then in
     /// decode steps.
@@ -2678,7 +2874,10 @@ mod tests {
     /// damaged encoder output, resealed, so most leave the encoder's language.
     #[test]
     fn native_decoder_agrees_with_the_reference_where_it_accepts() {
-        let input = text(64, 11);
+        // The reference semantics runs the kernel graph at seconds per output
+        // byte (64 bytes: 265 s, 16 bytes: 97 s); 16 bytes keeps both an
+        // accepted and a declined mutation within the rounds.
+        let input = text(16, 11);
         let payload = ulz::encode(&input);
         let (mut accepted, mut declined) = (0, 0);
         let mut x = 0x9e37_79b9_7f4a_7c15u64;
@@ -3253,5 +3452,31 @@ mod tests {
             decompress_frame_with(&w, &[a], DEFAULT_DECODE_WORK).expect("decodes"),
             b
         );
+    }
+
+    /// A coded payload is the information its model assigns, rounded up to
+    /// whole bytes, plus the coder's 4-byte length and up to its final byte
+    /// or two; a one-frame stream's chain is all its steps.
+    #[test]
+    fn the_schedule_counts_information_and_the_chain() {
+        let data = text(60_000, 3);
+        for profile in [ncm::FULL, ncm::V03] {
+            let payload = ncm::encode_profile(&[], &data, profile).expect("payload");
+            let (back, bits, payloads) =
+                ncm::measure_information(|| ncm::decode_profile(&[], &payload, u64::MAX, profile));
+            assert_eq!((back.as_deref(), payloads), (Some(&data[..]), 1));
+            let whole = bits.div_ceil(8 << ncm::INFORMATION_BITS) as usize;
+            assert!(
+                (4..=6).contains(&(payload.len() as i64 - whole as i64)),
+                "{profile:#x} {} {whole}",
+                payload.len()
+            );
+        }
+        // outside a measurement nothing is counted
+        assert_eq!(ncm::measure_information(|| ()).1, 0);
+        let one = compress(&data, 0).expect("compress");
+        let (back, s) = decode_schedule(&one, u64::MAX).expect("schedule");
+        assert_eq!((back, s.frames, s.chain), (data.clone(), 1, s.total));
+        assert!(s.information.div_ceil(8 << ncm::INFORMATION_BITS) < one.len() as u64);
     }
 }

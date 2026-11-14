@@ -1625,7 +1625,7 @@ definition{
   name: hostCeiling,
   parameters: [],
   result: Requirement,
-  body: (record Requirement {characteristic := "performance efficiency", subcharacteristic := "resource utilization", text := "Throughput on a host is that host's ceiling for the steps the chosen point costs: the bound is derived from the host's model (cores, vector width, memory rate), and the measure is the distance to it."})
+  body: (record Requirement {characteristic := "performance efficiency", subcharacteristic := "resource utilization", text := "Throughput on a host is that host's ceiling for the steps the chosen point costs: the bound is derived from the host's model (threads, per-core step rate at the host's vector width, memory rate) in Uorc.Host::ceilingNanos, and the measure is the distance to it (Uorc.Host::distance), recorded per release in the claim register (Uorc.Host::ceilingDerived)."})
 }
 
 definition{
@@ -1935,6 +1935,13 @@ definition{
   parameters: [],
   result: Facet,
   body: (record Facet {quantity := "decode time a process spends replaying a model state before the first state frame (Uorc.Performance::hostCeiling)", fixedAt := "once per process; later frames read a kept warmed model (Uorc.Page::warmedKept)", standing := "unmet", measured := "a process that decodes one state frame pays 0.50 s of 0.57 s to replay S1 (fields.c); the 13 small-family files of the 39 (4 KiB to 64 KiB) decode in 6.52 s against 1.00 s under the budgeted plan. An image of the warmed model is 96 MiB per state and profile at the default tables and reads in 20 ms from the page cache; the remedy is a property of the host: a host that declares persistent storage keeps the image"})
+}
+
+definition{
+  name: implementationFigures,
+  parameters: [],
+  result: Facet,
+  body: (record Facet {quantity := "numbers the shipped implementation fixes that the model does not derive: every numeral of the src of the crates a release obligation builds, of the JavaScript the page ships, and of the definitions of the model the client is exported from (the import closure of Uorc.Client, less the modules an imported standard judges), other than the identities 0 and 1 and the values a wire module names (Model: Uorc.Wire or Uorc.Codec)", fixedAt := "each site listed in model/figures.toml; a constant documented Facet: name attributes its sites to that facet", standing := "unmet: the figures check (just figures) rejects a site the register does not list, and the register's writer never raises a count, so the distance only falls as figures are derived", measured := "the register's sites count, which the check holds equal to the implementation"})
 }
 
 definition{

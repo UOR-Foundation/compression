@@ -1,7 +1,7 @@
 // node --test scripts/factory.test.mjs
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {covered, route, reweigh, schedule, parseStore, releaseStep, RELEASE_STAGES} from './factory.mjs';
+import {covered, route, reweigh, schedule, parseStore, releaseStep, RELEASE_STAGES, trainQueue, trainStep, mergeTrain, REQUIRED_CHECKS, TRAIN_LABEL} from './factory.mjs';
 
 const graph = {obligations: [
   {name: 'leg', kind: 'hermetic', needs: [], inputs: []},
@@ -77,4 +77,99 @@ test('a version bump on the default branch is tagged once its gate and release s
   assert.equal(step(false, 'proved', 'observe', 'release'), 'wait');
   assert.equal(step(false, 'proved', 'proved', 'release'), 'tag');
   assert.equal(releaseStep({version: '0.5.0', tagged: false, routes: routes('proved', 'proved')}).tag, 'v0.5.0');
+});
+
+const rider = (number, extra = {}) => ({number, title: `PR ${number}`, body: '', draft: false, base: 'main', headRef: `b${number}`, headSha: `s${number}`, headRepo: 'o/r', labels: [TRAIN_LABEL], ...extra});
+
+test('the merge train takes labelled, non-draft requests into the default branch in label order', () => {
+  const {riders, skipped} = trainQueue([
+    rider(5, {labeledAt: '2026-11-02T00:00:00Z'}),
+    rider(3, {labeledAt: '2026-11-03T00:00:00Z'}),
+    rider(4, {labeledAt: '2026-11-01T00:00:00Z'}),
+    rider(9), rider(8),
+    rider(6, {draft: true}),
+    rider(7, {base: 'feature'}),
+    rider(2, {labels: []}),
+  ], {base: 'main'});
+  assert.deepEqual(riders.map(p => p.number), [4, 5, 3, 8, 9]);
+  assert.deepEqual(skipped.map(s => s.number), [6, 7]);
+  assert.match(skipped[1].why, /stacked on feature; retarget it to main/);
+});
+
+test('the head of the train waits for its branch to take in main, then merges when green; a failure, conflict or fork drops it', () => {
+  const pass = Object.fromEntries(REQUIRED_CHECKS.map(n => [n, {status: 'completed', conclusion: 'success'}]));
+  const done = [{status: 'completed'}];
+  const step = state => trainStep({pr: rider(1), base: 'main', repository: 'o/r', behind: 0, runs: done, checks: pass, ...state}).action;
+  assert.equal(step({}), 'merge');
+  assert.equal(step({behind: 2}), 'behind');
+  assert.equal(step({behind: 2, pr: rider(1, {mergeable: false})}), 'drop');
+  assert.equal(step({runs: [...done, {status: 'in_progress'}]}), 'wait');
+  assert.equal(step({checks: {[REQUIRED_CHECKS[0]]: {status: 'in_progress'}}}), 'wait');
+  assert.equal(step({checks: {[REQUIRED_CHECKS[0]]: pass[REQUIRED_CHECKS[0]]}}), 'wait');
+  assert.equal(step({checks: {...pass, [REQUIRED_CHECKS[1]]: {status: 'completed', conclusion: 'failure'}}}), 'drop');
+  assert.equal(step({checks: {...pass, [REQUIRED_CHECKS[1]]: {status: 'completed', conclusion: 'cancelled'}}}), 'drop');
+  assert.equal(step({checks: {}, runs: []}), 'wait');
+  assert.equal(step({checks: {}, runs: done}), 'drop');
+  assert.equal(step({pr: rider(1, {headRepo: 'fork/r'})}), 'drop');
+  assert.equal(step({pr: rider(1, {headRepo: null}), behind: 3}), 'drop');
+});
+
+// A fake GitHub API holding two riders, labelled in number order.
+function fakeGitHub({conclusion = 'success', behind = {b1: 1}, runs = () => [{status: 'completed'}], label = true} = {}) {
+  const calls = [];
+  const pull = (n, ref, sha, body) => ({number: n, title: `PR ${n}`, body, draft: false, state: 'open', base: {ref: 'main'}, head: {ref, sha, repo: {full_name: 'o/r'}}, labels: [{name: TRAIN_LABEL}], mergeable: true});
+  const pulls = {1: pull(1, 'one', 'a1', 'one'), 2: pull(2, 'two', 'b1', null)};
+  const comments = {};
+  const reply = (status, data) => ({status, ok: status < 300, text: async () => (data === undefined ? '' : JSON.stringify(data))});
+  globalThis.factoryFetch = async (url, {method, body}) => {
+    const [path, query = ''] = url.replace('https://api.github.com/repos/o/r/', '').split('?');
+    calls.push(`${method} ${path}${body ? ' ' + body : ''}`);
+    const sha = path.split('/')[1];
+    if (method === 'GET' && path === `labels/${TRAIN_LABEL}`) return label ? reply(200, {name: TRAIN_LABEL}) : reply(404, {message: 'Not Found'});
+    if (method === 'POST' && path === 'labels') { label = true; return reply(201, {name: TRAIN_LABEL}); }
+    if (method === 'GET' && path === 'pulls') return reply(200, Object.values(pulls).filter(p => p.state === 'open'));
+    if (method === 'GET' && /^issues\/\d+\/events$/.test(path)) return reply(200, [{event: 'labeled', label: {name: TRAIN_LABEL}, created_at: `2026-11-0${path.split('/')[1]}T00:00:00Z`}]);
+    if (method === 'GET' && /^pulls\/\d+$/.test(path)) return reply(200, pulls[path.split('/')[1]]);
+    if (method === 'GET' && path.startsWith('compare/main...')) return reply(200, {behind_by: behind[path.split('...')[1]] ?? 0});
+    if (method === 'GET' && path === 'actions/workflows/bootstrap.yml/runs') return reply(200, {workflow_runs: runs(query.match(/head_sha=(\w+)/)[1])});
+    if (method === 'GET' && path.endsWith('/check-runs')) return reply(200, {check_runs: runs(sha).length ? [{id: 1, status: 'completed', conclusion: sha === 'a1' ? conclusion : 'success'}] : []});
+    if (method === 'PUT' && path === 'pulls/1/merge') { pulls[1].state = 'closed'; return reply(200, {sha: 'm1', merged: true}); }
+    if (method === 'GET' && /^issues\/\d+\/comments$/.test(path)) return reply(200, comments[path.split('/')[1]] ?? []);
+    if (method === 'POST' && path === 'issues/2/comments') { (comments[2] ??= []).push(JSON.parse(body)); return reply(201, {}); }
+    if (method === 'DELETE' && path === `issues/1/labels/${TRAIN_LABEL}`) { pulls[1].labels = []; return reply(200, []); }
+    if (method === 'POST' && path === 'issues/1/comments') return reply(201, {});
+    if (method === 'POST' && path === 'actions/workflows/bootstrap.yml/dispatches') return reply(204);
+    return reply(404, {message: 'Not Found'});
+  };
+  return calls;
+}
+
+async function ride(options) {
+  const calls = fakeGitHub(options);
+  try { return {result: await mergeTrain({repository: 'o/r', base: 'main', token: 't', sleep: async () => {}, log: () => {}}), writes: calls.filter(c => !c.startsWith('GET'))}; }
+  finally { delete globalThis.factoryFetch; }
+}
+
+test('a merge train run merges a green head, dispatches main, then asks the next rider once to take in main', async () => {
+  const {result, writes} = await ride({behind: {b1: 1}});
+  assert.equal(result.action, 'behind');
+  assert.equal(writes.length, 3);
+  assert.equal(writes[0], `PUT pulls/1/merge ${JSON.stringify({merge_method: 'squash', sha: 'a1', commit_title: 'PR 1 (#1)', commit_message: 'one'})}`);
+  assert.equal(writes[1], 'POST actions/workflows/bootstrap.yml/dispatches {"ref":"main"}');
+  assert.match(writes[2], /^POST issues\/2\/comments .*merge-train behind b1.*merge main into its branch and push/);
+  assert.ok(!writes.some(w => w.includes('update-branch')), 'the train never pushes to a rider');
+});
+
+test('a merge train run drops a failed head with one comment and tests the next rider', async () => {
+  const {result, writes} = await ride({conclusion: 'failure', behind: {}, runs: sha => (sha === 'a1' ? [{status: 'completed'}] : [])});
+  assert.equal(result.action, 'wait');
+  assert.equal(writes.length, 2);
+  assert.equal(writes[0], `DELETE issues/1/labels/${TRAIN_LABEL}`);
+  assert.match(writes[1], /^POST issues\/1\/comments .*Left the merge train: acceptance \/ ubuntu-24.04 is failure/);
+});
+
+test('a merge train run creates its label when the repository has none', async () => {
+  const {writes} = await ride({label: false});
+  assert.match(writes[0], new RegExp(`^POST labels .*"name":"${TRAIN_LABEL}"`));
+  assert.equal(writes.filter(w => w.startsWith('POST labels')).length, 1);
 });
