@@ -376,9 +376,9 @@ pub extern "C" fn plan_end() -> i32 {
 /// frame, back to back. With `which` from 0 to [`strategies`] less one the
 /// output is that scheduled strategy's archive, or empty when the frame
 /// schedules no such strategy or it cannot beat the raw archive (pass them
-/// all to [`choose_frame`]); with any other `which`, the span's archives
-/// ([`uorc::compress_span`]: one frame, or the frames it is cut into where
-/// that pays), back to back.
+/// all to [`choose_frame`]); with any other `which`, the frame's archive,
+/// uncut ([`uorc::compress_trial`]): the page cuts a span by these trials
+/// as [`uorc::compress_span`] does, over its pool ([`span_reads`]).
 #[no_mangle]
 pub extern "C" fn code_frame(which: i32, steps: u64) -> i32 {
     finish(INPUT.with(|input| {
@@ -404,8 +404,49 @@ pub extern "C" fn code_frame(which: i32, steps: u64) -> i32 {
                         .unwrap_or_default(),
                 )
             }
-            _ => Ok(uorc::compress_span(frame, &pieces, &window, steps, 1)?.concat()),
+            _ => uorc::compress_trial(frame, &pieces, &window, steps),
         }
+    }))
+}
+
+/// Whether the declared decode host reads a frame of `n` bytes over
+/// `history` bytes of window (1) or not (0): where a span's second half may
+/// read its first ([`uorc::performance::Host::reads`]).
+#[no_mangle]
+pub extern "C" fn span_reads(n: u64, history: u64) -> i32 {
+    i32::from(uorc::performance::declared_host().reads(n, history))
+}
+
+/// The κ-label of the input buffer's bytes as one frame
+/// ([`uorc::archive::frame_label`]): what a reference frame names it by.
+#[no_mangle]
+pub extern "C" fn frame_label() -> i32 {
+    finish(INPUT.with(|input| Ok(uorc::archive::frame_label(&input.borrow()).to_vec())))
+}
+
+/// A frame's reference archive when it repeats one of the frames before it
+/// in its span ([`uorc::repeat_of`]), else empty: the input buffer holds
+/// a [`code_frame`] request whose window frames are the earlier frames'
+/// κ-labels.
+#[no_mangle]
+pub extern "C" fn repeat_frame() -> i32 {
+    finish(INPUT.with(|input| {
+        let input = input.borrow();
+        let mut f = Fields {
+            bytes: &input,
+            at: 0,
+        };
+        let pieces = f.pieces()?;
+        let lengths: Vec<usize> = (0..f.u32()?).map(|_| f.len()).collect::<Result<_, _>>()?;
+        let labels: Vec<[u8; uorc::archive::SEAL]> = lengths
+            .iter()
+            .map(|&n| f.take(n)?.try_into().map_err(|_| uorc::Error::Decode))
+            .collect::<Result<_, _>>()?;
+        let frame = &f.bytes[f.at..];
+        if pieces.iter().sum::<u64>() != frame.len() as u64 {
+            return Err(uorc::Error::Decode);
+        }
+        Ok(uorc::repeat_of(frame, &pieces, &labels).unwrap_or_default())
     }))
 }
 
@@ -837,15 +878,28 @@ mod tests {
                     references += 1;
                 } else {
                     let pieces = f.pieces().unwrap();
-                    // a span reads no earlier span: what a pool worker codes
-                    let mut request = (pieces.len() as u32).to_le_bytes().to_vec();
-                    for p in &pieces {
-                        request.extend(p.to_le_bytes());
-                    }
-                    request.extend(0u32.to_le_bytes());
-                    request.extend(frame);
-                    let (code, archive) = run(&request, || code_frame(-1, 0));
-                    assert_eq!(code, OK);
+                    // the span cut by trials, each one frame coded as a pool
+                    // worker codes it (code_frame with no strategy)
+                    let trial = |frame: &[u8], pieces: &[u64], window: &[&[u8]]| {
+                        let mut request = (pieces.len() as u32).to_le_bytes().to_vec();
+                        for p in pieces {
+                            request.extend(p.to_le_bytes());
+                        }
+                        request.extend((window.len() as u32).to_le_bytes());
+                        for w in window {
+                            request.extend((w.len() as u64).to_le_bytes());
+                        }
+                        for w in window {
+                            request.extend(*w);
+                        }
+                        request.extend(frame);
+                        let (code, archive) = run(&request, || code_frame(-1, 0));
+                        assert_eq!(code, OK);
+                        archive
+                    };
+                    let archive = uorc::compress_span_by(frame, &pieces, 1, &trial)
+                        .expect("span")
+                        .concat();
                     stream.extend(archive);
                 }
                 at += n;

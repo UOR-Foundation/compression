@@ -1657,10 +1657,13 @@ pub fn split_pieces(pieces: &[u64], at: u64) -> (Vec<u64>, Vec<u64>) {
 
 /// The archives of one span the framer cut (at most [`frame_bytes`], the
 /// longest frame the declared host holds) after the frames `window` of its
-/// epoch: the span as one frame, unless coding it as its two halves (the
-/// second reading the first as history, while the host holds them) is
-/// strictly shorter; then each half is cut the same way, the second coded
-/// after the first's frames. A frame boundary restarts the context model and
+/// epoch: a part that repeats an earlier frame of the span is that frame's
+/// reference, and a second half that repeats its first is the first's
+/// reference (the first one frame, unless the part's own coding is
+/// shorter); otherwise the span is one frame, unless coding it as its two
+/// halves (the second reading the first as history, while the host holds
+/// them) is strictly shorter; then each half is cut the same way, the second
+/// coded after the first's frames. A frame boundary restarts the context model and
 /// lets each part choose its own coding and tables, so whether one pays is
 /// decided by the bytes alone, and the frames depend on the input and the
 /// declared host only. The three trials of a cut run on up to `threads`
@@ -1677,6 +1680,19 @@ pub fn compress_span(
         compress_pieces_on(frame, pieces, window, steps, cores, host)
     };
     cut_span(span, pieces, window, None, threads, host, &trial)
+}
+
+/// One frame of `pieces` coded over `window` as one archive, uncut: a trial
+/// of [`compress_span`], for a client that runs a span's trials on its own
+/// workers and cuts as [`compress_span`] does (the page's pool).
+pub fn compress_trial(
+    frame: &[u8],
+    pieces: &[u64],
+    window: &[&[u8]],
+    steps: u64,
+) -> Result<Vec<u8>, Error> {
+    let host = performance::declared_host();
+    compress_pieces_on(frame, pieces, window, steps, default_threads(), host)
 }
 
 /// [`compress_span`] with each frame coded by `trial` (its bytes, pieces and
@@ -1707,6 +1723,37 @@ enum Part {
     Second,
 }
 
+/// What every node of a span's cut shares: the declared host and the trial.
+struct Cutter<'t> {
+    host: performance::Host,
+    trial: &'t SpanTrial<'t>,
+}
+
+/// A span equal to an earlier frame of its span (`earlier`, their κ-labels)
+/// is that frame's reference, as the framer makes a frame that repeats one
+/// (the v0.3 floor), where the reference is shorter than the raw archive.
+pub fn repeat_of(bytes: &[u8], pieces: &[u64], earlier: &[[u8; archive::SEAL]]) -> Option<Vec<u8>> {
+    if archive::reference_length(pieces) >= archive::raw_length(pieces) {
+        return None;
+    }
+    let label = archive::frame_label(bytes);
+    earlier
+        .contains(&label)
+        .then(|| archive::reference_archive(&label, pieces))
+}
+
+/// The frames of `span` the archives `firsts` code, in order.
+fn frames_of<'a>(span: &'a [u8], firsts: &[Vec<u8>]) -> Result<Vec<&'a [u8]>, Error> {
+    let mut parts = Vec::new();
+    let mut at = 0usize;
+    for archive in firsts {
+        let len = object_lengths(archive)?.iter().sum::<u64>() as usize;
+        parts.push(&span[at..at + len]);
+        at += len;
+    }
+    Ok(parts)
+}
+
 fn cut_span(
     span: &[u8],
     pieces: &[u64],
@@ -1716,77 +1763,133 @@ fn cut_span(
     host: performance::Host,
     trial: &SpanTrial<'_>,
 ) -> Result<Vec<Vec<u8>>, Error> {
-    let n = span.len();
-    let half = n >> 1;
-    if half == 0 {
-        return Ok(vec![match whole {
+    let cutter = Cutter { host, trial };
+    cutter.cut(span, pieces, window, &[], whole, threads)
+}
+
+impl Cutter<'_> {
+    /// The frames of `span` after the frames `window` reads and the frames
+    /// `earlier` names (every frame before it in its span), `whole` its
+    /// coding when the caller has it.
+    fn cut(
+        &self,
+        span: &[u8],
+        pieces: &[u64],
+        window: &[&[u8]],
+        earlier: &[[u8; archive::SEAL]],
+        whole: Option<Vec<u8>>,
+        threads: usize,
+    ) -> Result<Vec<Vec<u8>>, Error> {
+        let trial = self.trial;
+        if whole.is_none() {
+            if let Some(reference) = repeat_of(span, pieces, earlier) {
+                return Ok(vec![reference]);
+            }
+        }
+        let n = span.len();
+        let half = n >> 1;
+        if half == 0 {
+            return Ok(vec![match whole {
+                Some(w) => w,
+                None => trial(span, pieces, window, threads)?,
+            }]);
+        }
+        let (a, b) = span.split_at(half);
+        let (pa, pb) = split_pieces(pieces, half as u64);
+        let held: u64 = window.iter().map(|f| f.len() as u64).sum();
+        // the second half's window: the epoch so far and the first half's
+        // frames, while the host holds it after them
+        let fits = self.host.reads(b.len() as u64, held + half as u64);
+        fn after<'a>(fits: bool, window: &[&'a [u8]], firsts: Vec<&'a [u8]>) -> Vec<&'a [u8]> {
+            if fits {
+                window.iter().copied().chain(firsts).collect()
+            } else {
+                Vec::new()
+            }
+        }
+        let with = |frames: &[&[u8]]| -> Vec<[u8; archive::SEAL]> {
+            let mut labels = earlier.to_vec();
+            labels.extend(frames.iter().map(|f| archive::frame_label(f)));
+            labels
+        };
+        let wb = after(fits, window, vec![a]);
+        let over_a = with(&[a]);
+        // A second half that repeats an earlier frame of the span is cut off
+        // as its reference. One that repeats the first half names it whole,
+        // so the first half is one frame: the two are its coding and the
+        // reference, unless the span's own coding (when given) is shorter.
+        if let Some(reference) = repeat_of(b, &pb, earlier) {
+            let firsts = self.cut(a, &pa, window, earlier, None, threads)?;
+            return Ok(firsts.into_iter().chain([reference]).collect());
+        }
+        if let Some(reference) = repeat_of(b, &pb, &over_a[earlier.len()..]) {
+            let first = trial(a, &pa, window, threads)?;
+            return Ok(match whole {
+                Some(w) if w.len() <= first.len() + reference.len() => vec![w],
+                _ => vec![first, reference],
+            });
+        }
+        let have = whole.is_some();
+        // the trials still to run: the whole span (unless the caller coded it)
+        // and each half
+        let jobs: Vec<Part> = [Part::Whole, Part::First, Part::Second]
+            .into_iter()
+            .filter(|p| !(have && *p == Part::Whole))
+            .collect();
+        // each trial holds an equal share of the cores
+        let spare = (threads / jobs.len()).max(1);
+        let mut done = parallel(&jobs, threads, |j| match j {
+            Part::Whole => trial(span, pieces, window, spare),
+            Part::First => trial(a, &pa, window, spare),
+            Part::Second => trial(b, &pb, &wb, spare),
+        })
+        .into_iter();
+        let whole = match whole {
             Some(w) => w,
-            None => trial(span, pieces, window, threads)?,
-        }]);
-    }
-    let (a, b) = span.split_at(half);
-    let (pa, pb) = split_pieces(pieces, half as u64);
-    let held: u64 = window.iter().map(|f| f.len() as u64).sum();
-    // the second half's window: the epoch so far and the first half's
-    // frames, while the host holds it after them
-    let fits = host.reads(b.len() as u64, held + half as u64);
-    fn after<'a>(fits: bool, window: &[&'a [u8]], firsts: Vec<&'a [u8]>) -> Vec<&'a [u8]> {
-        if fits {
-            window.iter().copied().chain(firsts).collect()
+            None => done.next().expect("the whole span")?,
+        };
+        let (ca, cb) = (
+            done.next().expect("the first half")?,
+            done.next().expect("the second half")?,
+        );
+        if ca.len() + cb.len() >= whole.len() {
+            return Ok(vec![whole]);
+        }
+        // With a core for each half, both are cut at once, the second over the
+        // first half whole (cut again below when the first is cut further);
+        // otherwise the first, then the second.
+        let halves = [Part::First, Part::Second];
+        let (firsts, over_whole) = if threads >= halves.len() {
+            let share = threads / halves.len();
+            let mut cut = parallel(&halves, threads, |h| match h {
+                Part::First => self.cut(a, &pa, window, earlier, Some(ca.clone()), share),
+                _ => self.cut(b, &pb, &wb, &over_a, Some(cb.clone()), share),
+            })
+            .into_iter();
+            let firsts = cut.next().expect("the first half")?;
+            (firsts, cut.next())
         } else {
-            Vec::new()
-        }
+            (self.cut(a, &pa, window, earlier, Some(ca), threads)?, None)
+        };
+        let seconds = if firsts.len() == 1 {
+            match over_whole {
+                Some(cut) => cut?,
+                None => self.cut(b, &pb, &wb, &over_a, Some(cb), threads)?,
+            }
+        } else {
+            // the second half reads the first half's frames as they were cut
+            let parts = frames_of(a, &firsts)?;
+            self.cut(
+                b,
+                &pb,
+                &after(fits, window, parts.clone()),
+                &with(&parts),
+                None,
+                threads,
+            )?
+        };
+        Ok(firsts.into_iter().chain(seconds).collect())
     }
-    let wb = after(fits, window, vec![a]);
-    let have = whole.is_some();
-    // the trials still to run: the whole span (unless the caller coded it)
-    // and each half
-    let jobs: Vec<Part> = [Part::Whole, Part::First, Part::Second]
-        .into_iter()
-        .filter(|p| !(have && *p == Part::Whole))
-        .collect();
-    // each trial holds an equal share of the cores
-    let spare = (threads / jobs.len()).max(1);
-    let mut done = parallel(&jobs, threads, |j| match j {
-        Part::Whole => trial(span, pieces, window, spare),
-        Part::First => trial(a, &pa, window, spare),
-        Part::Second => trial(b, &pb, &wb, spare),
-    })
-    .into_iter();
-    let whole = match whole {
-        Some(w) => w,
-        None => done.next().expect("the whole span")?,
-    };
-    let (ca, cb) = (
-        done.next().expect("the first half")?,
-        done.next().expect("the second half")?,
-    );
-    if ca.len() + cb.len() >= whole.len() {
-        return Ok(vec![whole]);
-    }
-    let firsts = cut_span(a, &pa, window, Some(ca), threads, host, trial)?;
-    let seconds = if firsts.len() == 1 {
-        cut_span(b, &pb, &wb, Some(cb), threads, host, trial)?
-    } else {
-        // the second half reads the first half's frames as they were cut
-        let mut parts = Vec::new();
-        let mut at = 0usize;
-        for archive in &firsts {
-            let len = object_lengths(archive)?.iter().sum::<u64>() as usize;
-            parts.push(&a[at..at + len]);
-            at += len;
-        }
-        cut_span(
-            b,
-            &pb,
-            &after(fits, window, parts),
-            None,
-            threads,
-            host,
-            trial,
-        )?
-    };
-    Ok(firsts.into_iter().chain(seconds).collect())
 }
 
 /// The reference frame for a repeated run, or its raw archive when that is
@@ -3156,13 +3259,16 @@ mod tests {
         compress_stream(&b""[..], &mut stream, 0, 4).expect("empty");
         assert_eq!(frames(&stream).expect("one").len(), 1);
         assert_eq!(decompress(&stream, DEFAULT_DECODE_WORK), Ok(Vec::new()));
+        // Exactly one span: its frames, and no empty frame after them (a
+        // span of one repeated byte is cut into a frame and its reference).
         let input = vec![7u8; FRAME];
         let mut stream = Vec::new();
+        let written = compress_stream(&input[..], &mut stream, 0, 1).expect("one span");
+        let archives = frames(&stream).expect("frames");
+        assert_eq!(written.frames, archives.len() as u64);
         assert_eq!(
-            compress_stream(&input[..], &mut stream, 0, 1)
-                .expect("one frame")
-                .frames,
-            1
+            archives,
+            compress_span(&input, &[input.len() as u64], &[], 0, 1).expect("span")
         );
         assert!(decompress(&stream, DEFAULT_DECODE_WORK).expect("decodes") == input);
         assert_eq!(
@@ -3355,6 +3461,51 @@ mod tests {
         // Every decode path over window frames is identical_frames_are_stored_once's
         // check; one decode here shows these matches resolve.
         assert!(decompress(&stream, DEFAULT_DECODE_WORK).expect("decodes") == input);
+    }
+
+    /// A part of a span that repeats a frame before it is that frame's
+    /// reference, and frames after it read across it; every decode path
+    /// restores the span.
+    #[test]
+    fn a_repeated_half_is_a_reference() {
+        let x = text(40_000, 3);
+        let y = text(30_000, 9);
+        // x x: the second half is the first's reference. x x y y': each
+        // half may be cut, as its bytes decide; it decodes either way.
+        for (span, repeats) in [
+            ([&x[..], &x].concat(), true),
+            (vec![0; 1 << 21], true),
+            ([&x[..], &x, &y, &y[..1000]].concat(), false),
+        ] {
+            let archives = compress_span(&span, &[span.len() as u64], &[], 0, 1).expect("span");
+            let kinds: Vec<Representation> = archives
+                .iter()
+                .map(|a| inspect(a).expect("inspect").representation)
+                .collect();
+            if repeats {
+                assert_eq!(kinds.last(), Some(&Representation::Reference), "{kinds:?}");
+            }
+            let stream = archives.concat();
+            assert!(decompress(&stream, DEFAULT_DECODE_WORK).expect("decodes") == span);
+            for threads in [1, 2, 4] {
+                let mut back = Vec::new();
+                decompress_stream(
+                    io::Cursor::new(&stream[..]),
+                    &mut back,
+                    DEFAULT_DECODE_WORK,
+                    threads,
+                )
+                .expect("streams");
+                assert!(back == span, "{threads} threads");
+            }
+            let mut decoder = FrameDecoder::new(DEFAULT_DECODE_WORK);
+            archives.iter().for_each(|a| decoder.note(a));
+            let back: Vec<u8> = archives
+                .iter()
+                .flat_map(|a| decoder.push(a).expect("frame decodes"))
+                .collect();
+            assert!(back == span);
+        }
     }
 
     /// The decoder finds blocks from the frame headers alone, whatever block
