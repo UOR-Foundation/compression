@@ -226,6 +226,7 @@ pub struct Derived {
 /// is `coding` plus their merge steps, more than `coding` once a second
 /// stream changes anything.
 #[must_use]
+#[allow(clippy::too_many_arguments)]
 pub fn derive(
     history: &[u8],
     data: &[u8],
