@@ -97,6 +97,9 @@ pub const F_SEL: u32 = 1 << 19;
 pub const V03: u32 = (1 << NC) - 1;
 /// Every context and every match feature.
 pub const FULL: u32 = (1 << 20) - 1;
+/// Bytes the coder addresses in one frame and the history before it: a
+/// position is a `u32` ([`Model`] reads `hist` through 32-bit offsets).
+pub const POSITIONS: u64 = 1 << u32::BITS;
 /// A mixer's row stride: its at most `NC + 7` inputs padded with zero inputs to three
 /// 8-lane vectors, so the vector kernels need no tail.
 const NINP: usize = 24;
