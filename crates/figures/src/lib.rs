@@ -66,6 +66,11 @@ pub const MODEL_ROOTS: [&str; 2] = ["src", "client/src"];
 pub const WIRE_MODULES: [&str; 2] = ["Uorc.Wire.", "Uorc.Codec."];
 /// The register's schema.
 pub const SCHEMA: &str = "uorc/figures/1";
+/// The workspace manifest the release version is read from.
+pub const MANIFEST: &str = "Cargo.toml";
+/// The definition of [`PERFORMANCE`] that names the first release whose
+/// implementation must be parametric.
+pub const PARAMETRIC_RELEASE: &str = "parametricRelease";
 
 /// Errors are reported as text.
 pub type Error = String;
@@ -602,6 +607,34 @@ pub fn facets(performance: &str) -> BTreeSet<String> {
     out
 }
 
+/// The release `Uorc.Performance::parametricRelease` names: from it on, a
+/// release ships only when no fixed figure is listed.
+pub fn parametric_release(performance: &str) -> Option<Vec<u64>> {
+    performance
+        .split("definition{")
+        .skip(1)
+        .map(|d| d.split("\n}").next().unwrap_or(d))
+        .find(|d| field(d, "name") == Some(PARAMETRIC_RELEASE))
+        .and_then(|d| field(d, "body"))
+        .and_then(|b| release(b.trim_matches('"')))
+}
+
+/// A release's version as its numeric components (`0.7.0` is `[0, 7, 0]`).
+pub fn release(text: &str) -> Option<Vec<u64>> {
+    text.split('.').map(|c| c.parse().ok()).collect()
+}
+
+/// The workspace version of `Cargo.toml` (`[workspace.package] version`).
+pub fn workspace_version(manifest: &str) -> Result<Vec<u64>, Error> {
+    let t: toml::Value = toml::from_str(manifest).map_err(|e| format!("{MANIFEST}: {e}"))?;
+    t.get("workspace")
+        .and_then(|w| w.get("package"))
+        .and_then(|p| p.get("version"))
+        .and_then(|v| v.as_str())
+        .and_then(release)
+        .ok_or_else(|| format!("{MANIFEST}: no numeric [workspace.package] version"))
+}
+
 pub(crate) fn field<'a>(decl: &'a str, key: &str) -> Option<&'a str> {
     let at = decl.find(&format!("{key}: "))? + key.len() + 2;
     let rest = &decl[at..];
@@ -775,7 +808,20 @@ pub fn check(root: &Path, register: Option<&Register>) -> Result<Outcome, Error>
         scan,
         ..Outcome::default()
     };
-    let known = facets(&read(root, PERFORMANCE)?);
+    let performance = read(root, PERFORMANCE)?;
+    let known = facets(&performance);
+    if let Some(from) = parametric_release(&performance) {
+        let version = workspace_version(&read(root, MANIFEST)?)?;
+        let sites: u64 = out.entries.iter().flat_map(|e| e.values.values()).sum();
+        if version >= from && sites > 0 {
+            let show = |v: &[u64]| v.iter().map(u64::to_string).collect::<Vec<_>>().join(".");
+            out.rejected.push(format!(
+                "{MANIFEST}: release {} is at or after {} (Uorc.Performance::{PARAMETRIC_RELEASE}), which ships only a parametric implementation; {sites} fixed-figure sites remain (Uorc.Performance::implementationFigures)",
+                show(&version),
+                show(&from)
+            ));
+        }
+    }
     for e in &out.entries {
         if let Some(f) = &e.facet {
             if !known.contains(f) {
@@ -990,6 +1036,18 @@ mod tests {
         let s = sites("mod m { struct T; impl T { fn g() -> u8 { 3 } } impl Clone for T { fn clone(&self) -> T { let _ = 4; T } } }");
         let v: Vec<_> = s.sites.iter().map(|s| s.item.as_str()).collect();
         assert_eq!(v, ["m::T::g", "m::<T as Clone>::clone"]);
+    }
+
+    #[test]
+    fn the_parametric_release_is_read_from_the_model_and_compared_by_component() {
+        let perf = "definition{\n  name: parametricRelease,\n  parameters: [],\n  result: String,\n  body: \"0.7.0\",\n  axioms: []\n}\n";
+        assert_eq!(parametric_release(perf), Some(vec![0, 7, 0]));
+        assert_eq!(parametric_release("definition{\n  name: other,\n}"), None);
+        let v = |m: &str| workspace_version(m).unwrap();
+        assert!(v("[workspace.package]\nversion = \"0.6.0\"\n") < vec![0, 7, 0]);
+        assert!(v("[workspace.package]\nversion = \"0.7.0\"\n") >= vec![0, 7, 0]);
+        assert!(v("[workspace.package]\nversion = \"0.10.0\"\n") >= vec![0, 7, 0]);
+        assert!(workspace_version("[package]\nversion = \"1.0.0\"\n").is_err());
     }
 
     #[test]
