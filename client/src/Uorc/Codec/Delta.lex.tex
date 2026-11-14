@@ -1,0 +1,140 @@
+\begin{lexlean}{Uorc.Codec.Delta}
+\importmodule{Uorc.Codec.Table}
+\title{Parameters}
+\begin{semanticmodule}
+definition{
+  name: byteBase,
+  parameters: [],
+  result: Nat,
+  body: 256,
+  executable: true,
+  axioms: []
+}
+
+definition{
+  name: radix,
+  parameters: [],
+  result: Nat,
+  body: 2,
+  executable: true,
+  axioms: []
+}
+
+definition{
+  name: power,
+  parameters: [fuel : Nat, base : Nat],
+  result: Nat,
+  body: (match fuel
+    | Nat.zero => 1
+    | Nat.succ m => (prim multiply base (power m base) : Nat)),
+  executable: true,
+  axioms: [],
+  recursive_argument: fuel
+}
+
+definition{
+  name: widthOf,
+  parameters: [code : Nat],
+  result: Nat,
+  body: (power (prim subtract code 1 : Nat) (radix)),
+  executable: true,
+  axioms: []
+}
+
+definition{
+  name: readLoop,
+  parameters: [fuel : Nat, data : Bytes, at : Nat, acc : Nat],
+  result: Nat,
+  body: (match fuel
+    | Nat.zero => acc
+    | Nat.succ j => (readLoop j data at ((prim multiply (byteBase) acc : Nat) + (Uorc.Codec.Table::readByte data (at + j))))),
+  executable: true,
+  axioms: [Quot.sound, propext],
+  recursive_argument: fuel
+}
+
+definition{
+  name: sample,
+  parameters: [data : Bytes, w : Nat, k : Nat],
+  result: Nat,
+  body: (readLoop w data (prim multiply k w : Nat) 0),
+  executable: true,
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: writeLoop,
+  parameters: [fuel : Nat, data : Bytes, at : Nat, v : Nat],
+  result: Bytes,
+  body: (match fuel
+    | Nat.zero => data
+    | Nat.succ j => (writeLoop j (Uorc.Codec.Table::writeByte data at (prim remainder v (byteBase) 0 : Nat)) (at + 1) (prim quotient v (byteBase) 0 : Nat))),
+  executable: true,
+  axioms: [Quot.sound, propext],
+  recursive_argument: fuel
+}
+
+definition{
+  name: filterLoop,
+  parameters: [fuel : Nat, src : Bytes, out : Bytes, k : Nat, total : Nat, dir : Nat, w : Nat, c : Nat, modulus : Nat],
+  result: Bytes,
+  body: (match fuel
+    | Nat.zero => out
+    | Nat.succ m => (if (total <=? k) then out else (let v : Nat := (sample src w k); (let r : Nat := (if (dir =? 0) then (prim remainder (prim subtract (v + modulus) (sample src w (prim subtract k c : Nat)) : Nat) modulus 0 : Nat) else (prim remainder (v + (sample out w (prim subtract k c : Nat))) modulus 0 : Nat)); (filterLoop m src (writeLoop w out (prim multiply k w : Nat) r) (k + 1) total dir w c modulus))))),
+  executable: true,
+  axioms: [Quot.sound, propext],
+  recursive_argument: fuel
+}
+
+definition{
+  name: run,
+  parameters: [d : Nat, w : Nat, c : Nat, input : Bytes],
+  result: Bytes,
+  body: (if ((w =? 0) || (c =? 0)) then input else (filterLoop (prim length input : Nat) input input c (prim quotient (prim length input : Nat) w 0 : Nat) d w c (power w (byteBase)))),
+  executable: true,
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: bitLength,
+  parameters: [fuel : Nat, m : Nat, acc : Nat],
+  result: Nat,
+  body: (match fuel
+    | Nat.zero => acc
+    | Nat.succ f => (if (m =? 0) then acc else (bitLength f (prim quotient m (radix) 0 : Nat) (acc + 1)))),
+  executable: true,
+  axioms: [Quot.sound, propext],
+  recursive_argument: fuel
+}
+
+definition{
+  name: magnitude,
+  parameters: [v : Nat, modulus : Nat],
+  result: Nat,
+  body: (let m : Nat := (if (v <? (prim quotient modulus (radix) 0 : Nat)) then v else (prim subtract (prim subtract modulus 1 : Nat) v : Nat)); (bitLength m m 0)),
+  executable: true,
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: measureLoop,
+  parameters: [fuel : Nat, data : Bytes, k : Nat, total : Nat, w : Nat, c : Nat, raw : Nat, modulus : Nat, acc : Nat],
+  result: Nat,
+  body: (match fuel
+    | Nat.zero => acc
+    | Nat.succ m => (if (total <=? k) then acc else (let v : Nat := (sample data w k); (let e : Nat := (if ((raw =? 0) && (c <=? k)) then (prim remainder (prim subtract (v + modulus) (sample data w (prim subtract k c : Nat)) : Nat) modulus 0 : Nat) else v); (measureLoop m data (k + 1) total w c raw modulus (acc + (magnitude e modulus))))))),
+  executable: true,
+  axioms: [Quot.sound, propext],
+  recursive_argument: fuel
+}
+
+definition{
+  name: bits,
+  parameters: [w : Nat, c : Nat, raw : Nat, input : Bytes],
+  result: Nat,
+  body: (if (w =? 0) then 0 else (measureLoop (prim length input : Nat) input 0 (prim quotient (prim length input : Nat) w 0 : Nat) w c raw (power w (byteBase)) 0)),
+  executable: true,
+  axioms: [Quot.sound, propext]
+}
+\end{semanticmodule}
+\end{lexlean}

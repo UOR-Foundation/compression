@@ -47,7 +47,7 @@ for name, w in [('n', 4), ('tb', 1), ('mb', 1), ('pos', 4), ('c4', 4), ('c8', 4)
                 ('ai1', 4), ('aj1', 1), ('ai2', 4), ('aj2', 1), ('hoff', 4),
                 ('prof', 4), ('m2ptr', 4), ('m2len', 4), ('m2exp', 1), ('m2b', 1), ('eb2', 1), ('ml2', 4), ('mf2', 1),
                 ('rd', 4), ('rrun', 1), ('rexp', 1), ('rok', 1), ('ra', 1), ('ebr', 1), ('msel', 1),
-                ('learn', 1), ('lmask', 4), ('cm', 8), ('ce', 1), ('cfr', 2)]:
+                ('learn', 1), ('lmask', 4), ('cm', 8), ('ce', 1), ('cfr', 2), ('cb', 1)]:
     P.glob(name, w)
 # graph store regions (key bases); every table is addressed as width * index + byte
 for name, base in [('HB', 1 << 8), ('BB', 1 << 9), ('IX', 1 << 10), ('ST', 1 << 11), ('MS', 1 << 12), ('LP', 1 << 13),
@@ -325,6 +325,9 @@ def adapt(stored, y):
     """(stored p, count) -> new stored entry: p += (target - p) / (count + 1.5), count saturates at 127."""
     pass
 
+# consolidation: a context slot's count stops at 127, or at 2^cb - 1 under a frame word's consolidation field cb
+# (its count bits, bits 64-67; 0 for the standard count): from there the slot adapts at its last rate
+CL = sel(eq(G('cb'), 0), 127, sub(rom('POW2', 4, G('cb')), 1))
 up = []
 for table, gi, gj in (('A1', 'ai1', 'aj1'), ('A2', 'ai2', 'aj2')):
     sq, pre, init = ainit(G(gj))
@@ -337,7 +340,7 @@ sv = [('let', 'ix', ld('IX', 4, V('k'))), ('let', 'sv', ld('T', 3, V('ix'))),
       ('let', 'rt', div(131072, add(mul(2, V('cn')), 3))),
       ('let', 'np', sel(eq(G('y'), 1), add(V('pp'), div(mul(sub(65535, V('pp')), V('rt')), 65536)),
                         sub(V('pp'), div(add(mul(V('pp'), V('rt')), 65535), 65536)))),
-      ('store', 'T', 3, V('ix'), add(mul(256, mod(add(V('np'), 32768), 65536)), mn(add(V('cn'), 1), 127)))]
+      ('store', 'T', 3, V('ix'), add(mul(256, mod(add(V('np'), 32768), 65536)), mn(add(V('cn'), 1), CL)))]
 up += [('loop', NC, 'k', [('if', keeps(V('k')), sv, [])])]
 ms = [('let', 'mi', add(mul(2, G('mbucket')), G('eb'))), ('let', 'sv', ld('MS', 3, V('mi'))),
       ('let', 'cn', mod(V('sv'), 256)), ('let', 'pp', div(V('sv'), 256)),
@@ -416,8 +419,12 @@ P.func('decodeStart', [], dstart)
 P.func('decode', [], [('call', 'decodeStart', []), ('loop', G('n'), 'i', [('call', 'decodeByte', [])])])
 # against a window: H already holds the h history bytes
 P.func('decodeWith', ['h'], [('set', 'hoff', V('h')), ('call', 'decode', [])])
-# a frame word: the profile in bits 0-31, the probability field in bits 32-36 (0: 12 bits, 16: 16 bits, pz 15)
-P.func('decodeProfile', ['h', 'pf'], [('set', 'prof', mod(V('pf'), 1 << 32)), ('set', 'pz', sel(eq(mod(div(V('pf'), 1 << 32), 32), 0), 0, 15)), ('call', 'decodeWith', [V('h')])])
+# a frame word: the profile in bits 0-31, the probability field in bits 32-36 (0: 12 bits, 16: 16 bits, pz 15),
+# the consolidation field from bit 64 (cb, at most 8: every word the archive accepts, Archive.frameWord)
+def word_fields(pf):
+    return [('set', 'prof', mod(pf, 1 << 32)), ('set', 'pz', sel(eq(mod(div(pf, 1 << 32), 32), 0), 0, 15)),
+            ('set', 'cb', div(pf, 1 << 64))]
+P.func('decodeProfile', ['h', 'pf'], word_fields(V('pf')) + [('call', 'decodeWith', [V('h')])])
 # from a kappa-named model state: H starts holding the state's w bytes, which the whole model codes first as
 # though they were the frame's opening bytes (every context, mixer and map learns them, nothing is emitted), so
 # the frame is coded as their continuation. The tables are sized for w + n bytes.
@@ -425,7 +432,7 @@ warm = [('let', 'wb', hist(V('i'))),
         ('loop', 8, 'k', [('set', 'y', mod(div(V('wb'), rom('POW2', 4, sub(7, V('k')))), 2)),
                           ('call', 'predict', []), ('call', 'update', [])])]
 P.func('warmState', ['w'], [('loop', V('w'), 'i', warm)])
-P.func('decodeWarm', ['w', 'pf'], [('set', 'prof', V('pf')), ('set', 'hoff', 0)] + dstart[:3] + [
+P.func('decodeWarm', ['w', 'pf'], word_fields(V('pf')) + [('set', 'hoff', 0)] + dstart[:3] + [
     ('let', 'nn', G('n')), ('set', 'n', add(V('nn'), V('w'))), ('call', 'setup', []), ('set', 'n', V('nn')),
     ('call', 'warmState', [V('w')]), ('loop', G('n'), 'i', [('call', 'decodeByte', [])])])
 
@@ -473,8 +480,8 @@ P.func('encode', ['size', 'limit'], [('set', 'n', V('size')), ('set', 'cap', V('
                                      ('loop', G('n'), 'i', [('call', 'encodeByte', [V('i')])]),
                                      ('call', 'emit', [div(G('x1'), 1 << 24)])])
 P.func('encodeWith', ['size', 'limit', 'h'], [('set', 'hoff', V('h')), ('call', 'encode', [V('size'), V('limit')])])
-P.func('encodeProfile', ['size', 'limit', 'h', 'pf'], [('set', 'prof', mod(V('pf'), 1 << 32)), ('set', 'pz', sel(eq(mod(div(V('pf'), 1 << 32), 32), 0), 0, 15)), ('call', 'encodeWith', [V('size'), V('limit'), V('h')])])
-P.func('encodeWarm', ['size', 'limit', 'w', 'pf'], [('set', 'prof', V('pf')), ('set', 'hoff', 0), ('set', 'n', add(V('size'), V('w'))),
+P.func('encodeProfile', ['size', 'limit', 'h', 'pf'], word_fields(V('pf')) + [('call', 'encodeWith', [V('size'), V('limit'), V('h')])])
+P.func('encodeWarm', ['size', 'limit', 'w', 'pf'], word_fields(V('pf')) + [('set', 'hoff', 0), ('set', 'n', add(V('size'), V('w'))),
                                                   ('set', 'cap', V('limit')), ('call', 'setup', []), ('set', 'n', V('size')),
                                                   ('call', 'warmState', [V('w')]),
                                                   ('loop', G('n'), 'i', [('call', 'encodeByte', [V('i')])]),
