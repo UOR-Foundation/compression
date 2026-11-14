@@ -24,6 +24,8 @@
 //   node scripts/factory.mjs materialize NAME     (CI: delete what NAME does not declare)
 //   node scripts/factory.mjs outcome NAME IDENTITY success|failure DIR
 //   node scripts/factory.mjs publish DIR          (factory.yml only: needs GH_TOKEN)
+//   node scripts/factory.mjs unrecorded           (factory.yml: completed runs this token dispatched, not yet recorded)
+//   node scripts/factory.mjs collect DIR          (factory.yml: record DIR/RUN-ATTEMPT/ outcomes in one commit)
 //   node scripts/factory.mjs release-step --context trigger=WORKFLOW   (factory.yml: tag a proved version)
 //   node scripts/factory.mjs merge-train          (factory.yml: update, test and merge the head of the merge train)
 //   node scripts/factory.mjs export-check | export-record
@@ -142,15 +144,17 @@ export function identities(graph, entries, contexts) {
 
 // Receipts: the index of the receipts branch, one line per receipt:
 //   receipt IDENTITY NAME pass|fail RUN ATTEMPT COMMIT EXPIRES
-// and its weights: `weight NAME LEVEL`.
+// its weights: `weight NAME LEVEL`, and the runs whose outcomes it has read:
+// `seen RUN ATTEMPT`.
 export function parseStore(text) {
-  const receipts = [], weights = {};
+  const receipts = [], weights = {}, seen = new Set();
   for (const line of (text ?? '').split('\n')) {
     const f = line.split(' ');
     if (f[0] === 'receipt' && f.length === 8) receipts.push({identity: f[1], name: f[2], result: f[3], run: f[4], attempt: f[5], commit: f[6], expires: f[7]});
     if (f[0] === 'weight' && f.length === 3) weights[f[1]] = Math.min(LEVELS, Math.max(1, Number(f[2]) || DEFAULT_LEVEL));
+    if (f[0] === 'seen' && f.length === 3) seen.add(`${f[1]} ${f[2]}`);
   }
-  return {receipts, weights};
+  return {receipts, weights, seen};
 }
 
 export function fetchStore(cwd) {
@@ -304,7 +308,7 @@ function options(argv) {
 const outputKey = name => name.replace(/[^A-Za-z0-9]/g, '_');
 const server = () => `${process.env.GITHUB_SERVER_URL ?? 'https://github.com'}/${process.env.GITHUB_REPOSITORY ?? 'UOR-Foundation/compression'}`;
 
-function main(argv) {
+async function main(argv) {
   const [command, ...rest] = argv;
   const dir = root();
   const opts = options(rest);
@@ -392,6 +396,15 @@ function main(argv) {
       return;
     }
     case 'publish': return publish(graph, dir, opts.names[0]);
+    case 'collect': return publishCollected(graph, dir, opts.names[0]);
+    case 'unrecorded': {
+      const ids = await unrecorded(graph, parseStore(fetchStore(dir)), {
+        repository: process.env.GITHUB_REPOSITORY ?? fail('GITHUB_REPOSITORY is required'),
+        token: process.env.GH_TOKEN ?? fail('GH_TOKEN is required'),
+      });
+      if (ids.length) process.stdout.write(ids.join('\n') + '\n');
+      return;
+    }
     case 'release-step': {
       // factory.yml, on the default branch's head: tag, rehearse, wait or done.
       checkWorkflows(graph, dir);
@@ -453,26 +466,47 @@ export function workingTree(dir) {
 export async function publish(graph, dir, outcomes) {
   const run = process.env.FACTORY_RUN_ID ?? fail('FACTORY_RUN_ID is required');
   const attempt = process.env.FACTORY_RUN_ATTEMPT ?? fail('FACTORY_RUN_ATTEMPT is required');
+  return publishRuns(graph, dir, [{run, attempt, outcomes}]);
+}
+
+// The collected runs (factory.yml): DIR holds one RUN-ATTEMPT directory of
+// outcome files per run, all recorded in one commit.
+export async function publishCollected(graph, dir, collected) {
+  const runs = (fs.existsSync(collected) ? fs.readdirSync(collected) : []).flatMap(d => {
+    const m = d.match(/^(\d+)-(\d+)$/);
+    return m ? [{run: m[1], attempt: m[2], outcomes: path.join(collected, d)}] : [];
+  });
+  if (!runs.length) { console.log('factory: no dispatched run to collect'); return; }
+  return publishRuns(graph, dir, runs);
+}
+
+async function publishRuns(graph, dir, runs) {
   const token = process.env.GH_TOKEN ?? fail('GH_TOKEN is required');
   const repo = process.env.GITHUB_REPOSITORY ?? fail('GITHUB_REPOSITORY is required');
-  const files = fs.existsSync(outcomes) ? fs.readdirSync(outcomes).filter(f => f.endsWith('.outcome')).sort() : [];
-  const fresh = files.flatMap(f => {
-    const [tag, name, identity, result, commit] = fs.readFileSync(path.join(outcomes, f), 'utf8').trim().split(' ');
-    if (tag !== 'outcome' || !/^[a-z0-9._-]+$/.test(name ?? '') || !/^[0-9a-f]{64}$/.test(identity ?? '') || !['pass', 'fail'].includes(result) || !/^[0-9a-f]{40}$/.test(commit ?? '')) fail(`${f}: malformed outcome`);
-    // A pull request may declare an obligation the default branch does not know yet.
-    if (!graph.obligations.some(o => o.name === name)) { console.error(`::warning::${name} is not in the default branch's factory/graph.json; no receipt`); return []; }
-    return [{name, identity, result, commit}];
-  });
-  if (!fresh.length) { console.log('factory: this run established nothing new'); return; }
-  // A receipt whose obligation carries evidence expires a day before its evidence does.
-  const listing = await (globalThis.factoryFetch ?? fetch)(`https://api.github.com/repos/${repo}/actions/runs/${run}/artifacts?per_page=100`, {headers: {authorization: `Bearer ${token}`, accept: 'application/vnd.github+json'}});
-  const artifacts = listing.ok ? (await listing.json()).artifacts : fail(`listing the artifacts of run ${run}: ${listing.status}`);
-  const expiry = name => {
-    const o = graph.obligations.find(x => x.name === name);
-    if (!o.evidence) return 'never';
-    const a = artifacts.find(x => x.name === o.evidence && !x.expired);
-    return a ? new Date(Date.parse(a.expires_at) - 86400000).toISOString() : null;
-  };
+  const read = [];
+  for (const {run, attempt, outcomes} of runs) {
+    const files = fs.existsSync(outcomes) ? fs.readdirSync(outcomes).filter(f => f.endsWith('.outcome')).sort() : [];
+    const fresh = files.flatMap(f => {
+      const [tag, name, identity, result, commit] = fs.readFileSync(path.join(outcomes, f), 'utf8').trim().split(' ');
+      if (tag !== 'outcome' || !/^[a-z0-9._-]+$/.test(name ?? '') || !/^[0-9a-f]{64}$/.test(identity ?? '') || !['pass', 'fail'].includes(result) || !/^[0-9a-f]{40}$/.test(commit ?? '')) fail(`${f}: malformed outcome`);
+      // A pull request may declare an obligation the default branch does not know yet.
+      if (!graph.obligations.some(o => o.name === name)) { console.error(`::warning::${name} is not in the default branch's factory/graph.json; no receipt`); return []; }
+      return [{name, identity, result, commit}];
+    });
+    // A receipt whose obligation carries evidence expires a day before its evidence does.
+    let artifacts = [];
+    if (fresh.length) {
+      const listing = await (globalThis.factoryFetch ?? fetch)(`https://api.github.com/repos/${repo}/actions/runs/${run}/artifacts?per_page=100`, {headers: {authorization: `Bearer ${token}`, accept: 'application/vnd.github+json'}});
+      artifacts = listing.ok ? (await listing.json()).artifacts : fail(`listing the artifacts of run ${run}: ${listing.status}`);
+    }
+    const expiry = name => {
+      const o = graph.obligations.find(x => x.name === name);
+      if (!o.evidence) return 'never';
+      const a = artifacts.find(x => x.name === o.evidence && !x.expired);
+      return a ? new Date(Date.parse(a.expires_at) - 86400000).toISOString() : null;
+    };
+    read.push({run, attempt, fresh, expiry});
+  }
   const header = `AUTHORIZATION: basic ${Buffer.from(`x-access-token:${token}`).toString('base64')}`;
   const auth = ['-c', `http.https://github.com/.extraheader=${header}`];
   const work = fs.mkdtempSync(path.join(os.tmpdir(), 'factory-receipts-'));
@@ -483,10 +517,11 @@ export async function publish(graph, dir, outcomes) {
       git(['read-tree', 'refs/factory/receipts'], {cwd: dir, env});
       parent = ['-p', git(['rev-parse', 'refs/factory/receipts'], {cwd: dir}).toString().trim()];
     }
-    const old = parentIndex(dir, env);
-    const store = parseStore(old);
+    const store = parseStore(parentIndex(dir, env));
+    const todo = read.filter(r => !store.seen.has(`${r.run} ${r.attempt}`));
+    if (!todo.length) { console.log(`factory: ${read.map(r => `run ${r.run} attempt ${r.attempt}`).join(', ')} already recorded`); return; }
     const lines = [];
-    for (const o of fresh) {
+    for (const {run, attempt, fresh, expiry} of todo) for (const o of fresh) {
       const expires = o.result === 'pass' ? expiry(o.name) : 'never';
       if (expires === null) { console.error(`::warning::${o.name} passed but its evidence ${graph.obligations.find(x => x.name === o.name).evidence} is not in run ${run}; no receipt`); continue; }
       const line = `receipt ${o.identity} ${o.name} ${o.result} ${run} ${attempt} ${o.commit} ${expires}`;
@@ -495,22 +530,41 @@ export async function publish(graph, dir, outcomes) {
       const blob = git(['hash-object', '-w', '--stdin'], {cwd: dir, input: line + '\n'}).toString().trim();
       git(['update-index', '--add', '--cacheinfo', `100644,${blob},receipts/${o.name}/${o.identity}-${run}-${attempt}.receipt`], {cwd: dir, env});
     }
-    const weights = reweigh(store.weights, fresh);
+    const weights = reweigh(store.weights, todo.flatMap(r => r.fresh));
     const now = new Date();
     const kept = store.receipts.filter(r => r.expires === 'never' || new Date(r.expires) > now)
       .map(r => `receipt ${r.identity} ${r.name} ${r.result} ${r.run} ${r.attempt} ${r.commit} ${r.expires}`);
-    const text = [...kept, ...lines, ...Object.keys(weights).sort().map(n => `weight ${n} ${weights[n]}`)].join('\n') + '\n';
+    const seen = [...store.seen, ...todo.map(r => `${r.run} ${r.attempt}`)].map(r => `seen ${r}`);
+    const text = [...kept, ...lines, ...Object.keys(weights).sort().map(n => `weight ${n} ${weights[n]}`), ...seen].join('\n') + '\n';
     const blob = git(['hash-object', '-w', '--stdin'], {cwd: dir, input: text}).toString().trim();
     git(['update-index', '--add', '--cacheinfo', `100644,${blob},index`], {cwd: dir, env});
     const treeId = git(['write-tree'], {cwd: dir, env}).toString().trim();
-    const commit = git(['-c', 'user.name=uorc-factory', '-c', 'user.email=uorc-factory@users.noreply.github.com', 'commit-tree', treeId, ...parent, '-m', `Receipts of run ${run} attempt ${attempt}`], {cwd: dir}).toString().trim();
+    const names = todo.map(r => `run ${r.run} attempt ${r.attempt}`).join(', ');
+    const commit = git(['-c', 'user.name=uorc-factory', '-c', 'user.email=uorc-factory@users.noreply.github.com', 'commit-tree', treeId, ...parent, '-m', `Receipts of ${names}`], {cwd: dir}).toString().trim();
     if (git([...auth, 'push', '--quiet', 'origin', `${commit}:refs/heads/${BRANCH}`], {cwd: dir, allowFail: true}) !== null) {
-      console.log(`factory: recorded ${lines.length} receipt(s) of run ${run}:\n${lines.join('\n')}`);
+      console.log(lines.length ? `factory: recorded ${lines.length} receipt(s) of ${names}:\n${lines.join('\n')}` : `factory: ${names} established nothing new`);
       return;
     }
     await new Promise(r => setTimeout(r, tries * 5000));
   }
   fail(`could not push receipts to ${BRANCH}`);
+}
+
+// A run this workflow's token dispatches (a release rehearsal, a bootstrap of
+// the default branch after a merge, an engine tick's gate) starts no
+// workflow_run when it completes, so factory.yml collects it instead: every
+// completed same-repository run of an obligation's workflow that the token
+// dispatched and the store has not seen, oldest first, as `RUN ATTEMPT`.
+export async function unrecorded(graph, store, {repository, token, call = globalThis.factoryFetch ?? fetch}) {
+  const workflows = [...new Set(graph.obligations.map(o => o.workflow).filter(Boolean))].sort();
+  const runs = [];
+  for (const w of workflows) {
+    const r = await call(`https://api.github.com/repos/${repository}/actions/workflows/${w}/runs?event=workflow_dispatch&status=completed&actor=${encodeURIComponent('github-actions[bot]')}`, {headers: {authorization: `Bearer ${token}`, accept: 'application/vnd.github+json'}});
+    if (!r.ok) fail(`listing the dispatched runs of ${w}: ${r.status}`);
+    for (const x of (await r.json()).workflow_runs ?? [])
+      if (x.head_repository?.full_name === repository && !store.seen.has(`${x.id} ${x.run_attempt}`)) runs.push(x);
+  }
+  return runs.sort((a, b) => Date.parse(a.updated_at) - Date.parse(b.updated_at)).map(x => `${x.id} ${x.run_attempt}`);
 }
 
 /// Moves the merge train as far as it can without waiting: a merge or a drop
