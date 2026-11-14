@@ -92,12 +92,12 @@ jobs:
             gh run watch "$AFTER" --repo "$GITHUB_REPOSITORY" >/dev/null || true
           fi
           node scripts/factory.mjs unrecorded | while read -r run attempt; do
-            raw=".tmp/collected/$run-$attempt.raw" out=".tmp/collected/$run-$attempt"
+            raw=".tmp/collected-raw/$run-$attempt" out=".tmp/collected/$run-$attempt"
             mkdir -p "$raw" "$out"
             gh run download "$run" --repo "$GITHUB_REPOSITORY" --pattern 'factory-outcome-*' --dir "$raw" || echo "run $run: no outcome artifacts left"
             find "$raw" -name '*.outcome' -exec cp {} "$out/" \;
-            FACTORY_RUN_ID="$run" FACTORY_RUN_ATTEMPT="$attempt" node scripts/factory.mjs publish "$out"
           done
+          node scripts/factory.mjs collect .tmp/collected
 
   release:
     name: tag the workspace version
