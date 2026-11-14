@@ -1279,8 +1279,11 @@ impl Register {
     ///   member's chain is within the bound ([`met_up_to`]);
     /// - `hostCeiling`, with `host`: the decompressed and the compressed
     ///   bytes per second under the input over the host's ceiling for the
-    ///   run's exact steps and moved lines (`Uorc.Host::ceilingNanos`, from
-    ///   the host's measured step and memory rates), measured, not decided.
+    ///   steps each side ran and the archive's moved lines
+    ///   (`Uorc.Host::ceilingNanos`, from the host's measured step and
+    ///   memory rates): decode the archive's exact steps, compress the model
+    ///   steps its trials coded ([`Run::compress_steps`]); measured, not
+    ///   decided.
     ///   The compute term covers the step's mixer contraction only, so the
     ///   distance includes the rest of each step.
     ///
@@ -1355,15 +1358,21 @@ impl Register {
             }
             let input: u64 = run.inputs.iter().sum();
             let per_second = |secs: f64| (input as f64 / secs.max(1e-9)) as u64;
-            // the input over the host's ceiling for the run's exact steps and
-            // the lines its tables move (Uorc.Host::ceilingNanos); the
-            // compress bound counts the archive's decode steps, a floor on
-            // any compression's
-            let ceiling = h.ceiling_nanos(run.closed.steps, run.line_bytes);
+            // the input over the host's ceiling for the steps each side ran
+            // and the lines the archive's tables move
+            // (Uorc.Host::ceilingNanos): decode runs the archive's exact
+            // steps, compress the model steps its trials coded
             let second = std::time::Duration::from_secs(1).as_nanos();
-            let rate = u64::try_from(u128::from(input) * second / u128::from(ceiling.max(1)))
-                .unwrap_or(u64::MAX);
-            for (r, secs) in [(REQUIREMENTS[2], decode_s), (REQUIREMENTS[3], compress_s)] {
+            let rate = |steps: u64| {
+                let ceiling = h.ceiling_nanos(steps, run.line_bytes);
+                u64::try_from(u128::from(input) * second / u128::from(ceiling.max(1)))
+                    .unwrap_or(u64::MAX)
+            };
+            for (r, secs, steps) in [
+                (REQUIREMENTS[2], decode_s, run.closed.steps),
+                (REQUIREMENTS[3], compress_s, run.compress_steps),
+            ] {
+                let rate = rate(steps);
                 let observed = per_second(secs);
                 let q = Register::requirement_question(point, corpus, r, None, Some(&h.kappa));
                 answers.push((
@@ -1555,6 +1564,10 @@ pub struct Run {
     /// Bytes of cache lines the members' ncm frames move on this host
     /// (`Uorc.Host::moved`), when timed.
     pub line_bytes: u64,
+    /// Model steps the compressions ran ([`uorc::ncm::model_steps`] over
+    /// each member's compress: every trial's coded bits times its inputs,
+    /// and state replays), when timed.
+    pub compress_steps: u64,
 }
 
 /// [`measure`], keeping each member's decode schedule; with `timed`, also
@@ -1585,8 +1598,10 @@ pub fn run(
     let mut schedules = Vec::with_capacity(files.len());
     let (mut compress_s, mut decode_s) = (0f64, 0f64);
     let mut line_bytes = 0u64;
+    let mut compress_steps = 0u64;
     for (m, input) in corpus.members.iter().zip(files) {
         let fail = |what: &str| Error::Codec(format!("{}: {what}", m.name));
+        let ran = uorc::ncm::model_steps();
         let t = std::time::Instant::now();
         let stream = if shipped {
             uorc::compress(input, 0).map_err(|e| fail(&format!("compress: {e}")))?
@@ -1594,6 +1609,7 @@ pub fn run(
             point.plan.compress(input, threads)
         };
         compress_s += t.elapsed().as_secs_f64();
+        compress_steps = compress_steps.saturating_add(uorc::ncm::model_steps() - ran);
         let mut steps = 0u64;
         for frame in uorc::frames(&stream).map_err(|e| fail(&format!("frames: {e}")))? {
             let info = uorc::inspect(frame).map_err(|e| fail(&format!("inspect: {e}")))?;
@@ -1645,6 +1661,7 @@ pub fn run(
         schedules,
         seconds: timed.then_some((compress_s, decode_s)),
         line_bytes,
+        compress_steps: if timed { compress_steps } else { 0 },
     })
 }
 
