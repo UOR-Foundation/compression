@@ -97,18 +97,24 @@ pub struct Budgeted<'a> {
     pub decider: &'a mut FrontierDecider,
     /// New runs left this tick.
     pub left: u64,
+    /// The repository root the register is written back to after each new
+    /// run, so a tick cut short keeps every claim it decided.
+    pub root: &'a Path,
 }
 
 impl Probe for Budgeted<'_> {
     fn probe(&mut self, values: &BTreeMap<String, i64>) -> Result<Option<Measure>, String> {
         let codec = self.decider.shipped_at(values);
-        if !self.decider.settled(&codec) {
-            if self.left == 0 {
-                return Ok(None);
-            }
-            self.left -= 1;
+        if self.decider.settled(&codec) {
+            return self.decider.measure_codec(&codec).map(Some);
         }
-        self.decider.measure_codec(&codec).map(Some)
+        if self.left == 0 {
+            return Ok(None);
+        }
+        self.left -= 1;
+        let m = self.decider.measure_codec(&codec)?;
+        self.decider.save(self.root)?;
+        Ok(Some(m))
     }
 }
 
@@ -193,11 +199,14 @@ pub fn search(
             }
         }
     }
-    let (best, best_m) = seen
+    // nothing measured yet: the budget ran out before this coordinate
+    let Some((best, best_m)) = seen
         .iter()
         .min_by_key(|(v, m)| (m.bytes, *v))
         .map(|(v, m)| (*v, m.clone()))
-        .ok_or("the search measured nothing")?;
+    else {
+        return Ok(None);
+    };
     let mut family_best = BTreeMap::new();
     let mut distance = 0;
     for (f, name) in portfolio::FAMILY_NAMES.iter().enumerate() {
@@ -245,6 +254,7 @@ pub fn stage(
     let mut probe = Budgeted {
         decider,
         left: budget,
+        root,
     };
     let mut file = CoordinatesFile {
         schema: SCHEMA.to_owned(),
