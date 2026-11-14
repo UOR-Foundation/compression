@@ -957,6 +957,9 @@ pub fn state_archive_learning(
     lengths: &[u64],
     payload: &[u8],
 ) -> Option<Vec<u8>> {
+    if !crate::ncm::valid_profile(profile) {
+        return None;
+    }
     let plan = crate::ncm::streams::Plan {
         learning,
         ..crate::ncm::streams::Plan::ONE
