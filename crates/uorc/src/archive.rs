@@ -256,7 +256,7 @@ fn template(codec: Codec, k: usize, era: Era) -> Option<(Cow<'static, [u8]>, Vec
         }
         let (prefix, tail) = profile_template(k, codec.x86(), era)?;
         let mut suffix = vec![0];
-        push_word(&mut suffix, p);
+        push_uleb(&mut suffix, p);
         suffix.extend_from_slice(&tail);
         return Some((prefix, suffix));
     }
@@ -384,7 +384,7 @@ fn parse_body(body: &[u8], k: usize, era: Era) -> Option<(Codec, &[u8])> {
         let (prefix, tail) = profile_template(k, x86, era)?;
         let (payload, rest) = split(&prefix)?;
         let rest = rest.strip_prefix(&[0])?;
-        let (p, after) = read_word(rest, 0)?;
+        let (p, after) = read_uleb(rest, 0)?;
         // a frame is coded over the x86 filter or a delta filter, not both
         let ok = after == uleb_len(p)
             && frame_word(p).is_some_and(|(model, plan)| {
@@ -439,12 +439,7 @@ const fn hex_literal<const N: usize>(text: &str) -> [u8; N] {
     out
 }
 
-pub(crate) fn push_uleb(out: &mut Vec<u8>, n: u64) {
-    push_word(out, Word::from(n));
-}
-
-/// [`push_uleb`] of a frame word.
-pub(crate) fn push_word(out: &mut Vec<u8>, mut n: Word) {
+pub(crate) fn push_uleb(out: &mut Vec<u8>, mut n: u64) {
     while n >= 0x80 {
         out.push((n as u8 & 0x7F) | 0x80);
         n >>= 7;
@@ -453,8 +448,7 @@ pub(crate) fn push_word(out: &mut Vec<u8>, mut n: Word) {
 }
 
 /// Length of the shortest ULEB128 encoding of `n`.
-pub fn uleb_len(n: impl Into<u128>) -> usize {
-    let mut n: u128 = n.into();
+pub fn uleb_len(mut n: u64) -> usize {
     let mut len = 1;
     while n >= 0x80 {
         n >>= 7;
@@ -463,15 +457,14 @@ pub fn uleb_len(n: impl Into<u128>) -> usize {
     len
 }
 
-/// Read a ULEB128 frame word at `at` (any number below 2^128): the value
-/// and the offset after it.
-pub(crate) fn read_word(data: &[u8], mut at: usize) -> Option<(Word, usize)> {
-    let mut value: Word = 0;
-    for shift in (0..Word::BITS).step_by(7) {
+/// Read a ULEB128 number at `at`: the value and the offset after it.
+pub(crate) fn read_uleb(data: &[u8], mut at: usize) -> Option<(u64, usize)> {
+    let mut value = 0u64;
+    for shift in (0..64).step_by(7) {
         let byte = *data.get(at)?;
         at += 1;
-        let part = Word::from(byte & 0x7F);
-        if part.checked_shl(shift)? >> shift != part {
+        let part = u64::from(byte & 0x7F);
+        if shift == 63 && part > 1 {
             return None;
         }
         value |= part << shift;
@@ -480,16 +473,6 @@ pub(crate) fn read_word(data: &[u8], mut at: usize) -> Option<(Word, usize)> {
         }
     }
     None
-}
-
-/// Read a ULEB128 number at `at`: the value and the offset after it. A
-/// number takes at most the bytes of the largest `u64`.
-pub(crate) fn read_uleb(data: &[u8], at: usize) -> Option<(u64, usize)> {
-    let (value, after) = read_word(data, at)?;
-    if after - at > uleb_len(u64::MAX) {
-        return None;
-    }
-    Some((u64::try_from(value).ok()?, after))
 }
 
 /// The UORC-SHA256-CHAIN-v1 digest of `preimage`.
@@ -971,7 +954,7 @@ pub fn state_archive(
     push_uleb(&mut pre, p);
     pre.extend_from_slice(payload);
     pre.push(0);
-    push_word(&mut pre, word);
+    push_uleb(&mut pre, word);
     pre.extend_from_slice(tail);
     Some(sealed(pre))
 }
@@ -1012,7 +995,7 @@ pub fn state_frame(data: &[u8]) -> Option<StateFrame<'_>> {
         }
         let (payload, rest) = rest[after..].split_at(p);
         let rest = rest.strip_prefix(&[0])?;
-        let (w, after) = read_word(rest, 0)?;
+        let (w, after) = read_uleb(rest, 0)?;
         // the serial plan: only the learning fields join the profile
         let (profile, plan) = crate::ncm::streams::split(w).filter(|(_, p)| {
             *p == crate::ncm::streams::Plan {

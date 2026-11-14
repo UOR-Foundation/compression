@@ -423,7 +423,7 @@ P.func('decodeWith', ['h'], [('set', 'hoff', V('h')), ('call', 'decode', [])])
 # the consolidation field from bit 64 (cb, at most 8: every word the archive accepts, Archive.frameWord)
 def word_fields(pf):
     return [('set', 'prof', mod(pf, 1 << 32)), ('set', 'pz', sel(eq(mod(div(pf, 1 << 32), 32), 0), 0, 15)),
-            ('set', 'cb', div(pf, 1 << 64))]
+            ('set', 'cb', mod(div(pf, 1 << 53), 32))]
 P.func('decodeProfile', ['h', 'pf'], word_fields(V('pf')) + [('call', 'decodeWith', [V('h')])])
 # from a kappa-named model state: H starts holding the state's w bytes, which the whole model codes first as
 # though they were the frame's opening bytes (every context, mixer and map learns them, nothing is emitted), so

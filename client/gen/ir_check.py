@@ -191,11 +191,11 @@ def run_case(job):
         want += [int(r[3]) for r in rows]
         got += [dm.py_measure(data, int(r[0]), int(r[1]), int(r[2])) for r in rows]
     elif kind == 'serial-encode-cb2':
-        want, got = nat('consolidate.bin'), nm.py_encode(data, history, FULL | 2 << 64)
+        want, got = nat('consolidate.bin'), nm.py_encode(data, history, FULL | 2 << 53)
     elif kind == 'serial-decode-cb2':
-        want, got = data, nm.py_decode(nat('consolidate.bin'), history, FULL | 2 << 64)
+        want, got = data, nm.py_decode(nat('consolidate.bin'), history, FULL | 2 << 53)
     elif kind == 'serial-encode-cb2-p16':
-        want, got = nat('consolidate16.bin'), nm.py_encode(data, history, FULL | 16 << 32 | 2 << 64)
+        want, got = nat('consolidate16.bin'), nm.py_encode(data, history, FULL | 16 << 32 | 2 << 53)
     elif kind == 'serial-learn':
         want, mask = nat('learn.bin'), int(nat('learn.mask'))
         got, gmask = nm.py_learn(data, history, FULL)

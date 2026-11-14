@@ -122,25 +122,22 @@ pub const EPOCH_FIELD: u32 = 5;
 /// Bit of a frame word where the probability field starts (5 bits): zero
 /// for 12-bit probabilities, otherwise the bits (16).
 pub const PROB_AT: u32 = 32;
-/// Bits of a frame word below the learning fields: the profile, the plan
-/// and the delta field.
+/// Bits of a frame word: the profile, the plan, the learning fields and
+/// the delta field.
 pub const PLAN_BITS: u32 = u64::BITS;
-/// Bit of a frame word where the delta field starts, the last bits below
-/// [`PLAN_BITS`]: the width field, then the channels field
-/// ([`crate::delta::Delta::field`]), 0 for no delta filter.
+/// Bit of a frame word where the delta field starts, its last bits: the
+/// width field, then the channels field ([`crate::delta::Delta::field`]), 0
+/// for no delta filter.
 pub const DELTA_AT: u32 = EPOCH_AT + EPOCH_FIELD;
-/// Bit of a frame word where the consolidation field starts (4 bits): a
-/// context slot's count bits ([`super::Learning::count_bits`]), 0 for the
-/// standard count.
-pub const COUNT_AT: u32 = PLAN_BITS;
-/// Width of the consolidation field: it holds 0 to
-/// [`super::Learning::COUNT_BITS_MAX`].
-pub const COUNT_FIELD: u32 = u32::BITS - super::Learning::COUNT_BITS_MAX.leading_zeros();
-/// Bit of a frame word past its last field.
-pub const WORD_END: u32 = COUNT_AT + COUNT_FIELD;
+/// Bit of a frame word where the consolidation field starts: a one-stream
+/// word's epoch field, which carries no epoch ([`split`]), holds a context
+/// slot's count bits ([`super::Learning::count_bits`]), 0 for the standard
+/// count. Streams learn as the standard model ([`Plan::valid`]), so the
+/// field has one meaning in every word.
+pub const COUNT_AT: u32 = EPOCH_AT;
 
 /// A frame word: the profile, the plan and the learning fields.
-pub type Word = u128;
+pub type Word = u64;
 
 /// The frame word an entry names: the model `profile` in the low 32 bits,
 /// the plan above ([`STREAMS_AT`], [`EPOCH_AT`]). One stream is the profile
@@ -171,18 +168,11 @@ pub fn word(profile: u32, plan: Plan) -> Option<Word> {
 /// writes (a single meaning per word: one stream carries no epoch).
 #[must_use]
 pub fn split(word: Word) -> Option<(u32, Plan)> {
-    // nothing past the learning fields
-    if word >> WORD_END != 0 {
-        return None;
-    }
     let field = ((word >> DELTA_AT) & ((1 << (PLAN_BITS - DELTA_AT)) - 1)) as u32;
     let delta = crate::delta::Delta::of_field(field);
     if field != 0 && delta.is_none() {
         return None;
     }
-    let learning = super::Learning {
-        count_bits: ((word >> COUNT_AT) & ((1 << COUNT_FIELD) - 1)) as u32,
-    };
     let bits = match (word >> PROB_AT) & 31 {
         0 => 12,
         16 => 16,
@@ -191,12 +181,18 @@ pub fn split(word: Word) -> Option<(u32, Plan)> {
     let profile = (word & Word::from(u32::MAX)) as u32;
     let streams = ((word >> STREAMS_AT) & 0xffff) as usize + 1;
     let e = ((word >> EPOCH_AT) & ((1 << EPOCH_FIELD) - 1)) as u32;
-    if !super::valid_profile(profile) || (streams == 1 && e != 0) {
+    if !super::valid_profile(profile) {
         return None;
     }
+    // one stream carries no epoch: its epoch field is the consolidation field
+    let (epoch, learning) = if streams == 1 {
+        (1, super::Learning { count_bits: e })
+    } else {
+        (1 << e, super::Learning::STANDARD)
+    };
     let plan = Plan {
         streams,
-        epoch: 1 << e,
+        epoch,
         bits,
         learning,
         delta,
