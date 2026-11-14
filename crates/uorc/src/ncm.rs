@@ -78,6 +78,81 @@ pub mod standard {
     }
 }
 
+/// The model's learning facets: what a frame word records about how the
+/// model learns, above its plan ([`streams::COUNT_AT`]). Each field 0 is the
+/// standard model ([`standard`]), so every frame coded before the field
+/// existed keeps its word. A facet is chosen per frame by outcome: the
+/// client steps it on the chosen archive while the archive gets strictly
+/// shorter (`Client.stepConsolidation`).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+pub struct Learning {
+    /// Consolidation: the bits of a context slot's count, 0 for the standard
+    /// count ([`standard::COUNT_LIMIT`]). A slot adapts by
+    /// `RATE_NUMERATOR / (2 * count + 3)` of its gap, and its count stops at
+    /// `2^count_bits - 1`: from there the slot is consolidated and adapts at
+    /// that last rate, an exponential average, so fewer bits forget faster.
+    /// The count is also what a bucket's replacement weighs.
+    pub count_bits: u32,
+}
+
+impl Learning {
+    /// The standard model: every field 0.
+    pub const STANDARD: Learning = Learning { count_bits: 0 };
+
+    /// The most count bits a slot holds: its count byte.
+    pub const COUNT_BITS_MAX: u32 = u8::BITS;
+
+    /// Whether this record names a model: every field within its range.
+    #[must_use]
+    pub fn valid(self) -> bool {
+        self.count_bits <= Learning::COUNT_BITS_MAX
+    }
+
+    /// Whether every field is the standard model's.
+    #[must_use]
+    pub fn standard(self) -> bool {
+        self == Learning::STANDARD
+    }
+
+    /// The count a context slot stops at.
+    #[must_use]
+    pub fn count_limit(self) -> u32 {
+        if self.count_bits == 0 {
+            u32::from(standard::COUNT_LIMIT)
+        } else {
+            (1 << self.count_bits) - 1
+        }
+    }
+
+    /// The count bits a slot's count of the standard model fills.
+    #[must_use]
+    pub fn standard_count_bits() -> u32 {
+        u32::BITS - u32::from(standard::COUNT_LIMIT).leading_zeros()
+    }
+
+    /// The model point of `profile` (a profile word, its bit 31 this module's
+    /// [`WIDE`] mark) learning under this record.
+    fn point(self, profile: u32) -> Point {
+        u64::from(profile) | u64::from(self.count_bits) << u32::BITS
+    }
+
+    /// The record a model point carries.
+    fn of(point: Point) -> Learning {
+        Learning {
+            count_bits: (point >> u32::BITS) as u32,
+        }
+    }
+}
+
+/// A model point inside this module: the profile word in the low 32 bits
+/// (bit 31 the [`WIDE`] mark) and the [`Learning`] record above.
+type Point = u64;
+
+/// The profile word of a model point.
+fn profile_of(point: Point) -> u32 {
+    point as u32
+}
+
 const NC: usize = 17;
 /// Profile bit: the short match model (keyed on 4 bytes, found from 4).
 pub const F_SHORT: u32 = 1 << 17;
@@ -142,7 +217,7 @@ struct Tables {
     /// `squash(d)` at `d + 2048`, for `d` in -2048..=2047: the integer LUT the
     /// coder reads in place of interpolating, with the same values.
     squash: [i16; 4096],
-    rate: [i32; 128],
+    rate: Rates,
     /// `cost[p]` = 256 log2(4096 / p), the cost in 1/256 bit of coding a bit
     /// at probability p / 4096 (`cost_table`).
     cost: [u16; 4096],
@@ -204,8 +279,11 @@ fn tables() -> &'static Tables {
             }
             pi = v + 1;
         }
-        let mut rate = [0i32; 128];
-        for (c, r) in rate.iter_mut().enumerate() {
+        let mut rate = Rates {
+            rate: [0; RATES],
+            top: u32::from(standard::COUNT_LIMIT),
+        };
+        for (c, r) in rate.rate.iter_mut().enumerate() {
             *r = standard::RATE_NUMERATOR / (2 * c as i32 + 3);
         }
         let mut sq = [0i16; 4096];
@@ -383,12 +461,12 @@ fn prefetch<T>(p: &T) {
 }
 
 #[inline]
-fn adapt(p: &mut u16, n: &mut u8, y: bool, rate: &[i32; 128]) {
-    let r = rate[usize::from(*n)];
+fn adapt(p: &mut u16, n: &mut u8, y: bool, rate: &Rates) {
+    let r = rate.rate[usize::from(*n)];
     let pv = i32::from(*p);
     let t = if y { 65535 } else { 0 };
     *p = (pv + (((i64::from(t - pv)) * i64::from(r)) >> 16) as i32) as u16;
-    if *n < standard::COUNT_LIMIT {
+    if u32::from(*n) < rate.top {
         *n += 1;
     }
 }
@@ -563,12 +641,12 @@ const SLOT_FRESH: u32 = 32768;
 
 /// [`adapt`] on a packed slot (probability low, count above it).
 #[inline]
-fn adapt_slot(s: &mut u32, y: bool, rate: &[i32; 128]) {
+fn adapt_slot(s: &mut u32, y: bool, rate: &Rates) {
     let n = *s >> 16;
     let pv = (*s & 0xffff) as i32;
     let t = if y { 65535 } else { 0 };
-    let p = (pv + ((i64::from(t - pv) * i64::from(rate[n as usize])) >> 16) as i32) as u32;
-    *s = (p & 0xffff) | ((n + u32::from(n < 127)) << 16);
+    let p = (pv + ((i64::from(t - pv) * i64::from(rate.rate[n as usize])) >> 16) as i32) as u32;
+    *s = (p & 0xffff) | ((n + u32::from(n < rate.top)) << 16);
 }
 
 /// The buckets `bb[..na]` in `P` lanes (whole rows of a kernel's vector)
@@ -594,8 +672,31 @@ fn stretch_index(w: u32) -> usize {
     ((w & 0xffff) >> 4) as usize
 }
 
-/// A slot's rate for each count it may hold ([`Tables::rate`]).
-type Rates = [i32; standard::COUNT_LIMIT as usize + 1];
+/// Counts a slot's count byte holds: one rate for each.
+const RATES: usize = 1 << Learning::COUNT_BITS_MAX;
+
+/// A slot's rate for each count it may hold ([`Tables::rate`]), and the
+/// count it stops at: the standard one, or the frame's consolidation
+/// ([`Learning::count_limit`]) for the context slots.
+#[derive(Clone, Copy)]
+struct Rates {
+    rate: [i32; RATES],
+    top: u32,
+}
+
+impl Rates {
+    #[cfg_attr(
+        not(any(
+            target_arch = "x86_64",
+            target_arch = "aarch64",
+            all(target_arch = "wasm32", target_feature = "simd128")
+        )),
+        allow(dead_code)
+    )]
+    fn as_ptr(&self) -> *const i32 {
+        self.rate.as_ptr()
+    }
+}
 
 /// Bits of a slot's probability, below its count (`adapt_slot`).
 #[cfg_attr(
@@ -617,7 +718,7 @@ const PROB_BITS: u32 = u16::BITS;
 /// ([`crate::performance::Host::warmed_room`]), so a later frame continuing
 /// the same state replays nothing and decodes the same bytes.
 /// Decoders keep them; an encoder reads them and keeps none.
-type Warmed = Vec<(Box<[u8]>, u32, (u32, u32), u64, Model)>;
+type Warmed = Vec<(Box<[u8]>, Point, (u32, u32), u64, Model)>;
 static WARMED: std::sync::Mutex<Warmed> = std::sync::Mutex::new(Vec::new());
 
 /// Bytes a warmed model kept for reuse holds: the tables sized for the state
@@ -695,6 +796,8 @@ struct Model {
     bit: u32,
     mtab: Table<u32>,
     profile: u32,
+    /// The context slots' rates and the count they stop at ([`Learning`]).
+    slots: Rates,
     /// Bits of the probability the coder codes a bit at: 12, or 16 under a
     /// frame word's probability field ([`streams::Plan::prob`]).
     pbits: u32,
@@ -769,6 +872,7 @@ impl Model {
     /// (table mask, match table bits) of a model for `n` bytes under
     /// `profile`: [`Model::sized`], unless the profile word records them.
     fn dims(n: u32, profile: u32) -> (u32, u32) {
+        let profile = profile & !WIDE;
         let (mut mask, mut mb) = Model::sized(n);
         if let Some(tb) = recorded_table_bits(profile) {
             mask = ((1u64 << tb) - 1) as u32;
@@ -779,7 +883,10 @@ impl Model {
         (mask, mb)
     }
 
-    fn new(n: u32, history: &[&[u8]], profile: u32) -> Model {
+    fn new(n: u32, history: &[&[u8]], point: Point) -> Model {
+        let learning = Learning::of(point);
+        let profile = profile_of(point);
+        let t = tables();
         // the coder's probability bits ride the profile's free top bit ([`WIDE`])
         let pbits = if profile & WIDE == 0 { 12 } else { 16 };
         let profile = profile & !WIDE;
@@ -806,7 +913,11 @@ impl Model {
             *p = if i % 2 == 1 { 60000 } else { 5536 };
         }
         let mut m = Model {
-            t: tables(),
+            t,
+            slots: Rates {
+                top: learning.count_limit(),
+                ..t.rate
+            },
             act,
             na,
             stride,
@@ -902,11 +1013,11 @@ impl Model {
     /// is coded as their continuation. The tables are sized for `w + n` bytes,
     /// which for a state of 16 KiB or more is the largest size whatever `n`,
     /// so the warmed model is computed once per state and profile and cloned.
-    fn warmed<K: Kernel>(n: u32, state: &[u8], profile: u32, keep: bool) -> Option<Model> {
+    fn warmed<K: Kernel>(n: u32, state: &[u8], profile: Point, keep: bool) -> Option<Model> {
         let total = n.checked_add(u32::try_from(state.len()).ok()?)?;
         // the model's dimensions, table mask and match table bits: two
         // frames share a warmed model only when both are the same
-        let dims = Model::dims(total, profile);
+        let dims = Model::dims(total, profile_of(profile));
         let mut cache = WARMED
             .lock()
             .unwrap_or_else(std::sync::PoisonError::into_inner);
@@ -920,8 +1031,8 @@ impl Model {
             return Some(m);
         }
         let (n, w) = (u64::from(n), state.len() as u64);
-        let room = crate::performance::declared_host().warmed_room(n, w, profile);
-        let each = warmed_bytes(n, w, profile);
+        let room = crate::performance::declared_host().warmed_room(n, w, profile_of(profile));
+        let each = warmed_bytes(n, w, profile_of(profile));
         // A decoder keeps its warmed model; an encoder's model is one trial
         // of a portfolio or a facet, kept by nobody, so it neither keeps one
         // nor evicts the decoders'.
@@ -1594,9 +1705,9 @@ impl Model {
     fn sense_update<K: Kernel>(&mut self, y: bool) {
         let sl = slots_mut(&mut self.sl);
         if self.distinct {
-            K::adapt_slots(sl, &self.ix, &self.sv, self.na, y, &self.t.rate);
+            K::adapt_slots(sl, &self.ix, &self.sv, self.na, y, &self.slots);
         } else {
-            Scalar::adapt_slots(sl, &self.ix, &self.sv, self.na, y, &self.t.rate);
+            Scalar::adapt_slots(sl, &self.ix, &self.sv, self.na, y, &self.slots);
         }
         self.models_update(y);
     }
@@ -2024,7 +2135,7 @@ mod x86 {
         history: &[u8],
         state: &[u8],
         data: &[u8],
-        profile: u32,
+        profile: super::Point,
         learn: bool,
         stop: usize,
     ) -> Option<(Vec<u8>, u32)> {
@@ -2037,7 +2148,7 @@ mod x86 {
         history: &[u8],
         state: &[u8],
         data: &[u8],
-        profile: u32,
+        profile: super::Point,
         learn: [bool; 2],
         stops: [usize; 2],
     ) -> super::Pairs {
@@ -2058,7 +2169,7 @@ mod x86 {
         payload: &[u8],
         limit: u64,
         canonical: bool,
-        profile: u32,
+        profile: super::Point,
     ) -> Option<Vec<u8>> {
         super::decoder::<Avx2>(history, state, payload, limit, canonical, profile)
     }
@@ -2299,7 +2410,7 @@ mod x86 {
         rate: &super::Rates,
     ) {
         let low = _mm256_set1_epi32(i32::from(u16::MAX));
-        let top = _mm256_set1_epi32(i32::from(super::standard::COUNT_LIMIT));
+        let top = _mm256_set1_epi32(rate.top as i32);
         let mut out = [0u32; L];
         let mut base = 0;
         // SAFETY: whole vectors lie inside ix and sv (base + L <= NC); the
@@ -2488,7 +2599,7 @@ mod arm {
                     vsubq_u32(p, vshrq_n_u32::<COUNT>(vaddq_u32(vmulq_u32(p, r), low)))
                 };
                 // n + 1 below the limit: the compare is all ones there
-                let top = vdupq_n_u32(u32::from(super::standard::COUNT_LIMIT));
+                let top = vdupq_n_u32(rate.top);
                 let n = vsubq_u32(n, vcltq_u32(n, top));
                 let mut w = [0u32; L];
                 vst1q_u32(w.as_mut_ptr(), vorrq_u32(p, vshlq_n_u32::<COUNT>(n)));
@@ -2678,7 +2789,7 @@ mod wasm {
                     )
                 };
                 // n + 1 below the limit: the compare is all ones there
-                let top = u32x4_splat(u32::from(super::standard::COUNT_LIMIT));
+                let top = u32x4_splat(rate.top);
                 let n = i32x4_sub(n, u32x4_lt(n, top));
                 let mut w = [0u32; L];
                 v128_store(
@@ -2950,7 +3061,7 @@ pub fn encode_below(history: &[u8], data: &[u8], profile: u32, stop: usize) -> O
     if !valid_profile(profile) {
         return None;
     }
-    encode_any(history, data, profile, false, stop).map(|(payload, _)| payload)
+    encode_any(history, data, u64::from(profile), false, stop).map(|(payload, _)| payload)
 }
 
 /// Marks a profile, inside this module only, as coded at 16-bit
@@ -2960,12 +3071,29 @@ const WIDE: u32 = 1 << 31;
 /// The profile of a frame coded at `bits`-bit probabilities (12 or 16; a
 /// frame word's probability field, [`streams::PROB_AT`]), as this module's
 /// coders take it; `None` for other bits or an invalid profile.
-fn at_bits(profile: u32, bits: u32) -> Option<u32> {
-    match bits {
-        12 if valid_profile(profile) => Some(profile),
-        WIDEST_BITS if valid_profile(profile) => Some(profile | WIDE),
-        _ => None,
+fn at_bits(profile: u32, bits: u32) -> Option<Point> {
+    at_plan(
+        profile,
+        streams::Plan {
+            bits,
+            ..streams::Plan::ONE
+        },
+    )
+}
+
+/// The model point of a frame coded under one stream of `plan` (its
+/// probability bits and its learning), as this module's coders take it;
+/// `None` for an invalid profile or plan, or more than one stream.
+fn at_plan(profile: u32, plan: streams::Plan) -> Option<Point> {
+    if !valid_profile(profile) || plan.streams != 1 || !plan.learning.valid() {
+        return None;
     }
+    let marked = match plan.bits {
+        12 => profile,
+        WIDEST_BITS => profile | WIDE,
+        _ => return None,
+    };
+    Some(plan.learning.point(marked))
 }
 
 /// [`encode_below`] at `bits`-bit probabilities: 12 is [`encode_below`];
@@ -2982,10 +3110,24 @@ pub fn encode_bits_below(
     encode_any(history, data, marked, false, stop).map(|(payload, _)| payload)
 }
 
-fn encode_any(
+/// [`encode_bits_below`] under one stream of `plan`: its probability bits
+/// and how the model learns ([`Learning`]), as the frame word records them
+/// (`NcmEncode.runProfile`).
+pub fn encode_plan_below(
     history: &[u8],
     data: &[u8],
     profile: u32,
+    plan: streams::Plan,
+    stop: usize,
+) -> Option<Vec<u8>> {
+    let point = at_plan(profile, plan)?;
+    encode_any(history, data, point, false, stop).map(|(payload, _)| payload)
+}
+
+fn encode_any(
+    history: &[u8],
+    data: &[u8],
+    profile: Point,
     learn: bool,
     stop: usize,
 ) -> Option<(Vec<u8>, u32)> {
@@ -3010,7 +3152,7 @@ pub fn encode_learn_below(
     if !valid_profile(profile) {
         return None;
     }
-    encode_any(history, data, profile, true, stop)
+    encode_any(history, data, u64::from(profile), true, stop)
 }
 
 /// One pass that codes `data` under `profile` (learning its mask with
@@ -3026,7 +3168,7 @@ pub fn encode_pair_below(
     learn: bool,
     stops: [usize; 2],
 ) -> Pair {
-    let (a, b) = encode_pairs(history, data, profile, [learn, false], stops);
+    let (a, b) = encode_pairs(history, data, u64::from(profile), [learn, false], stops);
     (a, b.map(|(payload, _)| payload))
 }
 
@@ -3040,17 +3182,17 @@ pub fn encode_pairs_learn_below(
     profile: u32,
     stops: [usize; 2],
 ) -> Pairs {
-    encode_pairs(history, data, profile, [true, true], stops)
+    encode_pairs(history, data, u64::from(profile), [true, true], stops)
 }
 
 fn encode_pairs(
     history: &[u8],
     data: &[u8],
-    profile: u32,
+    profile: Point,
     learn: [bool; 2],
     stops: [usize; 2],
 ) -> Pairs {
-    if !valid_profile(profile) {
+    if !valid_profile(profile_of(profile)) {
         return (None, None);
     }
     dispatch!(encoder_pair(history, &[], data, profile, learn, stops))
@@ -3070,11 +3212,11 @@ pub fn encode_pair_warm_below(
     if !valid_profile(profile) || state.is_empty() {
         return (None, None);
     }
-    let (a, b) = warm_pair(state, data, profile, stops);
+    let (a, b) = warm_pair(state, data, u64::from(profile), stops);
     (a.map(|(p, _)| p), b.map(|(p, _)| p))
 }
 
-fn warm_pair(state: &[u8], data: &[u8], profile: u32, stops: [usize; 2]) -> Pairs {
+fn warm_pair(state: &[u8], data: &[u8], profile: Point, stops: [usize; 2]) -> Pairs {
     dispatch!(encoder_pair(
         &[],
         state,
@@ -3090,7 +3232,7 @@ fn encoder<K: Kernel>(
     history: &[u8],
     state: &[u8],
     data: &[u8],
-    profile: u32,
+    profile: Point,
     learn: bool,
     stop: usize,
 ) -> Option<(Vec<u8>, u32)> {
@@ -3116,7 +3258,7 @@ fn encoder_pair<K: Kernel>(
     history: &[u8],
     state: &[u8],
     data: &[u8],
-    profile: u32,
+    profile: Point,
     learn: [bool; 2],
     stops: [usize; 2],
 ) -> Pairs {
@@ -3135,7 +3277,12 @@ fn encoder_pair<K: Kernel>(
     let form = 1 + u8::from(learn[1]);
     #[cfg(not(target_family = "wasm"))]
     if !state.is_empty() {
-        if let Some(m) = image::read::<K>(state, profile, Model::dims(total, profile), form) {
+        if let Some(m) = image::read::<K>(
+            state,
+            profile,
+            Model::dims(total, profile_of(profile)),
+            form,
+        ) {
             return run_encoder::<K>(m, data, learn[0], stops);
         }
     }
@@ -3147,7 +3294,7 @@ fn encoder_pair<K: Kernel>(
         Model::new(total, &[], profile)
     };
     m.twin = Some(Box::new(Twin {
-        sel: profile & F_SEL == 0,
+        sel: profile & u64::from(F_SEL) == 0,
         w1: weights(256 * 9, m.na + 3, m.stride),
         a1: Apm::new(256 * 9),
         a2: Apm::new(1 << APM2_BITS),
@@ -3354,10 +3501,10 @@ pub fn encode_warm_below(state: &[u8], data: &[u8], profile: u32, stop: usize) -
     if !valid_profile(profile) || state.is_empty() {
         return None;
     }
-    warm_encoder(state, data, profile, stop).map(|(payload, _)| payload)
+    warm_encoder(state, data, u64::from(profile), stop).map(|(payload, _)| payload)
 }
 
-fn warm_encoder(state: &[u8], data: &[u8], profile: u32, stop: usize) -> Option<(Vec<u8>, u32)> {
+fn warm_encoder(state: &[u8], data: &[u8], profile: Point, stop: usize) -> Option<(Vec<u8>, u32)> {
     dispatch!(encoder(&[], state, data, profile, false, stop))
 }
 
@@ -3366,7 +3513,14 @@ pub fn decode_warm(state: &[u8], payload: &[u8], limit: u64, profile: u32) -> Op
     if !valid_profile(profile) || state.is_empty() {
         return None;
     }
-    dispatch!(decoder(&[], state, payload, limit, false, profile))
+    dispatch!(decoder(
+        &[],
+        state,
+        payload,
+        limit,
+        false,
+        u64::from(profile)
+    ))
 }
 
 /// [`decode_warm`] of a payload of exactly `n` bytes that [`encode_warm`]
@@ -3383,7 +3537,48 @@ pub fn decode_canonical_warm(
     {
         return None;
     }
-    dispatch!(decoder(&[], state, payload, n, true, profile))
+    dispatch!(decoder(&[], state, payload, n, true, u64::from(profile)))
+}
+
+/// [`decode_canonical_warm`] of a payload coded learning under `learning`
+/// ([`encode_warm_learning_below`]).
+pub fn decode_canonical_warm_learning(
+    state: &[u8],
+    payload: &[u8],
+    n: u64,
+    profile: u32,
+    learning: Learning,
+) -> Option<Vec<u8>> {
+    if !valid_profile(profile)
+        || !learning.valid()
+        || state.is_empty()
+        || declared_length(payload).map(u64::from) != Some(n)
+    {
+        return None;
+    }
+    dispatch!(decoder(
+        &[],
+        state,
+        payload,
+        n,
+        true,
+        learning.point(profile)
+    ))
+}
+
+/// [`encode_warm_below`] learning under `learning` ([`Learning`]): the state
+/// is replayed and the frame coded with the same learning.
+pub fn encode_warm_learning_below(
+    state: &[u8],
+    data: &[u8],
+    profile: u32,
+    learning: Learning,
+    stop: usize,
+) -> Option<Vec<u8>> {
+    if !valid_profile(profile) || !learning.valid() || state.is_empty() {
+        return None;
+    }
+    warm_encoder(state, data, learning.point(profile), stop).map(|(p, _)| p)
 }
 
 /// The output length a payload declares, if it has its 4-byte header.
@@ -3433,7 +3628,7 @@ pub fn decode_canonical_profile(
     if declared_length(payload).map(u64::from) != Some(n) {
         return None;
     }
-    run_profile(history, payload, n, true, profile)
+    run_profile(history, payload, n, true, u64::from(profile))
 }
 
 /// [`decode_canonical_profile`] after the frames of a window, without
@@ -3463,8 +3658,24 @@ pub fn decode_canonical_window_bits(
     dispatch!(decoder(window, &[], payload, n, true, marked))
 }
 
+/// [`decode_canonical_window`] of a payload coded under one stream of `plan`
+/// ([`encode_plan_below`]).
+pub fn decode_canonical_window_plan(
+    window: &[&[u8]],
+    payload: &[u8],
+    n: u64,
+    profile: u32,
+    plan: streams::Plan,
+) -> Option<Vec<u8>> {
+    let point = at_plan(profile, plan)?;
+    if declared_length(payload).map(u64::from) != Some(n) {
+        return None;
+    }
+    dispatch!(decoder(window, &[], payload, n, true, point))
+}
+
 fn run_decoder(history: &[u8], payload: &[u8], limit: u64, canonical: bool) -> Option<Vec<u8>> {
-    run_profile(history, payload, limit, canonical, V03)
+    run_profile(history, payload, limit, canonical, u64::from(V03))
 }
 
 /// The decoder under the model `profile`: `None` for a word that is not a
@@ -3474,7 +3685,7 @@ pub(crate) fn run_profile(
     payload: &[u8],
     limit: u64,
     canonical: bool,
-    profile: u32,
+    profile: Point,
 ) -> Option<Vec<u8>> {
     run_pieces(&[history], payload, limit, canonical, profile)
 }
@@ -3485,9 +3696,9 @@ fn run_pieces(
     payload: &[u8],
     limit: u64,
     canonical: bool,
-    profile: u32,
+    profile: Point,
 ) -> Option<Vec<u8>> {
-    if !valid_profile(profile) {
+    if !valid_profile(profile_of(profile)) {
         return None;
     }
     dispatch!(decoder(history, &[], payload, limit, canonical, profile))
@@ -3495,7 +3706,7 @@ fn run_pieces(
 
 /// Decode a payload [`encode_profile`] wrote under `profile`.
 pub fn decode_profile(history: &[u8], payload: &[u8], limit: u64, profile: u32) -> Option<Vec<u8>> {
-    run_profile(history, payload, limit, false, profile)
+    run_profile(history, payload, limit, false, u64::from(profile))
 }
 
 thread_local! {
@@ -3564,7 +3775,7 @@ fn decoder<K: Kernel>(
     payload: &[u8],
     limit: u64,
     canonical: bool,
-    profile: u32,
+    profile: Point,
 ) -> Option<Vec<u8>> {
     let n = declared_length(payload)?;
     if u64::from(n) > limit {

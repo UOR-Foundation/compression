@@ -245,13 +245,31 @@ fn compress_pieces_on(
         .fold(None, |kept, head| pick_trial(head, kept));
     match best {
         Some((linked, _)) if (linked.len() as u64) < raw => {
-            let (stepped, k) = step_window(frame, lengths, reach, linked, host);
-            let window = &reach[reach.len() - k..];
-            let stepped = step_table(frame, lengths, window, stepped, host);
-            Ok(step_probability(frame, lengths, window, stepped))
+            Ok(step_facets(frame, lengths, reach, linked, host))
         }
         _ => Ok(archive::raw_objects(frame, lengths)),
     }
+}
+
+/// Every facet stepped on the frame's chosen archive, in order: the window
+/// facets ([`step_window`], over the frames of `reach`), the table facet
+/// ([`step_table`]), the probability facet ([`step_probability`]) and the
+/// consolidation facet ([`step_consolidation`]); each keeps a step only
+/// while the archive gets strictly shorter. The page's workers step the
+/// frames they code the same way, so the archive is the same wherever it
+/// is coded.
+pub fn step_facets(
+    frame: &[u8],
+    lengths: &[u64],
+    reach: &[&[u8]],
+    chosen: Vec<u8>,
+    host: performance::Host,
+) -> Vec<u8> {
+    let (stepped, k) = step_window(frame, lengths, reach, chosen, host);
+    let window = &reach[reach.len() - k..];
+    let stepped = step_table(frame, lengths, window, stepped, host);
+    let stepped = step_probability(frame, lengths, window, stepped);
+    step_consolidation(frame, lengths, window, stepped)
 }
 
 /// The window facets stepped on the frame's chosen archive
@@ -274,7 +292,7 @@ pub fn step_window(
     host: performance::Host,
 ) -> (Vec<u8>, usize) {
     let mut k = reach.len().min(archive::WINDOW);
-    let one = |w: u64| {
+    let one = |w: ncm::streams::Word| {
         ncm::streams::split(w)
             .filter(|(_, p)| p.serial())
             .map(|(m, _)| m)
@@ -316,10 +334,20 @@ pub fn step_window(
         };
         let identity = (!window.is_empty()).then(|| archive::window_identity(window));
         let frame_of = |payload: &[u8]| match &identity {
-            None => archive::linked_archive_profile(codec, u64::from(w), lengths, payload),
-            Some(id) => {
-                archive::window_archive_profile(codec, u64::from(w), window, id, lengths, payload)
-            }
+            None => archive::linked_archive_profile(
+                codec,
+                ncm::streams::Word::from(w),
+                lengths,
+                payload,
+            ),
+            Some(id) => archive::window_archive_profile(
+                codec,
+                ncm::streams::Word::from(w),
+                window,
+                id,
+                lengths,
+                payload,
+            ),
         };
         let stop = best.len().saturating_sub(frame_of(&[])?.len());
         let a = frame_of(&ncm::encode_below(past, data, w, stop)?)?;
@@ -373,7 +401,7 @@ pub fn step_table(
     let (state, x86, word) = if let Some(f) = archive::state_frame(&chosen) {
         (f.state, f.x86, f.profile)
     } else {
-        let one = |w: u64| {
+        let one = |w: ncm::streams::Word| {
             ncm::streams::split(w)
                 .filter(|(_, p)| p.serial())
                 .map(|(m, _)| m)
@@ -421,10 +449,20 @@ pub fn step_table(
             archive::Codec::Ncm
         };
         match &identity {
-            None => archive::linked_archive_profile(codec, u64::from(w), lengths, payload),
-            Some(id) => {
-                archive::window_archive_profile(codec, u64::from(w), window, id, lengths, payload)
-            }
+            None => archive::linked_archive_profile(
+                codec,
+                ncm::streams::Word::from(w),
+                lengths,
+                payload,
+            ),
+            Some(id) => archive::window_archive_profile(
+                codec,
+                ncm::streams::Word::from(w),
+                window,
+                id,
+                lengths,
+                payload,
+            ),
         }
     };
     let warm = state != 0;
@@ -518,6 +556,119 @@ pub fn step_probability(
         Some(a) if a.len() < chosen.len() => a,
         _ => chosen,
     }
+}
+
+/// The consolidation facet stepped last on the frame's chosen archive
+/// (`Client.stepConsolidation`): the chosen coding (x86 or not, profile,
+/// probability bits) is recoded with one bit fewer in a context slot's count
+/// at a time ([`ncm::Learning::count_bits`]), each step kept only while the
+/// archive gets strictly shorter; when the first step does not pay, one bit
+/// more is tried instead. Fewer bits consolidate a slot sooner, so it keeps
+/// adapting to the latest bits; more bits keep a longer average. The decode
+/// steps are the same at every count, so bytes decide. The frame records
+/// its count bits in its word only when they differ from the standard
+/// model's, so a frame where no step pays is the archive chosen before, byte
+/// for byte. Raw frames, state frames and the fixed v0.3 entries are kept as
+/// they are.
+pub fn step_consolidation(
+    frame: &[u8],
+    lengths: &[u64],
+    window: &[&[u8]],
+    chosen: Vec<u8>,
+) -> Vec<u8> {
+    // (state, x86, profile, plan) of the chosen frame
+    let (state, x86, profile, plan) = if let Some(f) = archive::state_frame(&chosen) {
+        let plan = ncm::streams::Plan {
+            learning: f.learning,
+            ..ncm::streams::Plan::ONE
+        };
+        (f.state, f.x86, f.profile, plan)
+    } else {
+        let (x86, word) = match archive::frame_codec(&chosen) {
+            Some(archive::Codec::Profile(w)) => (false, w),
+            Some(archive::Codec::ProfileX86(w)) => (true, w),
+            _ => return chosen,
+        };
+        let Some((profile, plan)) = archive::frame_word(word) else {
+            return chosen;
+        };
+        (0, x86, profile, plan)
+    };
+    if !plan.learning.standard() {
+        return chosen;
+    }
+    let joined;
+    let history: &[u8] = if state != 0 {
+        match states::state(state) {
+            Some(s) => s,
+            None => return chosen,
+        }
+    } else {
+        joined = window.concat();
+        &joined
+    };
+    let filtered;
+    let (data, past) = if x86 {
+        filtered = (
+            x86::filter(frame, false, history.len() as u64).0,
+            x86::filter(history, false, 0).0,
+        );
+        (&filtered.0[..], &filtered.1[..])
+    } else {
+        (frame, history)
+    };
+    let codec = if x86 {
+        archive::Codec::NcmX86
+    } else {
+        archive::Codec::Ncm
+    };
+    let identity = if state != 0 {
+        states::identity(state)
+    } else {
+        (!window.is_empty()).then(|| archive::window_identity(window))
+    };
+    let frame_of = |learning: ncm::Learning, payload: &[u8]| -> Option<Vec<u8>> {
+        if state != 0 {
+            let id = identity.as_ref()?;
+            return archive::state_archive_learning(x86, profile, learning, id, lengths, payload);
+        }
+        let w = ncm::streams::word(profile, ncm::streams::Plan { learning, ..plan })?;
+        match &identity {
+            None => archive::linked_archive_profile(codec, w, lengths, payload),
+            Some(id) => archive::window_archive_profile(codec, w, window, id, lengths, payload),
+        }
+    };
+    // the archive at `count_bits`, when it is strictly shorter than `best`
+    let trial = |count_bits: u32, best: &[u8]| -> Option<Vec<u8>> {
+        let learning = ncm::Learning { count_bits };
+        // an archive is its empty-payload form plus the payload
+        let stop = best.len().saturating_sub(frame_of(learning, &[])?.len());
+        let payload = if state != 0 {
+            ncm::encode_warm_learning_below(past, data, profile, learning, stop)
+        } else {
+            let at = ncm::streams::Plan { learning, ..plan };
+            ncm::encode_plan_below(past, data, profile, at, stop)
+        }?;
+        frame_of(learning, &payload).filter(|a| a.len() < best.len())
+    };
+    let standard = ncm::Learning::standard_count_bits();
+    let mut best = chosen;
+    let mut bits = standard;
+    while bits > 1 {
+        match trial(bits - 1, &best) {
+            Some(a) => {
+                best = a;
+                bits -= 1;
+            }
+            None => break,
+        }
+    }
+    if bits == standard && bits < ncm::Learning::COUNT_BITS_MAX {
+        if let Some(a) = trial(bits + 1, &best) {
+            best = a;
+        }
+    }
+    best
 }
 
 /// The trials of `plan` on `frame`, in plan order: each strategy's archive
@@ -816,13 +967,13 @@ impl Prepared<'_> {
         match self.identity {
             None => archive::linked_archive_profile(
                 self.codec,
-                u64::from(profile),
+                ncm::streams::Word::from(profile),
                 self.lengths,
                 payload,
             ),
             Some(identity) => archive::window_archive_profile(
                 self.codec,
-                u64::from(profile),
+                ncm::streams::Word::from(profile),
                 self.window,
                 identity,
                 self.lengths,

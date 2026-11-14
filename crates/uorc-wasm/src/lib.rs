@@ -485,13 +485,9 @@ pub extern "C" fn step_frame() -> i32 {
         let c = f.len()?;
         let chosen = f.take(c)?.to_vec();
         f.end()?;
-        // the window facets, the table facet, then the probability facet,
-        // as compress does
+        // every facet, as compress steps them
         let host = uorc::performance::PAGE_WORKER;
-        let (stepped, k) = uorc::step_window(frame, &pieces, &window, chosen, host);
-        let window = &window[window.len() - k..];
-        let stepped = uorc::step_table(frame, &pieces, window, stepped, host);
-        Ok(uorc::step_probability(frame, &pieces, window, stepped))
+        Ok(uorc::step_facets(frame, &pieces, &window, chosen, host))
     }))
 }
 

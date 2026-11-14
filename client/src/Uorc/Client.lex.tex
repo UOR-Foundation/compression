@@ -381,12 +381,45 @@ definition{
 definition{
   name: stepProbability,
   parameters: [point : Nat, window : (List Bytes), input : Bytes, chosen : Bytes],
-  result: Bytes,
-  body: (let st : Nat := (prim quotient point 4294967296 0 : Nat); (let x : Nat := (prim remainder (prim quotient point 2147483648 0 : Nat) 2 0 : Nat); (let profile : Nat := (prim remainder point 2147483648 0 : Nat); (if ((0 <? st) || ((profile =? 131071) && ((Uorc.Codec.Archive::windowCount window) <=? 2))) then chosen else (let history : Bytes := (Uorc.Codec.Archive::windowHistory window); (let past : Bytes := (if (x =? 0) then history else (Uorc.Codec.X86::run 0 0 history)); (let data : Bytes := (if (x =? 0) then input else (Uorc.Codec.X86::run 0 (prim length history : Nat) input)); (let wide : Nat := (profile + 68719476736); (let payload : Bytes := (Uorc.Codec.NcmEncode::runProfile past data wide); (if ((prim length payload : Nat) =? 0) then chosen else (match (Uorc.Codec.Archive::profiledIdentity window)
-    | Option.none => chosen
+  result: (Bytes * Nat),
+  body: (let st : Nat := (prim quotient point 4294967296 0 : Nat); (let x : Nat := (prim remainder (prim quotient point 2147483648 0 : Nat) 2 0 : Nat); (let profile : Nat := (prim remainder point 2147483648 0 : Nat); (if ((0 <? st) || ((profile =? 131071) && ((Uorc.Codec.Archive::windowCount window) <=? 2))) then (chosen, profile) else (let history : Bytes := (Uorc.Codec.Archive::windowHistory window); (let past : Bytes := (if (x =? 0) then history else (Uorc.Codec.X86::run 0 0 history)); (let data : Bytes := (if (x =? 0) then input else (Uorc.Codec.X86::run 0 (prim length history : Nat) input)); (let wide : Nat := (profile + 68719476736); (let payload : Bytes := (Uorc.Codec.NcmEncode::runProfile past data wide); (if ((prim length payload : Nat) =? 0) then (chosen, profile) else (match (Uorc.Codec.Archive::profiledIdentity window)
+    | Option.none => (chosen, profile)
     | Option.some identity => (match (Uorc.Codec.Archive::profiledArchive x (Uorc.Codec.Archive::windowCount window) identity (prim length input : Nat) wide payload)
-      | Option.none => chosen
-      | Option.some a => (if ((prim length a : Nat) <? (prim length chosen : Nat)) then a else chosen))))))))))))),
+      | Option.none => (chosen, profile)
+      | Option.some a => (if ((prim length a : Nat) <? (prim length chosen : Nat)) then (a, wide) else (chosen, profile)))))))))))))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: consolidationCandidate,
+  parameters: [states : (List Bytes), point : Nat, word : Nat, cb : Nat, window : (List Bytes), input : Bytes],
+  result: (Option Bytes),
+  body: (let x : Nat := (prim remainder (prim quotient point 2147483648 0 : Nat) 2 0 : Nat); (let st : Nat := (prim quotient point 4294967296 0 : Nat); (let w : Nat := (word + (prim multiply cb (Uorc.Codec.Archive::learningBase) : Nat)); (if (st =? 0) then (Uorc.Codec.Archive::profileCandidate (x + 1) w window input) else (match (stateAt states (prim subtract st 1 : Nat))
+    | Option.none => (ctor Option.none [Bytes])
+    | Option.some state => (Uorc.Codec.Archive::stateCandidate x w state input)))))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: consolidateLoop,
+  parameters: [fuel : Nat, states : (List Bytes), point : Nat, word : Nat, cb : Nat, window : (List Bytes), input : Bytes, best : Bytes],
+  result: (Bytes * Nat),
+  body: (match fuel
+    | Nat.zero => (best, cb)
+    | Nat.succ m => (if (cb <=? 1) then (best, cb) else (match (consolidationCandidate states point word (prim subtract cb 1 : Nat) window input)
+      | Option.none => (best, cb)
+      | Option.some a => (if ((prim length a : Nat) <? (prim length best : Nat)) then (consolidateLoop m states point word (prim subtract cb 1 : Nat) window input a) else (best, cb))))),
+  axioms: [Quot.sound, propext],
+  recursive_argument: fuel
+}
+
+definition{
+  name: stepConsolidation,
+  parameters: [states : (List Bytes), point : Nat, word : Nat, window : (List Bytes), input : Bytes, chosen : Bytes],
+  result: Bytes,
+  body: (let st : Nat := (prim quotient point 4294967296 0 : Nat); (let profile : Nat := (prim remainder point 2147483648 0 : Nat); (if ((st =? 0) && ((profile =? 131071) && ((Uorc.Codec.Archive::windowCount window) <=? 2))) then chosen else (let standard : Nat := (Uorc.Codec.Archive::countBitsStandard); (let down : (Bytes * Nat) := (consolidateLoop standard states point word standard window input chosen); (if ((second down) <? standard) then (first down) else (if (standard <? (Uorc.Codec.Archive::countBitsMax)) then (match (consolidationCandidate states point word (standard + 1) window input)
+    | Option.none => chosen
+    | Option.some a => (if ((prim length a : Nat) <? (prim length chosen : Nat)) then a else chosen)) else chosen))))))),
   axioms: [Quot.sound, propext]
 }
 
@@ -480,7 +513,7 @@ definition{
     | Option.none => strategies
     | Option.some whole => whole) (v04Pair fam)); (let coded : (List Nat) := (planned table count (schedule strategies weights fam)); (let linked : (Option (Bytes * (Nat * Nat))) := (portfolio table states (count + 2) coded (recentWindow window) input); (let quick : (Option Bytes) := (match linked
     | Option.none => (Uorc.Codec.Archive::rawArchive input)
-    | Option.some kernel => (if ((prim length (first kernel) : Nat) <? (rawLength (prim length input : Nat))) then (let stepped : (Bytes * (Nat * (List Bytes))) := (stepWindow (second (second kernel)) window input (first kernel)); (let tabled : (Bytes * Nat) := (stepTable states (first (second stepped)) (second (second stepped)) input (first stepped)); (ctor Option.some [Bytes] (stepProbability (second tabled) (second (second stepped)) input (first tabled))))) else (Uorc.Codec.Archive::rawArchive input))); (if (steps =? 0) then quick else (smaller quick (search input steps))))))))),
+    | Option.some kernel => (if ((prim length (first kernel) : Nat) <? (rawLength (prim length input : Nat))) then (let stepped : (Bytes * (Nat * (List Bytes))) := (stepWindow (second (second kernel)) window input (first kernel)); (let tabled : (Bytes * Nat) := (stepTable states (first (second stepped)) (second (second stepped)) input (first stepped)); (let wide : (Bytes * Nat) := (stepProbability (second tabled) (second (second stepped)) input (first tabled)); (ctor Option.some [Bytes] (stepConsolidation states (second tabled) (second wide) (second (second stepped)) input (first wide)))))) else (Uorc.Codec.Archive::rawArchive input))); (if (steps =? 0) then quick else (smaller quick (search input steps))))))))),
   axioms: [Quot.sound, propext]
 }
 

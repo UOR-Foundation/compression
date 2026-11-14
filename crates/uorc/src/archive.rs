@@ -13,6 +13,7 @@
 //! [`BASIS_ID`] (`client/gen/gen_basis.py`). Their body is one entry block that
 //! applies a library decoder to the payload, so a small file carries no kernel.
 
+use crate::ncm::streams::Word;
 use sha2::{Digest, Sha256};
 use std::borrow::Cow;
 
@@ -195,9 +196,9 @@ pub enum Codec {
     /// profile ([`crate::ncm::valid_profile`]); the word's streams and epoch
     /// fields ([`crate::ncm::streams::split`]) are reserved and zero
     /// ([`frame_word`]), which the entry names.
-    Profile(u64),
+    Profile(Word),
     /// [`Codec::Profile`] over the x86 branch filter.
-    ProfileX86(u64),
+    ProfileX86(Word),
 }
 
 impl Codec {
@@ -224,7 +225,7 @@ impl Codec {
     }
 
     /// The profiled codec coding frame word `profile`, over the x86 filter when `x86`.
-    pub fn profiled(profile: u64, x86: bool) -> Codec {
+    pub fn profiled(profile: Word, x86: bool) -> Codec {
         if x86 {
             Codec::ProfileX86(profile)
         } else {
@@ -240,7 +241,7 @@ impl Codec {
 /// clients. The streams coder ([`crate::ncm::streams`]) is tested here but
 /// not yet shipped: its client's preservation certificate does not check
 /// within the export's memory.
-pub fn frame_word(word: u64) -> Option<(u32, crate::ncm::streams::Plan)> {
+pub fn frame_word(word: Word) -> Option<(u32, crate::ncm::streams::Plan)> {
     crate::ncm::streams::split(word).filter(|(_, plan)| plan.streams == 1)
 }
 
@@ -255,7 +256,7 @@ fn template(codec: Codec, k: usize, era: Era) -> Option<(Cow<'static, [u8]>, Vec
         }
         let (prefix, tail) = profile_template(k, codec.x86(), era)?;
         let mut suffix = vec![0];
-        push_uleb(&mut suffix, p);
+        push_word(&mut suffix, p);
         suffix.extend_from_slice(&tail);
         return Some((prefix, suffix));
     }
@@ -383,7 +384,7 @@ fn parse_body(body: &[u8], k: usize, era: Era) -> Option<(Codec, &[u8])> {
         let (prefix, tail) = profile_template(k, x86, era)?;
         let (payload, rest) = split(&prefix)?;
         let rest = rest.strip_prefix(&[0])?;
-        let (p, after) = read_uleb(rest, 0)?;
+        let (p, after) = read_word(rest, 0)?;
         let ok = after == uleb_len(p)
             && frame_word(p).is_some_and(|(model, plan)| {
                 era == Era::Current || (!crate::ncm::records_tables(model) && plan.serial())
@@ -436,7 +437,12 @@ const fn hex_literal<const N: usize>(text: &str) -> [u8; N] {
     out
 }
 
-pub(crate) fn push_uleb(out: &mut Vec<u8>, mut n: u64) {
+pub(crate) fn push_uleb(out: &mut Vec<u8>, n: u64) {
+    push_word(out, Word::from(n));
+}
+
+/// [`push_uleb`] of a frame word.
+pub(crate) fn push_word(out: &mut Vec<u8>, mut n: Word) {
     while n >= 0x80 {
         out.push((n as u8 & 0x7F) | 0x80);
         n >>= 7;
@@ -445,13 +451,33 @@ pub(crate) fn push_uleb(out: &mut Vec<u8>, mut n: u64) {
 }
 
 /// Length of the shortest ULEB128 encoding of `n`.
-pub fn uleb_len(mut n: u64) -> usize {
+pub fn uleb_len(n: impl Into<u128>) -> usize {
+    let mut n: u128 = n.into();
     let mut len = 1;
     while n >= 0x80 {
         n >>= 7;
         len += 1;
     }
     len
+}
+
+/// Read a ULEB128 frame word at `at` (any number below 2^128): the value
+/// and the offset after it.
+pub(crate) fn read_word(data: &[u8], mut at: usize) -> Option<(Word, usize)> {
+    let mut value: Word = 0;
+    for shift in (0..Word::BITS).step_by(7) {
+        let byte = *data.get(at)?;
+        at += 1;
+        let part = Word::from(byte & 0x7F);
+        if part.checked_shl(shift)? >> shift != part {
+            return None;
+        }
+        value |= part << shift;
+        if byte < 0x80 {
+            return Some((value, at));
+        }
+    }
+    None
 }
 
 /// Read a ULEB128 number at `at`: the value and the offset after it.
@@ -690,11 +716,11 @@ fn plain(codec: Codec) -> Codec {
 /// exactly the frame v0.4 writes for the same payload.
 pub fn linked_archive_profile(
     codec: Codec,
-    profile: u64,
+    profile: Word,
     lengths: &[u64],
     payload: &[u8],
 ) -> Option<Vec<u8>> {
-    if profile == u64::from(crate::ncm::V03) {
+    if profile == Word::from(crate::ncm::V03) {
         return entry_archive(plain(codec), 0, Era::V03, &V03_BASIS_ID, lengths, payload);
     }
     linked_archive(Codec::profiled(profile, codec.x86()), lengths, payload)
@@ -707,14 +733,14 @@ pub fn linked_archive_profile(
 /// (`Archive.v04ProfiledArchive`), as [`linked_archive_profile`].
 pub fn window_archive_profile(
     codec: Codec,
-    profile: u64,
+    profile: Word,
     window: &[&[u8]],
     identity: &[u8; 32],
     lengths: &[u64],
     payload: &[u8],
 ) -> Option<Vec<u8>> {
     // v0.3 entries read at most two frames; a deeper window is a profiled entry
-    if profile == u64::from(crate::ncm::V03) && window.len() <= WINDOW {
+    if profile == Word::from(crate::ncm::V03) && window.len() <= WINDOW {
         let v03 = window_identity_over(&V03_LIBRARY, window);
         return entry_archive(plain(codec), window.len(), Era::V03, &v03, lengths, payload);
     }
@@ -919,9 +945,26 @@ pub fn state_archive(
     lengths: &[u64],
     payload: &[u8],
 ) -> Option<Vec<u8>> {
-    if !crate::ncm::valid_profile(profile) {
-        return None;
-    }
+    let standard = crate::ncm::Learning::STANDARD;
+    state_archive_learning(x86, profile, standard, identity, lengths, payload)
+}
+
+/// [`state_archive`] of a payload coded learning under `learning`: the
+/// entry's word is the profile with the learning fields above it
+/// ([`crate::ncm::streams::word`]), the profile itself for the standard model.
+pub fn state_archive_learning(
+    x86: bool,
+    profile: u32,
+    learning: crate::ncm::Learning,
+    identity: &[u8; 32],
+    lengths: &[u64],
+    payload: &[u8],
+) -> Option<Vec<u8>> {
+    let plan = crate::ncm::streams::Plan {
+        learning,
+        ..crate::ncm::streams::Plan::ONE
+    };
+    let word = crate::ncm::streams::word(profile, plan)?;
     let (prefix, tail): (&[u8], &[u8]) = if x86 {
         (&NCMWX_PREFIX, &NCMWX_TAIL)
     } else {
@@ -932,7 +975,7 @@ pub fn state_archive(
         + uleb_len(p) as u64
         + p
         + 1
-        + uleb_len(u64::from(profile)) as u64
+        + uleb_len(word) as u64
         + tail.len() as u64;
     let mut pre = header(1, lengths, body_len);
     pre[6] = 1;
@@ -942,7 +985,7 @@ pub fn state_archive(
     push_uleb(&mut pre, p);
     pre.extend_from_slice(payload);
     pre.push(0);
-    push_uleb(&mut pre, u64::from(profile));
+    push_word(&mut pre, word);
     pre.extend_from_slice(tail);
     Some(sealed(pre))
 }
@@ -956,6 +999,8 @@ pub struct StateFrame<'a> {
     pub x86: bool,
     /// The ncm profile word.
     pub profile: u32,
+    /// How the model learns ([`state_archive_learning`]).
+    pub learning: crate::ncm::Learning,
     /// The object lengths.
     pub lengths: Vec<u64>,
     /// The coded payload.
@@ -981,15 +1026,16 @@ pub fn state_frame(data: &[u8]) -> Option<StateFrame<'_>> {
         }
         let (payload, rest) = rest[after..].split_at(p);
         let rest = rest.strip_prefix(&[0])?;
-        let (w, after) = read_uleb(rest, 0)?;
-        let w = u32::try_from(w).ok()?;
-        let ok = after == uleb_len(u64::from(w))
-            && crate::ncm::valid_profile(w)
-            && rest[after..] == tail[..];
+        let (w, after) = read_word(rest, 0)?;
+        // one stream at 12 bits: only the learning fields join the profile
+        let (profile, plan) =
+            crate::ncm::streams::split(w).filter(|(_, p)| p.streams == 1 && p.bits == 12)?;
+        let ok = after == uleb_len(w) && rest[after..] == tail[..];
         ok.then(|| StateFrame {
             state,
             x86,
-            profile: w,
+            profile,
+            learning: plan.learning,
             lengths: lengths.clone(),
             payload,
         })
@@ -1004,22 +1050,23 @@ pub fn state_decode(data: &[u8]) -> Option<Vec<u8>> {
         state,
         x86,
         profile,
+        learning,
         lengths,
         payload,
     } = state_frame(data)?;
     let (pre, seal) = data.split_at(data.len() - SEAL);
     let identity = crate::states::identity(state)?;
     let n = lengths.iter().try_fold(0u64, |a, &l| a.checked_add(l))?;
-    let rebuilt = state_archive(x86, profile, &identity, &lengths, payload)?;
+    let rebuilt = state_archive_learning(x86, profile, learning, &identity, &lengths, payload)?;
     if rebuilt != data || seal != chain(pre) {
         return None;
     }
     let s = crate::states::state(state)?;
     if !x86 {
-        return crate::ncm::decode_canonical_warm(s, payload, n, profile);
+        return crate::ncm::decode_canonical_warm_learning(s, payload, n, profile, learning);
     }
     let h = crate::x86::filter(s, false, 0).0;
-    let out = crate::ncm::decode_canonical_warm(&h, payload, n, profile)?;
+    let out = crate::ncm::decode_canonical_warm_learning(&h, payload, n, profile, learning)?;
     Some(crate::x86::filter(&out, true, s.len() as u64).0)
 }
 
@@ -1199,8 +1246,8 @@ fn ncm_decode(
     n: u64,
     (profile, plan): (u32, crate::ncm::streams::Plan),
 ) -> Option<Vec<u8>> {
-    // one stream ([`frame_word`]), at the word's probability bits
-    crate::ncm::decode_canonical_window_bits(window, payload, n, profile, plan.bits)
+    // one stream ([`frame_word`]), at the word's probability bits and learning
+    crate::ncm::decode_canonical_window_plan(window, payload, n, profile, plan)
 }
 
 /// `Archive.fastDecode`, natively: the output of an archive this client wrote

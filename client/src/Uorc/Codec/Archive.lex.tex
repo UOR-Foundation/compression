@@ -773,10 +773,73 @@ definition{
 }
 
 definition{
+  name: profileBase,
+  parameters: [],
+  result: Nat,
+  body: 4294967296,
+  executable: true,
+  axioms: []
+}
+
+definition{
+  name: learningBase,
+  parameters: [],
+  result: Nat,
+  body: (prim multiply (profileBase) (profileBase) : Nat),
+  executable: true,
+  axioms: []
+}
+
+definition{
+  name: countBitsStandard,
+  parameters: [],
+  result: Nat,
+  body: 7,
+  executable: true,
+  axioms: []
+}
+
+definition{
+  name: countBitsMax,
+  parameters: [],
+  result: Nat,
+  body: 8,
+  executable: true,
+  axioms: []
+}
+
+definition{
+  name: learningWord,
+  parameters: [word : Nat],
+  result: Bool,
+  body: ((prim quotient word (learningBase) 0 : Nat) <=? (countBitsMax)),
+  executable: true,
+  axioms: []
+}
+
+definition{
+  name: planField,
+  parameters: [word : Nat],
+  result: Nat,
+  body: (prim remainder (prim quotient word (profileBase) 0 : Nat) (profileBase) 0 : Nat),
+  executable: true,
+  axioms: []
+}
+
+definition{
   name: frameWord,
   parameters: [word : Nat],
   result: Bool,
-  body: (let p : Nat := (prim quotient word 4294967296 0 : Nat); (((p =? 0) || (p =? 16)) && (profileWord (prim remainder word 4294967296 0 : Nat)))),
+  body: (let p : Nat := (planField word); (((p =? 0) || (p =? 16)) && ((learningWord word) && (profileWord (prim remainder word (profileBase) 0 : Nat))))),
+  executable: true,
+  axioms: []
+}
+
+definition{
+  name: stateWord,
+  parameters: [word : Nat],
+  result: Bool,
+  body: (((planField word) =? 0) && ((learningWord word) && (profileWord (prim remainder word (profileBase) 0 : Nat)))),
   executable: true,
   axioms: []
 }
@@ -1711,7 +1774,7 @@ definition{
   name: stateArchive,
   parameters: [x : Nat, identity : Bytes, n : Nat, profile : Nat, payload : Bytes],
   result: (Option Bytes),
-  body: (if (profileWord profile) then (seal (windowPreimage identity n (stateBody x profile payload))) else (ctor Option.none [Bytes])),
+  body: (if (stateWord profile) then (seal (windowPreimage identity n (stateBody x profile payload))) else (ctor Option.none [Bytes])),
   executable: true,
   axioms: [Quot.sound, propext]
 }
