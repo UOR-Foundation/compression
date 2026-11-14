@@ -73,6 +73,24 @@ impl Coordinate {
         }
     }
 
+    /// The greatest value the coordinate can take with the others at the
+    /// values `others` gives: the mixers' plasticity may not pass the
+    /// ceiling under which `Uorc.Neuromorphic::laneFitHolds` bounds every
+    /// weight step ([`plasticity_ceiling`]), so floor and gain share it; the
+    /// half-life only spreads the decay and has no bound but its type's.
+    #[must_use]
+    pub fn greatest(self, others: impl Fn(Coordinate) -> i64) -> i64 {
+        match self {
+            Coordinate::PlasticityFloor => {
+                plasticity_ceiling() - others(Coordinate::PlasticityGain)
+            }
+            Coordinate::PlasticityGain => {
+                plasticity_ceiling() - others(Coordinate::PlasticityFloor)
+            }
+            Coordinate::PlasticityHalfLife => i64::MAX,
+        }
+    }
+
     /// The value the coder reads now.
     #[must_use]
     pub fn get(self) -> i64 {
@@ -81,6 +99,23 @@ impl Coordinate {
             v => v,
         }
     }
+}
+
+/// The largest plasticity whose weight step stays within
+/// [`standard::STEP_LIMIT`] for every input and error the mixers admit:
+/// `STEP_LIMIT * 2^PLASTICITY_SHIFT / (INPUT_LIMIT * ERROR_LIMIT)`, the
+/// model's `plasticityCeiling`.
+#[must_use]
+pub fn plasticity_ceiling() -> i64 {
+    (i64::from(standard::STEP_LIMIT) << standard::PLASTICITY_SHIFT)
+        / (i64::from(standard::INPUT_LIMIT) * i64::from(standard::ERROR_LIMIT))
+}
+
+/// The value of every coordinate the coder reads now, in
+/// [`Coordinate::ALL`] order: what a model warmed in this process depends on
+/// beyond the build, so a stored warmed model is keyed by it.
+pub fn current() -> impl Iterator<Item = i64> {
+    Coordinate::ALL.iter().map(|c| c.get())
 }
 
 /// No value set: the coder reads the standard value. A value below every
@@ -97,9 +132,18 @@ static MEASURING: Mutex<()> = Mutex::new(());
 /// # Errors
 /// A value below the coordinate's [`Coordinate::least`].
 pub fn with<R>(values: &[(Coordinate, i64)], f: impl FnOnce() -> R) -> Result<R, String> {
+    let value = |c: Coordinate| {
+        values
+            .iter()
+            .find(|(x, _)| *x == c)
+            .map_or(c.standard(), |&(_, v)| v)
+    };
     for &(c, v) in values {
         if v < c.least() {
             return Err(format!("{} = {v} is below {}", c.name(), c.least()));
+        }
+        if v > c.greatest(value) {
+            return Err(format!("{} = {v} is above {}", c.name(), c.greatest(value)));
         }
     }
     let _held = MEASURING
@@ -132,6 +176,10 @@ mod tests {
         assert_eq!(inside, 65536);
         assert_eq!(c.get(), standard::PLASTICITY_HALF_LIFE);
         assert!(with(&[(c, 0)], || ()).is_err());
+        assert_eq!(plasticity_ceiling(), 128);
+        let floor = Coordinate::PlasticityFloor;
+        assert!(with(&[(floor, 128 - standard::PLASTICITY_GAIN)], || ()).is_ok());
+        assert!(with(&[(floor, 129 - standard::PLASTICITY_GAIN)], || ()).is_err());
         for &c in Coordinate::ALL {
             assert_eq!(Coordinate::named(c.name()), Some(c));
         }

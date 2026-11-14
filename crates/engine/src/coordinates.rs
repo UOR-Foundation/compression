@@ -2,9 +2,11 @@
 //! coordinates ([`uorc::coordinates`]) by outcome over the κ-named corpus.
 //!
 //! For each coordinate the search gallops from its least value (the
-//! identity: 0 for an additive figure, 1 for a divisor) by doubling while the
-//! corpus gets strictly smaller, then bisects the bracket around the best
-//! value until no integer is left unmeasured beside it. Each value measured
+//! identity: 0 for an additive figure, 1 for a divisor) by doubling, past
+//! the standard value and on while the corpus gets strictly smaller, then
+//! bisects the bracket around the best value until no integer is left
+//! unmeasured beside it. The standard value is one of the measured points,
+//! so a decided value never codes the corpus larger than it. Each value measured
 //! is a closed claim in `frontier.toml` under its κ, so a later tick walks
 //! the same path free and only measures what is new; at most the model's
 //! `hypothesisBudget` new values are measured per tick.
@@ -131,7 +133,8 @@ pub fn search(
     let Some(standard) = probe.probe(&BTreeMap::new())? else {
         return Ok(None);
     };
-    let mut seen: Vec<(i64, Measure)> = Vec::new();
+    // the standard value is a measured point of the search like any other
+    let mut seen: Vec<(i64, Measure)> = vec![(c.standard(), standard.clone())];
     let mut complete = true;
     let mut measure = |v: i64, seen: &mut Vec<(i64, Measure)>| -> Result<Option<u64>, String> {
         if let Some((_, m)) = seen.iter().find(|(x, _)| *x == v) {
@@ -151,15 +154,22 @@ pub fn search(
             complete = false;
             break;
         };
-        let worse = path.last().is_some_and(|&(_, p)| b >= p);
+        // past the standard value, the first value that does not improve on
+        // the one before it ends the gallop
+        let worse = v > c.standard() && path.last().is_some_and(|&(_, p)| b >= p);
         path.push((v, b));
         if worse {
+            break;
+        }
+        // the coordinate's domain ends the gallop at its greatest value
+        let greatest = c.greatest(Coordinate::standard);
+        if v >= greatest {
             break;
         }
         let Some(next) = (if v == 0 { Some(1) } else { v.checked_mul(2) }) else {
             break;
         };
-        v = next;
+        v = next.min(greatest);
     }
     if complete {
         // bisect the bracket around the best value
