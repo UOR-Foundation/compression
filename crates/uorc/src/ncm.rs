@@ -75,10 +75,14 @@ pub mod standard {
     /// The mixers' plasticity after `pos` coded bytes, in 1/65536 per unit
     /// of `x * err`: 128 at the start, decaying toward 24 (`plasticity`).
     #[must_use]
+    /// The coder reads the three plasticity figures as coordinates
+    /// ([`crate::coordinates`]), so the engine can decide them by outcome.
     pub fn plasticity(pos: u32) -> i32 {
-        (PLASTICITY_FLOOR
-            + PLASTICITY_GAIN * PLASTICITY_HALF_LIFE / (PLASTICITY_HALF_LIFE + i64::from(pos)))
-            as i32
+        use crate::coordinates::Coordinate;
+        let floor = Coordinate::PlasticityFloor.get();
+        let gain = Coordinate::PlasticityGain.get();
+        let half = Coordinate::PlasticityHalfLife.get();
+        (floor + gain * half / (half + i64::from(pos))) as i32
     }
 }
 
