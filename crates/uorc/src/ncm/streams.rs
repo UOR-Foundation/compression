@@ -35,7 +35,7 @@
 //! With one stream the merge is the identity and the payload is the serial
 //! coder's, byte for byte, after the 4-byte length.
 
-use super::{Bucket, Kernel, Model, Table, NINP, NINP_NARROW, SLOT_FRESH, WEIGHT_LIMIT};
+use super::{Bucket, Kernel, Model, Table, APM_ROW, NINP, NINP_NARROW, SLOT_FRESH, WEIGHT_LIMIT};
 use std::sync::Arc;
 
 /// How a frame is cut into streams.
@@ -45,8 +45,8 @@ pub struct Plan {
     pub streams: usize,
     /// Bytes each stream codes per epoch (at least 1).
     pub epoch: usize,
-    /// Bits of the probability each bit is coded at: 12 (a word's
-    /// probability field zero) or 16 (the field 16).
+    /// Bits of the probability each bit is coded at: 12 (the frame's coder,
+    /// a word's probability field zero) or 16 (the field 16).
     pub bits: u32,
     /// How the model learns ([`super::Learning`]; the word's learning
     /// fields, [`COUNT_AT`]).
@@ -79,6 +79,8 @@ impl Plan {
             && (self.bits == 12 || self.bits == 16)
             && self.learning.valid()
             && self.delta.is_none_or(crate::delta::Delta::valid)
+            // streams learn as the standard model, over no delta filter
+            && (self.streams == 1 || (self.learning.standard() && self.delta.is_none()))
     }
 
     /// One stream: the serial coder.
@@ -90,14 +92,6 @@ impl Plan {
         delta: None,
     };
 
-    /// Whether the frame's coder is the v0.4 coder: one stream at 12-bit
-    /// probabilities (the field zero), learning as the standard model, over
-    /// no delta filter.
-    #[must_use]
-    pub fn serial(&self) -> bool {
-        self.streams == 1 && self.bits == 12 && self.learning.standard() && self.delta.is_none()
-    }
-
     /// `streams` streams of `epoch` bytes at 12-bit probabilities.
     #[must_use]
     pub const fn of(streams: usize, epoch: usize) -> Plan {
@@ -108,6 +102,14 @@ impl Plan {
             learning: super::Learning::STANDARD,
             delta: None,
         }
+    }
+
+    /// Whether the frame's coder codes this plan, byte for byte: one stream
+    /// at 12-bit probabilities, learning as the standard model, over no
+    /// delta filter.
+    #[must_use]
+    pub fn serial(&self) -> bool {
+        self.streams == 1 && self.bits == 12 && self.learning.standard() && self.delta.is_none()
     }
 }
 
@@ -232,6 +234,7 @@ pub fn derive(
     history: &[u8],
     data: &[u8],
     profile: u32,
+    bits: u32,
     host: usize,
     coding: u64,
     threads: usize,
@@ -245,13 +248,16 @@ pub fn derive(
     let (mut steps, mut over) = (u128::from(coding), 1u128);
     let mut best: Option<Derived> = None;
     for k in 2..=(1 << 16) {
-        let plan = Plan::of(k, 1);
+        let plan = Plan {
+            bits,
+            ..Plan::of(k, 1)
+        };
         // every stream holds at least one stride unit, and the host holds
         // the decoder's working tables
         if plan.stride(n) * (k - 1) >= n || !holds(k) {
             break;
         }
-        let trial = epochs(history, data, profile, k, threads)?;
+        let trial = epochs(history, data, profile, plan, threads)?;
         let (s, o) = (
             u128::from(coding) + u128::from(trial.merge),
             k.min(host) as u128,
@@ -276,11 +282,11 @@ pub fn derive(
 
 /// The epoch of `k` streams by the least payload, then steps: one epoch per
 /// stream first, then halved while the payload shrinks.
-fn epochs(history: &[u8], data: &[u8], profile: u32, k: usize, threads: usize) -> Option<Derived> {
-    let stride = Plan::of(k, 1).stride(data.len());
+fn epochs(history: &[u8], data: &[u8], profile: u32, one: Plan, threads: usize) -> Option<Derived> {
+    let stride = one.stride(data.len());
     let mut epoch = stride.next_power_of_two();
     let trial = |epoch, stop| {
-        let plan = Plan::of(k, epoch);
+        let plan = Plan { epoch, ..one };
         encode_below(history, data, profile, plan, threads, stop).map(|(payload, merge)| Derived {
             plan,
             payload,
@@ -302,6 +308,184 @@ fn epochs(history: &[u8], data: &[u8], profile: u32, k: usize, threads: usize) -
     Some(best)
 }
 
+/// Site counts of `k` streams for every power-of-two epoch, from one pass
+/// over the data that codes nothing ([`count`]).
+#[derive(Clone, Debug)]
+pub struct Counts {
+    /// The stream count counted.
+    pub streams: usize,
+    /// Per epoch `1 << L` (index `L`, up to one epoch per stream), per kind
+    /// ([`KINDS`]): the (stream, site) changes, the shared sites and their
+    /// versions (the merge's steps, [`merge_steps`]).
+    pub levels: Vec<[[u64; 3]; 5]>,
+}
+
+impl Counts {
+    /// The merge's steps counted at epoch `1 << level`.
+    #[must_use]
+    pub fn steps(&self, level: usize) -> u64 {
+        self.levels[level].iter().map(|k| k[2]).sum()
+    }
+}
+
+/// The sites `k` streams of `data` after `history` under `profile` change,
+/// counted for every power-of-two epoch at once in one pass that codes
+/// nothing: the streams advance byte by byte side by side over one shared
+/// set of buckets and match tables, each touch recording, per site, the
+/// last position (within its stream) each stream touched it at. A touch at
+/// position `t` by stream `s` is in epoch `t >> L` of epoch `1 << L`; it
+/// adds stream `s` to that epoch's group of the site when `s`'s last touch
+/// lies in an earlier epoch, and the group's other streams are the ones
+/// whose last touch lies in the same epoch, so the levels at which the
+/// group turns shared (a second stream: two versions) or grows (one more)
+/// are where the touch's position and the last positions part. What
+/// coding decides by probabilities is not counted exactly: a word of a
+/// mixer row counts as changed when the row is trained (the profile's
+/// inputs per row), an APM row as one entry, and a stream reads the other
+/// streams' changes at once rather than at the epoch's end. `None` for an
+/// invalid profile, no streams, or an input that does not fit.
+#[must_use]
+pub fn count(history: &[u8], data: &[u8], profile: u32, k: usize) -> Option<Counts> {
+    if !super::valid_profile(profile) || k == 0 {
+        return None;
+    }
+    let n = u32::try_from(data.len()).ok()?;
+    let plan = Plan::of(k, 1);
+    let stride = plan.stride(data.len());
+    let levels = stride.max(1).next_power_of_two().trailing_zeros() as usize + 1;
+    let mut base = Model::new(n, &[history], super::Learning::STANDARD.point(profile));
+    let before = base.hoff as usize;
+    base.hist[before..].copy_from_slice(data);
+    let mut sl = std::mem::replace(&mut base.sl, Table(Default::default()));
+    let mut mtab = std::mem::replace(&mut base.mtab, Table(Default::default()));
+    let mut m2tab = std::mem::replace(&mut base.m2tab, Table(Default::default()));
+    let mut hist = std::mem::take(&mut base.hist);
+    let rows = row_counts(&base);
+    let sites = [
+        sl.len(),
+        mtab.len(),
+        m2tab.len(),
+        rows[0],
+        rows[1] / 8,
+        rows[2] / 8,
+        rows[3],
+        base.msp.len(),
+        base.m2sp.len(),
+        base.rsp.len(),
+    ];
+    let inputs = u64::from(crate::performance::inputs(profile));
+    // the kinds a table's touch counts in, with the sites it changes
+    let kinds: [&[(usize, u64)]; 10] = [
+        &[(0, 1)],
+        &[(1, 1)],
+        &[(1, 1)],
+        &[(2, inputs), (3, 1)],
+        &[(2, 8 * inputs)],
+        &[(2, 8 * inputs)],
+        &[(3, 1)],
+        &[(4, 1)],
+        &[(4, 1)],
+        &[(4, 1)],
+    ];
+    let ranges: Vec<Part> = (0..k).map(|i| plan.range(data.len(), i)).collect();
+    let mut models: Vec<Model> = Vec::with_capacity(k);
+    for r in &ranges {
+        let mut m = base.clone();
+        if r.start > 0 {
+            m.hoff = (before + r.start) as u32;
+            std::mem::swap(&mut sl, &mut m.sl);
+            std::mem::swap(&mut mtab, &mut m.mtab);
+            std::mem::swap(&mut m2tab, &mut m.m2tab);
+            std::mem::swap(&mut hist, &mut m.hist);
+            m.new_byte();
+            std::mem::swap(&mut sl, &mut m.sl);
+            std::mem::swap(&mut mtab, &mut m.mtab);
+            std::mem::swap(&mut m2tab, &mut m.m2tab);
+            std::mem::swap(&mut hist, &mut m.hist);
+        }
+        models.push(m);
+    }
+    drop(base);
+    // per table, per site, each stream's last touch (u32::MAX: none yet)
+    let mut last: Vec<Vec<u32>> = sites.iter().map(|&s| vec![u32::MAX; s * k]).collect();
+    // per kind and count, a difference array over the levels
+    let mut diff = vec![[[0i64; 3]; 5]; levels + 1];
+    let bitlen = |x: u32| 32 - x.leading_zeros();
+    for t in 0..stride {
+        let tu = t as u32;
+        for (s, (m, r)) in models.iter_mut().zip(&ranges).enumerate() {
+            if r.start + t >= r.end {
+                continue;
+            }
+            let mut record = |table: usize, is: &[u32]| {
+                // the sites' records asked for first (a lookup waits on memory)
+                for &i in is {
+                    super::prefetch(&last[table][i as usize * k]);
+                }
+                for &i in is {
+                    let row = &mut last[table][i as usize * k..(i as usize + 1) * k];
+                    // the levels below `own` are where stream s is new to the group
+                    let own = bitlen(tu ^ row[s]) as usize;
+                    if own == 0 {
+                        continue;
+                    }
+                    let (mut a1, mut a2) = (32usize, 32usize);
+                    for (j, &x) in row.iter().enumerate() {
+                        if j != s {
+                            let a = bitlen(tu ^ x) as usize;
+                            if a < a1 {
+                                (a1, a2) = (a, a1);
+                            } else if a < a2 {
+                                a2 = a;
+                            }
+                        }
+                    }
+                    row[s] = tu;
+                    let mut add = |kind: usize, c: usize, lo: usize, hi: usize, w: i64| {
+                        let hi = hi.min(levels);
+                        if lo < hi {
+                            diff[lo][kind][c] += w;
+                            diff[hi][kind][c] -= w;
+                        }
+                    };
+                    for &(kind, w) in kinds[table] {
+                        let w = w as i64;
+                        add(kind, 0, 0, own, w);
+                        // one other stream in the group: it turns shared, two versions
+                        add(kind, 1, a1, a2.min(own), w);
+                        add(kind, 2, a1, a2.min(own), 2 * w);
+                        // two or more: one more version
+                        add(kind, 2, a2, own, w);
+                    }
+                }
+            };
+            std::mem::swap(&mut sl, &mut m.sl);
+            std::mem::swap(&mut mtab, &mut m.mtab);
+            std::mem::swap(&mut m2tab, &mut m.m2tab);
+            std::mem::swap(&mut hist, &mut m.hist);
+            m.touch_byte(u32::from(data[r.start + t]), &mut record);
+            std::mem::swap(&mut sl, &mut m.sl);
+            std::mem::swap(&mut mtab, &mut m.mtab);
+            std::mem::swap(&mut m2tab, &mut m.m2tab);
+            std::mem::swap(&mut hist, &mut m.hist);
+        }
+    }
+    let mut acc = [[0i64; 3]; 5];
+    let levels = (0..levels)
+        .map(|l| {
+            let mut out = [[0u64; 3]; 5];
+            for (kind, o) in out.iter_mut().enumerate() {
+                for (c, o) in o.iter_mut().enumerate() {
+                    acc[kind][c] += diff[l][kind][c];
+                    *o = acc[kind][c] as u64;
+                }
+            }
+            out
+        })
+        .collect();
+    Some(Counts { streams: k, levels })
+}
+
 /// Threads a frame's streams run on: one per stream, at most the host's.
 #[must_use]
 pub fn threads(plan: Plan) -> usize {
@@ -319,14 +503,79 @@ pub fn threads(plan: Plan) -> usize {
 }
 
 /// The merge's steps for `data` after `history` under `profile` and `plan`:
-/// per epoch and stream, the buckets, match table entries, and mixer weight
-/// and probability map entries the stream changed (zero for one stream).
+/// the work of the certified shared sites.
+///
+/// A site is one context bucket (16 slots), one entry of the match table or
+/// of the short match table, one mixer weight (of `w1`, `w2`, `w3`), one APM
+/// entry (of `a1`, `a2`), or one match-model slot (of the match, short match
+/// and repeat models: probability and count together). A stream changes a
+/// site in an epoch when it takes its own copy of the bucket (it looked the
+/// bucket up), writes the match table entry, or ends the epoch with the
+/// word or slot different from its value when the epoch began. The steps
+/// are, summed over the epochs, for every site two or more streams changed
+/// in that epoch, the number of streams that changed it. A site one stream
+/// changed is a copy and costs no step; with one stream there are none.
+/// History bytes are never shared (the streams' ranges are disjoint).
 #[must_use]
 pub fn merge_steps(history: &[u8], data: &[u8], profile: u32, plan: Plan) -> Option<u64> {
     if plan.streams == 1 {
         return Some(0);
     }
     encode_counted(history, data, profile, plan, threads(plan)).map(|(_, s)| s)
+}
+
+/// The kinds of merged sites, in the order [`Sites`] counts them.
+pub const KINDS: [&str; 5] = [
+    "buckets",
+    "match entries",
+    "mixer weights",
+    "APM entries",
+    "small slots",
+];
+
+/// What the merges of a streams coder did, per site kind ([`KINDS`]),
+/// summed over the epochs: a site is one context bucket, one entry of a
+/// match table, one mixer weight, one APM entry or one match-model slot,
+/// and a stream changed it in an epoch when it wrote it (a bucket it
+/// copied, a match entry it set) or, for a word, when its value at the
+/// epoch's end differs from the epoch's start.
+#[derive(Clone, Debug, Default)]
+pub struct Sites {
+    /// Sites exactly one stream changed in an epoch.
+    pub one: [u64; 5],
+    /// Sites two or more streams changed in an epoch (certified shared).
+    pub shared: [u64; 5],
+    /// The streams that changed each shared site, summed.
+    pub versions: [u64; 5],
+    /// Epochs merged.
+    pub epochs: u64,
+    /// Seconds in the merges: buckets, match tables, history, words.
+    pub secs: [f64; 4],
+    /// The merge's steps ([`merge_steps`]).
+    pub steps: u64,
+}
+
+impl Sites {
+    fn add(&mut self, kind: usize, c: [u64; 3]) {
+        self.one[kind] += c[0];
+        self.shared[kind] += c[1];
+        self.versions[kind] += c[2];
+    }
+}
+
+/// [`encode`], with what its merges did ([`Sites`]).
+#[must_use]
+pub fn encode_sites(
+    history: &[u8],
+    data: &[u8],
+    profile: u32,
+    plan: Plan,
+    threads: usize,
+) -> Option<(Vec<u8>, Sites)> {
+    let (out, steps, sites) = encode_with(history, data, profile, plan, threads, usize::MAX, true)?;
+    let mut sites = *sites?;
+    sites.steps = steps;
+    Some((out, sites))
 }
 
 /// The state every stream of a frame reads: the context buckets, the match
@@ -520,6 +769,21 @@ struct Frame {
     own: Vec<Own>,
     /// the merge's steps so far ([`Frame::merge`])
     steps: u64,
+    /// what the merges did, when counted
+    sites: Option<Box<Sites>>,
+    /// a count per match table entry (zero between merges)
+    mark: Vec<u32>,
+}
+
+/// The rows of `m`'s row tables: mixer 1's weights and the first map (both
+/// by `c1`), mixer 2's weights, mixer 3's, the second map.
+fn row_counts(m: &Model) -> [usize; 4] {
+    [
+        m.w1.len() / m.stride,
+        m.w2.len() / m.stride,
+        m.w3.len() / m.stride,
+        m.a2.t.len() / APM_ROW,
+    ]
 }
 
 impl Frame {
@@ -571,6 +835,8 @@ impl Frame {
             coded: 0,
             own: vec![own],
             steps: 0,
+            sites: None,
+            mark: Vec::new(),
         }
     }
 
@@ -638,24 +904,31 @@ impl Frame {
         self.merge(parts, threads);
     }
 
-    /// Merge every stream's changes into the shared state and back. Its
-    /// steps: one per bucket, match table entry, and mixer weight or map
-    /// entry that a stream changed this epoch, summed over the streams (none
-    /// with one stream, whose merge is the identity).
+    /// Merge every stream's changes into the shared state and back.
+    ///
+    /// The sites a merge composes are partitioned by the streams that
+    /// changed them this epoch (see [`merge_steps`] for the sites and what
+    /// changing one means). A site exactly one stream changed composes
+    /// exactly: the merge takes that stream's value (a bucket it re-tagged
+    /// still competes with the base's context by use, a choice between two
+    /// whole buckets). Only a certified shared site, one two or more streams
+    /// changed, runs the merge rule over its versions, and its steps are
+    /// those versions: the merge's steps are the shared sites' versions,
+    /// summed over the kinds ([`KINDS`]).
     fn merge(&mut self, parts: &[Part], threads: usize) {
-        if self.lanes.len() > 1 {
-            self.steps += self
-                .lanes
-                .iter()
-                .map(|m| {
-                    let l = m.lane.as_ref().expect("a stream");
-                    (l.delta.len() + l.mtd.len() + l.m2d.len()) as u64
-                })
-                .sum::<u64>();
-        }
         for m in &mut self.lanes {
             m.lane.as_mut().expect("a stream").shared = None;
         }
+        let clock = self.sites.as_ref().map(|_| std::time::Instant::now());
+        let mut lap = clock;
+        let mut laps = [0f64; 4];
+        let mut tick = |i: usize| {
+            if let Some(l) = &mut lap {
+                let now = std::time::Instant::now();
+                laps[i] += (now - *l).as_secs_f64();
+                *l = now;
+            }
+        };
         let shared = Arc::get_mut(&mut self.shared).expect("the streams released the state");
         // context buckets: every bucket a stream copied, merged from all its
         // versions, the buckets split among the threads by range
@@ -670,7 +943,9 @@ impl Frame {
         let k = deltas.len();
         // every stream's delta is in bucket order: each thread merges the
         // buckets of its range, walking the deltas side by side
-        let job = |t: usize, sl: &mut [Bucket]| {
+        const AHEAD: usize = 8;
+        let job = |t: usize, sl: &mut [Bucket]| -> [u64; 3] {
+            let mut c = [0u64; 3];
             let lo = (t * span) as u32;
             let hi = lo + sl.len() as u32;
             let mut at: Vec<usize> = deltas
@@ -683,6 +958,13 @@ impl Frame {
                 let mut b = hi;
                 let (mut first, mut count) = (0, 0);
                 for (j, d) in deltas.iter().enumerate() {
+                    // the merge waits on the shared table: ask for a bucket
+                    // a few entries ahead in every delta
+                    if let Some(&(y, _)) = d.get(at[j] + AHEAD) {
+                        if (lo..hi).contains(&y) {
+                            super::prefetch(&sl[(y - lo) as usize]);
+                        }
+                    }
                     if let Some(&(x, _)) = d.get(at[j]) {
                         if x < b {
                             (b, first, count) = (x, j, 1);
@@ -692,15 +974,18 @@ impl Frame {
                     }
                 }
                 if b >= hi {
-                    break;
+                    break c;
                 }
                 let i = (b - lo) as usize;
                 let x = sl[i].0;
                 let v = if count == 1 {
+                    c[0] += 1;
                     let v = deltas[first][at[first]].1 .0;
                     at[first] += 1;
                     single(&x, &v, k)
                 } else {
+                    c[1] += 1;
+                    c[2] += count as u64;
                     versions.clear();
                     for (j, d) in deltas.iter().enumerate() {
                         match d.get(at[j]) {
@@ -716,16 +1001,34 @@ impl Frame {
                 sl[i] = Bucket(v);
             }
         };
-        if threads == 1 || cfg!(target_family = "wasm") {
-            job(0, &mut shared.sl);
+        let bc = if threads == 1 || cfg!(target_family = "wasm") {
+            job(0, &mut shared.sl)
         } else {
             let job = &job;
             std::thread::scope(|sc| {
-                for (t, sl) in shared.sl.chunks_mut(span).enumerate() {
-                    sc.spawn(move || job(t, sl));
-                }
-            });
-        }
+                let hs: Vec<_> = shared
+                    .sl
+                    .chunks_mut(span)
+                    .enumerate()
+                    .map(|(t, sl)| sc.spawn(move || job(t, sl)))
+                    .collect();
+                hs.into_iter().fold([0; 3], |a, h| {
+                    let c = h.join().expect("a merge thread");
+                    [a[0] + c[0], a[1] + c[1], a[2] + c[2]]
+                })
+            })
+        };
+        tick(0);
+        // match tables: an entry several streams wrote is a shared site
+        let lists = |f: fn(&Lane) -> &[(u32, u32)]| -> Vec<&[(u32, u32)]> {
+            self.lanes
+                .iter()
+                .map(|m| f(m.lane.as_ref().expect("a stream")))
+                .collect()
+        };
+        let c1 = multiplicity(&mut self.mark, shared.mtab.len(), &lists(|l| &l.mtd));
+        let c2 = multiplicity(&mut self.mark, shared.m2tab.len(), &lists(|l| &l.m2d));
+        let cm = [c1[0] + c2[0], c1[1] + c2[1], c1[2] + c2[2]];
         // match tables: the furthest position a stream wrote. Streams lie in
         // frame order, so every position a later stream wrote is further:
         // writing the streams' entries in stream order leaves the furthest.
@@ -738,6 +1041,7 @@ impl Frame {
                 shared.m2tab[key as usize] = v;
             }
         }
+        tick(1);
         // the epoch's bytes, in place
         for (m, p) in self.lanes.iter().zip(parts) {
             let l = m.lane.as_ref().expect("a stream");
@@ -747,26 +1051,55 @@ impl Frame {
                 o.hist[lo..lo + l.buf.len()].copy_from_slice(&l.buf);
             }
         }
+        tick(2);
         // mixer weights, probability maps and the match models' own slots
         let base = &mut self.base;
         let lanes = &mut self.lanes;
         let wl = (-WEIGHT_LIMIT, WEIGHT_LIMIT);
-        let changed = merge_words(&mut base.w1, lanes, |m| &mut m.w1, wl)
-            + merge_words(&mut base.w2, lanes, |m| &mut m.w2, wl)
-            + merge_words(&mut base.w3, lanes, |m| &mut m.w3, wl)
-            + merge_words(&mut base.a1.t, lanes, |m| &mut m.a1.t, (0, 65535))
-            + merge_words(&mut base.a2.t, lanes, |m| &mut m.a2.t, (0, 65535))
-            + merge_small(&mut base.msp, &mut base.msn, lanes, |m| {
-                (&mut m.msp, &mut m.msn)
-            })
-            + merge_small(&mut base.m2sp, &mut base.m2sn, lanes, |m| {
-                (&mut m.m2sp, &mut m.m2sn)
-            })
-            + merge_small(&mut base.rsp, &mut base.rsn, lanes, |m| {
-                (&mut m.rsp, &mut m.rsn)
-            });
-        if lanes.len() > 1 {
-            self.steps += changed;
+        let al = (0, 65535);
+        let (mut w1, mut w2, mut w3, mut a1, mut a2) = (vec![], vec![], vec![], vec![], vec![]);
+        for m in lanes.iter_mut() {
+            w1.push(&mut m.w1[..]);
+            w2.push(&mut m.w2[..]);
+            w3.push(&mut m.w3[..]);
+            a1.push(&mut m.a1.t[..]);
+            a2.push(&mut m.a2.t[..]);
+        }
+        let mut cw = [0u64; 3];
+        for c in [
+            merge_words(&mut base.w1, w1, wl, threads),
+            merge_words(&mut base.w2, w2, wl, threads),
+            merge_words(&mut base.w3, w3, wl, threads),
+        ] {
+            cw = [cw[0] + c[0], cw[1] + c[1], cw[2] + c[2]];
+        }
+        let (c1, c2) = (
+            merge_words(&mut base.a1.t, a1, al, threads),
+            merge_words(&mut base.a2.t, a2, al, threads),
+        );
+        let ca = [c1[0] + c2[0], c1[1] + c2[1], c1[2] + c2[2]];
+        let mut cs = [0u64; 3];
+        merge_small(&mut base.msp, &mut base.msn, lanes, &mut cs, |m| {
+            (&mut m.msp, &mut m.msn)
+        });
+        merge_small(&mut base.m2sp, &mut base.m2sn, lanes, &mut cs, |m| {
+            (&mut m.m2sp, &mut m.m2sn)
+        });
+        merge_small(&mut base.rsp, &mut base.rsn, lanes, &mut cs, |m| {
+            (&mut m.rsp, &mut m.rsn)
+        });
+        tick(3);
+        self.steps += bc[2] + cm[2] + cw[2] + ca[2] + cs[2];
+        if let Some(st) = &mut self.sites {
+            st.add(0, bc);
+            st.add(1, cm);
+            st.add(2, cw);
+            st.add(3, ca);
+            st.add(4, cs);
+            st.epochs += 1;
+            for (a, b) in st.secs.iter_mut().zip(laps) {
+                *a += b;
+            }
         }
         for m in lanes.iter_mut() {
             m.seen = self.coded as u32;
@@ -780,78 +1113,151 @@ impl Frame {
     }
 }
 
-/// Every stream's copy of a word table merged into `base` and back: each
-/// entry moves by the mean change of the streams that changed it. The
-/// number of (stream, entry) changes.
-fn merge_words<T, F>(base: &mut [T], lanes: &mut [Model], get: F, (lo, hi): (i32, i32)) -> u64
+/// Every stream's copy of a word table merged into `base` and back, in
+/// runs of 64 words: a run no stream changed is skipped, a run one stream
+/// changed is copied from it (each of its words is a site one stream
+/// changed), and in a run several changed each word moves by the mean change
+/// of the streams that changed it ([`merge_word`]). The table is cut into
+/// `threads` ranges of whole runs merged side by side. The words' counts.
+fn merge_words<T>(
+    base: &mut [T],
+    mut lanes: Vec<&mut [T]>,
+    bounds: (i32, i32),
+    threads: usize,
+) -> [u64; 3]
 where
-    T: Copy + PartialEq + Into<i32> + TryFrom<i32>,
-    F: Fn(&mut Model) -> &mut [T],
+    T: Copy + PartialEq + Into<i32> + TryFrom<i32> + Send,
 {
     const CHUNK: usize = 64;
-    let mut steps = 0;
-    for c in (0..base.len()).step_by(CHUNK) {
-        let e = (c + CHUNK).min(base.len());
-        if lanes.iter_mut().all(|m| get(m)[c..e] == base[c..e]) {
-            continue;
-        }
-        for j in c..e {
-            steps += merge_word(base, lanes, &get, j, (lo, hi));
+    let span = base.len().div_ceil(threads.max(1)).div_ceil(CHUNK).max(1) * CHUNK;
+    if span >= base.len() || cfg!(target_family = "wasm") {
+        return merge_runs(base, &mut lanes, bounds, CHUNK);
+    }
+    // each lane's table cut at the same bounds as the base's
+    let mut parts: Vec<Vec<&mut [T]>> =
+        (0..base.len().div_ceil(span)).map(|_| Vec::new()).collect();
+    for l in lanes {
+        for (p, c) in parts.iter_mut().zip(l.chunks_mut(span)) {
+            p.push(c);
         }
     }
-    steps
+    std::thread::scope(|sc| {
+        let hs: Vec<_> = base
+            .chunks_mut(span)
+            .zip(parts)
+            .map(|(b, mut l)| sc.spawn(move || merge_runs(b, &mut l, bounds, CHUNK)))
+            .collect();
+        hs.into_iter().fold([0; 3], |a, h| {
+            let c = h.join().expect("a merge thread");
+            [a[0] + c[0], a[1] + c[1], a[2] + c[2]]
+        })
+    })
 }
 
-fn merge_word<T, F>(
-    base: &mut [T],
-    lanes: &mut [Model],
-    get: &F,
-    j: usize,
-    (lo, hi): (i32, i32),
-) -> u64
+/// [`merge_words`] on one range, in runs of `run` words.
+fn merge_runs<T>(base: &mut [T], lanes: &mut [&mut [T]], bounds: (i32, i32), run: usize) -> [u64; 3]
 where
     T: Copy + PartialEq + Into<i32> + TryFrom<i32>,
-    F: Fn(&mut Model) -> &mut [T],
 {
-    {
-        let x = base[j];
-        let (mut changed, mut d) = (0i64, 0i64);
-        for m in lanes.iter_mut() {
-            let v = get(m)[j];
-            if v != x {
-                changed += 1;
-                d += i64::from(v.into()) - i64::from(x.into());
+    let mut c = [0; 3];
+    for s in (0..base.len()).step_by(run) {
+        let e = (s + run).min(base.len());
+        let mut changed = (0..lanes.len()).filter(|&i| lanes[i][s..e] != base[s..e]);
+        match (changed.next(), changed.next()) {
+            (None, _) => {}
+            (Some(i), None) => {
+                let (b, v) = (&mut base[s..e], &lanes[i][s..e]);
+                c[0] += v.iter().zip(b.iter()).filter(|(a, b)| a != b).count() as u64;
+                b.copy_from_slice(v);
+                for (j, l) in lanes.iter_mut().enumerate() {
+                    if j != i {
+                        l[s..e].copy_from_slice(b);
+                    }
+                }
+            }
+            _ => {
+                for j in s..e {
+                    tally(&mut c, merge_word(base, lanes, j, bounds));
+                }
             }
         }
-        if changed == 0 {
-            return 0;
-        }
-        let v = (i64::from(x.into()) + d / changed).clamp(i64::from(lo), i64::from(hi)) as i32;
-        let Ok(v) = T::try_from(v) else {
-            unreachable!("clamped into the table's range")
-        };
-        base[j] = v;
-        for m in lanes.iter_mut() {
-            get(m)[j] = v;
-        }
-        changed as u64
     }
+    c
+}
+
+/// One word several streams may have changed: it moves by the mean change
+/// of those that did. The number of streams that changed it.
+fn merge_word<T>(base: &mut [T], lanes: &mut [&mut [T]], j: usize, (lo, hi): (i32, i32)) -> u64
+where
+    T: Copy + PartialEq + Into<i32> + TryFrom<i32>,
+{
+    let x = base[j];
+    let (mut changed, mut d) = (0i64, 0i64);
+    for l in lanes.iter() {
+        let v = l[j];
+        if v != x {
+            changed += 1;
+            d += i64::from(v.into()) - i64::from(x.into());
+        }
+    }
+    if changed == 0 {
+        return 0;
+    }
+    let v = (i64::from(x.into()) + d / changed).clamp(i64::from(lo), i64::from(hi)) as i32;
+    let Ok(v) = T::try_from(v) else {
+        unreachable!("clamped into the table's range")
+    };
+    base[j] = v;
+    for l in lanes.iter_mut() {
+        l[j] = v;
+    }
+    changed as u64
+}
+
+/// Count a site `n` streams changed: [one, shared, shared versions].
+fn tally(c: &mut [u64; 3], n: u64) {
+    match n {
+        0 => {}
+        1 => c[0] += 1,
+        _ => {
+            c[1] += 1;
+            c[2] += n;
+        }
+    }
+}
+
+/// How many keys of `lists` (one per stream) one stream holds, how many two
+/// or more, and the versions of those; `mark` is left zero.
+fn multiplicity(mark: &mut Vec<u32>, len: usize, lists: &[&[(u32, u32)]]) -> [u64; 3] {
+    mark.resize(len, 0);
+    for l in lists {
+        for &(k, _) in *l {
+            mark[k as usize] += 1;
+        }
+    }
+    let mut c = [0; 3];
+    for l in lists {
+        for &(k, _) in *l {
+            let n = std::mem::take(&mut mark[k as usize]);
+            tally(&mut c, u64::from(n));
+        }
+    }
+    c
 }
 
 /// The match models' slots (probability and count apart) merged as context
-/// slots. The number of (stream, slot) changes.
+/// slots. Counts the slots into `c`.
 fn merge_small<const N: usize, F>(
     bp: &mut [u16; N],
     bn: &mut [u8; N],
     lanes: &mut [Model],
+    c: &mut [u64; 3],
     get: F,
-) -> u64
-where
+) where
     F: Fn(&mut Model) -> (&mut [u16; N], &mut [u8; N]),
 {
     let pack = |p: u16, n: u8| u32::from(p) | (u32::from(n) << 16);
     let mut v = Vec::with_capacity(lanes.len());
-    let mut steps = 0;
     for j in 0..N {
         v.clear();
         let b = pack(bp[j], bn[j]);
@@ -859,7 +1265,8 @@ where
             let (p, n) = get(m);
             v.push(pack(p[j], n[j]));
         }
-        steps += v.iter().filter(|&&x| x != b).count() as u64;
+        let n = v.iter().filter(|&&x| x != b).count() as u64;
+        tally(c, n);
         let x = merge_slot(pack(bp[j], bn[j]), &v);
         bp[j] = (x & 0xffff) as u16;
         bn[j] = (x >> 16) as u8;
@@ -869,7 +1276,6 @@ where
             n[j] = bn[j];
         }
     }
-    steps
 }
 
 /// One slot (probability in the low 16 bits, count above) merged from the
@@ -926,7 +1332,12 @@ impl Acc {
         let p = if self.sat {
             pb + self.dp / self.changed
         } else {
-            (pb * (2 * nb + 1) + self.sum) / (2 * tot.max(0) + 1)
+            let (num, den) = (pb * (2 * nb + 1) + self.sum, 2 * tot.max(0) + 1);
+            // the same quotient in 32 bits when it fits (a faster division)
+            match (i32::try_from(num), i32::try_from(den)) {
+                (Ok(a), Ok(b)) => i64::from(a / b),
+                _ => num / den,
+            }
         };
         (p.clamp(0, 65535) as u32) | ((tot.clamp(0, 127) as u32) << 16)
     }
@@ -969,6 +1380,18 @@ fn tag(x: &[u32; 16]) -> u32 {
 
 /// A bucket merged from the base and the streams' versions.
 fn merge_bucket(base: &[u32; 16], ls: &[[u32; 16]], groups: &mut Vec<Group>) -> [u32; 16] {
+    // every stream holds the base's context: its one group, slot by slot
+    if ls.iter().all(|l| same_context(base, l)) {
+        let mut m = *base;
+        for (s, m) in m.iter_mut().enumerate().skip(1) {
+            let mut acc = Acc::default();
+            for l in ls {
+                acc.add(base[s], l[s]);
+            }
+            *m = acc.done(base[s]);
+        }
+        return m;
+    }
     // groups by tag: the base's context stays a candidate only while some
     // stream holds it; every other tag a stream gave the bucket starts fresh
     // (a stream that recycled the bucket and came back to the base's tag
@@ -1054,7 +1477,8 @@ pub fn encode_counted(
 
 /// [`encode_counted`], or `None` once the coders' output reaches `stop`
 /// bytes (a payload that long cannot be kept).
-fn encode_below(
+#[must_use]
+pub fn encode_below(
     history: &[u8],
     data: &[u8],
     profile: u32,
@@ -1062,11 +1486,26 @@ fn encode_below(
     threads: usize,
     stop: usize,
 ) -> Option<(Vec<u8>, u64)> {
+    encode_with(history, data, profile, plan, threads, stop, false).map(|(p, s, _)| (p, s))
+}
+
+type Encoded = (Vec<u8>, u64, Option<Box<Sites>>);
+
+/// [`encode_below`], with what the merges did when `sites`.
+fn encode_with(
+    history: &[u8],
+    data: &[u8],
+    profile: u32,
+    plan: Plan,
+    threads: usize,
+    stop: usize,
+    sites: bool,
+) -> Option<Encoded> {
     if !super::valid_profile(profile) || !plan.valid() {
         return None;
     }
     u32::try_from(data.len()).ok()?;
-    let a = (history, data, profile, plan, threads, stop);
+    let a = (history, data, profile, plan, threads, stop, sites);
     #[cfg(target_arch = "x86_64")]
     {
         if std::arch::is_x86_feature_detected!("avx2") {
@@ -1093,25 +1532,28 @@ fn encode_below(
     }
 }
 
-type EncodeArgs<'a> = (&'a [u8], &'a [u8], u32, Plan, usize, usize);
+type EncodeArgs<'a> = (&'a [u8], &'a [u8], u32, Plan, usize, usize, bool);
 
 #[cfg(target_arch = "x86_64")]
 #[target_feature(enable = "avx2")]
-fn encode_avx2(a: EncodeArgs<'_>) -> Option<(Vec<u8>, u64)> {
+fn encode_avx2(a: EncodeArgs<'_>) -> Option<Encoded> {
     encode_k::<super::x86::Avx2>(a)
 }
 
 #[inline(always)]
 fn encode_k<K: Kernel>(
-    (history, data, profile, plan, threads, stop): EncodeArgs<'_>,
-) -> Option<(Vec<u8>, u64)> {
+    (history, data, profile, plan, threads, stop, sites): EncodeArgs<'_>,
+) -> Option<Encoded> {
     let mut f = Frame::new(&[history], data.len(), profile, plan);
+    if sites {
+        f.sites = Some(Box::default());
+    }
     let out = if f.base.stride == NINP_NARROW {
         encode_frame::<K, NINP_NARROW>(&mut f, data, threads, stop)
     } else {
         encode_frame::<K, NINP>(&mut f, data, threads, stop)
     };
-    Some((out?, f.steps))
+    Some((out?, f.steps, f.sites))
 }
 
 #[inline(always)]
@@ -1364,6 +1806,19 @@ mod tests {
         let serial = encode_profile(&w, &d, FULL).expect("fits");
         let plan = Plan::of(1, 4096);
         assert_eq!(encode(&w, &d, FULL, plan, 1), Some(serial));
+    }
+
+    /// One stream shares no site; two streams share some.
+    #[test]
+    fn counted_sites() {
+        let d = sample(70_001, 0x2545_F491);
+        let one = count(&[], &d, FULL, 1).expect("counts");
+        assert!(one
+            .levels
+            .iter()
+            .all(|l| l.iter().all(|k| k[1] == 0 && k[2] == 0)));
+        let two = count(&[], &d, FULL, 2).expect("counts");
+        assert!((0..two.levels.len()).any(|l| two.steps(l) > 0));
     }
 
     /// Streams round-trip, and neither the payload nor the output depends on

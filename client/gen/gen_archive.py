@@ -200,18 +200,27 @@ D('profiledBody', ['x : Nat', 'k : Nat', 'profile : Nat', 'payload : Bytes'], 'B
 # ncm::TABLE_MIN..TABLE_MAX), bits 26-30 the match tables (0, or any)
 D('profileWord', ['profile : Nat'], 'Bool',
   f"(let t : Nat := (prim remainder (prim quotient profile {1 << 20} 0 : Nat) 64 0 : Nat); ((profile <? {1 << 31}) && ((t =? 0) || ((5 <=? t) && (t <=? 32)))))")
-# a frame's word: a profile word in bits 0-31 and the probability field in bits 32-36 (0: 12-bit probabilities,
-# 16: 16-bit); the streams fields above are reserved (zero)
+# a frame's word: a profile word in bits 0-31, the probability field in bits 32-36 (0: 12-bit probabilities, the
+# frame's coder; 16: 16-bit), and the frame's streams (ncm::streams): streams - 1 in bits 37-52 and the log2 of
+# the epoch in bits 53-57, one stream carrying no epoch
+S_AT, E_AT = 1 << 37, 1 << 53
 D('frameWord', ['word : Nat'], 'Bool',
-  f"(let p : Nat := (prim quotient word {1 << 32} 0 : Nat); (((p =? 0) || (p =? 16)) && (profileWord (prim remainder word {1 << 32} 0 : Nat))))")
+  f"(let e : Nat := (prim quotient word {E_AT} 0 : Nat); (let streams : Nat := (prim remainder (prim quotient word {S_AT} 0 : Nat) 65536 0 : Nat); "
+  f"(if (e <? 32) then (if (let p : Nat := (prim remainder (prim quotient word {1 << 32} 0 : Nat) 32 0 : Nat); ((p =? 0) || (p =? 16))) then (if (profileWord (prim remainder word {1 << 32} 0 : Nat)) then "
+  "(if (0 <? streams) then true else (e =? 0)) else false) else false) else false)))")
 # a v0.4 frame's word: v0.4's ncm blocks read no table field
 D('v04ProfileWord', ['profile : Nat'], 'Bool', f"(profile <? {1 << 20})")
+# a frame of one stream at 12-bit probabilities is coded by the frame's coder, any other by the streams coder
+D('ncmDecoder', ['history : Bytes', 'payload : Bytes', 'word : Nat'], 'Bytes',
+  f"(if (word <? {1 << 32}) then ({NDEC}::runProfile history payload word) else ({NDEC}::runStreams history payload word))")
+D('ncmEncoder', ['history : Bytes', 'input : Bytes', 'word : Nat'], 'Bytes',
+  f"(if (word <? {1 << 32}) then ({NENC}::runProfile history input word) else ({NENC}::runStreams history input word))")
 D('profiledDecoder', ['x : Nat', 'history : Bytes', 'payload : Bytes', 'profile : Nat'], 'Bytes',
-  f"(if (x =? 0) then ({NDEC}::runProfile history payload profile) else "
-  f"(Uorc.Codec.X86::run 1 (prim length history : Nat) ({NDEC}::runProfile (Uorc.Codec.X86::run 0 0 history) payload profile)))")
+  f"(if (x =? 0) then (ncmDecoder history payload profile) else "
+  f"(Uorc.Codec.X86::run 1 (prim length history : Nat) (ncmDecoder (Uorc.Codec.X86::run 0 0 history) payload profile)))")
 D('profiledEncoder', ['x : Nat', 'history : Bytes', 'input : Bytes', 'profile : Nat'], 'Bytes',
-  f"(if (x =? 0) then ({NENC}::runProfile history input profile) else "
-  f"(let h : Bytes := (Uorc.Codec.X86::run 0 0 history); (let f : Bytes := (Uorc.Codec.X86::run 0 (prim length history : Nat) input); ({NENC}::runProfile h f profile))))")
+  f"(if (x =? 0) then (ncmEncoder history input profile) else "
+  f"(let h : Bytes := (Uorc.Codec.X86::run 0 0 history); (let f : Bytes := (Uorc.Codec.X86::run 0 (prim length history : Nat) input); (ncmEncoder h f profile))))")
 
 # A linked archive this client writes: the rebuilt archive confirms the basis identity, the template and the
 # seal, and the payload must be the one the encoder writes for its output.

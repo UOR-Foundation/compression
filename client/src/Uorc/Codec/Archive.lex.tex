@@ -918,10 +918,37 @@ definition{
 }
 
 definition{
+  name: probBase,
+  parameters: [],
+  result: Nat,
+  body: 32,
+  executable: true,
+  axioms: []
+}
+
+definition{
+  name: streamsBase,
+  parameters: [],
+  result: Nat,
+  body: 65536,
+  executable: true,
+  axioms: []
+}
+
+definition{
+  name: streamsOf,
+  parameters: [word : Nat],
+  result: Nat,
+  body: (prim remainder (prim quotient (prim remainder (planField word) (deltaBase) 0 : Nat) (probBase) 0 : Nat) (streamsBase) 0 : Nat),
+  executable: true,
+  axioms: []
+}
+
+definition{
   name: frameWord,
   parameters: [word : Nat],
   result: Bool,
-  body: (let p : Nat := (prim remainder (planField word) (deltaBase) 0 : Nat); (((p =? 0) || (p =? 16)) && ((deltaWord word) && ((learningWord word) && (profileWord (prim remainder word (profileBase) 0 : Nat)))))),
+  body: (let p : Nat := (prim remainder (planField word) (deltaBase) 0 : Nat); (let prob : Nat := (prim remainder p (probBase) 0 : Nat); (let e : Nat := (prim quotient p (prim multiply (probBase) (streamsBase) : Nat) 0 : Nat); (if ((prob =? 0) || (prob =? 16)) then (if (profileWord (prim remainder word (profileBase) 0 : Nat)) then (if ((deltaWord word) && (learningWord word)) then (if (0 <? (streamsOf word)) then (((deltaField word) =? 0) && (word <? (learningBase))) else (e =? 0)) else false) else false) else false)))),
   executable: true,
   axioms: []
 }
@@ -945,10 +972,28 @@ definition{
 }
 
 definition{
+  name: ncmDecoder,
+  parameters: [history : Bytes, payload : Bytes, word : Nat],
+  result: Bytes,
+  body: (if ((streamsOf word) =? 0) then (Uorc.Codec.NcmDecode::runProfile history payload word) else (Uorc.Codec.NcmDecode::runStreams history payload word)),
+  executable: true,
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: ncmEncoder,
+  parameters: [history : Bytes, input : Bytes, word : Nat],
+  result: Bytes,
+  body: (if ((streamsOf word) =? 0) then (Uorc.Codec.NcmEncode::runProfile history input word) else (Uorc.Codec.NcmEncode::runStreams history input word)),
+  executable: true,
+  axioms: [Quot.sound, propext]
+}
+
+definition{
   name: profiledDecoder,
   parameters: [x : Nat, history : Bytes, payload : Bytes, profile : Nat],
   result: Bytes,
-  body: (if (x =? 0) then (deltaFilter 1 profile (Uorc.Codec.NcmDecode::runProfile (deltaFilter 0 profile history) payload profile)) else (Uorc.Codec.X86::run 1 (prim length history : Nat) (Uorc.Codec.NcmDecode::runProfile (Uorc.Codec.X86::run 0 0 history) payload profile))),
+  body: (if (x =? 0) then (deltaFilter 1 profile (ncmDecoder (deltaFilter 0 profile history) payload profile)) else (Uorc.Codec.X86::run 1 (prim length history : Nat) (ncmDecoder (Uorc.Codec.X86::run 0 0 history) payload profile))),
   executable: true,
   axioms: [Quot.sound, propext]
 }
@@ -957,7 +1002,7 @@ definition{
   name: profiledEncoder,
   parameters: [x : Nat, history : Bytes, input : Bytes, profile : Nat],
   result: Bytes,
-  body: (if (x =? 0) then (Uorc.Codec.NcmEncode::runProfile (deltaFilter 0 profile history) (deltaFilter 0 profile input) profile) else (let h : Bytes := (Uorc.Codec.X86::run 0 0 history); (let f : Bytes := (Uorc.Codec.X86::run 0 (prim length history : Nat) input); (Uorc.Codec.NcmEncode::runProfile h f profile)))),
+  body: (if (x =? 0) then (ncmEncoder (deltaFilter 0 profile history) (deltaFilter 0 profile input) profile) else (let h : Bytes := (Uorc.Codec.X86::run 0 0 history); (let f : Bytes := (Uorc.Codec.X86::run 0 (prim length history : Nat) input); (ncmEncoder h f profile)))),
   executable: true,
   axioms: [Quot.sound, propext]
 }

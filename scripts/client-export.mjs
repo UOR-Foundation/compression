@@ -36,11 +36,15 @@
 // literal second, with x not a literal and N above SECOND_LITERAL_BOUND, stops
 // the export with its module and definition named.
 //
-// The export uses LexLean pinned at LEXLEAN_REV, the branch claude/uorc-pin of
-// UOR-Foundation/LexLean: the rust-std shared-box lowering (LexLean#441) keeps
+// The export uses LexLean pinned at LEXLEAN_REV, the branch
+// claude/release-staged-certificates of UOR-Foundation/LexLean (claude/uorc-pin
+// plus LexLean#537): the rust-std shared-box lowering (LexLean#441) keeps
 // search states behind reference-counted boxes instead of copying them on every
-// field read, and the in-place byte update primitive (LexLean#443) gives the
-// codec O(1) table writes. The pin moves to a LexLean release once both ship.
+// field read, the in-place byte update primitive (LexLean#443) gives the codec
+// O(1) table writes, and #537 releases each certificate once staged and restates
+// a conditional's taken branch by if_pos/if_neg, so the kernel never evaluates
+// a branch's computation to compare it with its unreduced selection. The pin
+// moves to a LexLean release once these ship.
 // Set LEXLEAN to an already built binary of the same revision to skip the build.
 //
 // The export is the factory obligation `export` (factory/graph.json): its
@@ -61,7 +65,7 @@ const out = path.join(root, 'generated/rust');
 const entry = 'src/Uorc/Client.lex.tex'; // staged path
 const roots = [['uorc_compress', 'Uorc.Uorc.Client.compress'], ['uorc_decompress', 'Uorc.Uorc.Client.decompress'], ['uorc_search', 'Uorc.Uorc.Client.search']];
 const LEXLEAN_REPO = 'https://github.com/UOR-Foundation/LexLean';
-const LEXLEAN_REV = '4c41d395286826faf568817f46e181c22b09cba1';
+const LEXLEAN_REV = '560b64905d86f9711b4f986a9916f505067b08d8';
 const fail = m => { throw new Error(m); };
 const run = (cmd, args, cwd) => {
   const r = spawnSync(cmd, args, {cwd, encoding: 'utf8', maxBuffer: 256 * 1024 * 1024});

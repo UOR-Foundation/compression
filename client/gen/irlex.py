@@ -90,6 +90,16 @@ class Lex:
         for t in self.tables:
             D(self.writer(t), [f's : {self.St}', 'w : Nat', 'k : Nat', 'v : Nat'], self.St,
               self.L.upd('s', **{t: f"(putAt w {self.L.P('s', t)} k v)"}))
+        lanes = getattr(self.p, 'lane_globals', 0)
+        if lanes and self.p.lane_table in self.tables:
+            self.lane_bytes = sum(list(self.p.globals.values())[:lanes])
+            lt = self.p.lane_table
+            for d, src, dst in (('Save', 'glob', lt), ('Load', lt, 'glob')):
+                at_src = 'i' if src == 'glob' else '(base + i)'
+                at_dst = '(base + i)' if dst == lt else 'i'
+                D(f'gcopy{d}', ['fuel : Nat', 'i : Nat', f's : {self.St}', 'base : Nat'], self.St,
+                  f"(match fuel\n    | Nat.zero => s\n    | Nat.succ m => (let v : Nat := (getAt 1 {self.L.P('s', src)} {at_src}); "
+                  f"(gcopy{d} m (i + 1) ({self.writer(dst)} s 1 {at_dst} v) base)))", 'fuel')
 
     # ---- expressions: (text, type) ----
     def nat(self, r):
@@ -227,6 +237,11 @@ class Lex:
             s2 = self.fresh('s')
             args = ' '.join(env[x][0] for x in caps)
             return f"(let {s2} : {self.St} := ({fn} {count} 0 {s} {args}); {self.stmts(rest, env, s2, name)})"
+        if k == 'gcopy':
+            # a lane's globals (glob's first lane_bytes bytes) saved to, or loaded from, the lane table at a byte
+            at = self.nat(self.ex(st[2], env, s))
+            s2 = self.fresh('s')
+            return f"(let {s2} : {self.St} := (gcopy{st[1].capitalize()} ({self.lane_bytes} + (prim multiply 0 (getAt 1 {self.L.P(s, 'glob')} 0) : Nat)) 0 {s} {at}); {self.stmts(rest, env, s2, name)})"
         if k == 'call':
             args = ' '.join(self.nat(self.ex(a, env, s)) for a in st[2])
             s2 = self.fresh('s')
