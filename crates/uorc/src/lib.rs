@@ -247,7 +247,8 @@ fn compress_pieces_on(
         Some((linked, _)) if (linked.len() as u64) < raw => {
             let (stepped, k) = step_window(frame, lengths, reach, linked, host);
             let window = &reach[reach.len() - k..];
-            Ok(step_table(frame, lengths, window, stepped, host))
+            let stepped = step_table(frame, lengths, window, stepped, host);
+            Ok(step_probability(frame, lengths, window, stepped))
         }
         _ => Ok(archive::raw_objects(frame, lengths)),
     }
@@ -275,7 +276,7 @@ pub fn step_window(
     let mut k = reach.len().min(archive::WINDOW);
     let one = |w: u64| {
         ncm::streams::split(w)
-            .filter(|(_, p)| p.streams == 1)
+            .filter(|(_, p)| p.serial())
             .map(|(m, _)| m)
     };
     let (x86, mut word) = match archive::frame_codec(&chosen) {
@@ -374,7 +375,7 @@ pub fn step_table(
     } else {
         let one = |w: u64| {
             ncm::streams::split(w)
-                .filter(|(_, p)| p.streams == 1)
+                .filter(|(_, p)| p.serial())
                 .map(|(m, _)| m)
         };
         match archive::frame_codec(&chosen) {
@@ -453,6 +454,70 @@ pub fn step_table(
         }
     }
     best
+}
+
+/// The probability facet stepped last on the frame's chosen archive
+/// (`Client.stepProbability`): the chosen coding is tried at 16-bit
+/// probabilities (the frame word's probability field 16) and kept only when
+/// its archive is shorter; the decode steps are the same, so bytes decide.
+/// Raw frames, state frames and the fixed v0.3 entries are kept byte for
+/// byte.
+pub fn step_probability(
+    frame: &[u8],
+    lengths: &[u64],
+    window: &[&[u8]],
+    chosen: Vec<u8>,
+) -> Vec<u8> {
+    if archive::state_frame(&chosen).is_some() {
+        return chosen;
+    }
+    let (x86, word) = match archive::frame_codec(&chosen) {
+        Some(archive::Codec::Profile(w)) => (false, w),
+        Some(archive::Codec::ProfileX86(w)) => (true, w),
+        _ => return chosen,
+    };
+    let Some((profile, plan)) = archive::frame_word(word) else {
+        return chosen;
+    };
+    if !plan.serial() {
+        return chosen;
+    }
+    let history = window.concat();
+    let filtered;
+    let (data, past) = if x86 {
+        filtered = (
+            x86::filter(frame, false, history.len() as u64).0,
+            x86::filter(&history, false, 0).0,
+        );
+        (&filtered.0[..], &filtered.1[..])
+    } else {
+        (frame, &history[..])
+    };
+    let wide = ncm::streams::Plan {
+        bits: 16,
+        ..ncm::streams::Plan::ONE
+    };
+    let Some(payload) = ncm::encode_bits_below(past, data, profile, 16, chosen.len()) else {
+        return chosen;
+    };
+    let Some(w) = ncm::streams::word(profile, wide) else {
+        return chosen;
+    };
+    let codec = if x86 {
+        archive::Codec::NcmX86
+    } else {
+        archive::Codec::Ncm
+    };
+    let wider = if window.is_empty() {
+        archive::linked_archive_profile(codec, w, lengths, &payload)
+    } else {
+        let identity = archive::window_identity(window);
+        archive::window_archive_profile(codec, w, window, &identity, lengths, &payload)
+    };
+    match wider {
+        Some(a) if a.len() < chosen.len() => a,
+        _ => chosen,
+    }
 }
 
 /// The trials of `plan` on `frame`, in plan order: each strategy's archive
@@ -2575,6 +2640,53 @@ mod tests {
         }
     }
 
+    /// The exported model decodes every frame word the native client
+    /// writes: recorded context table bits, recorded match table bits, and
+    /// the 16-bit probability field, alone and together (v0.5.0's model
+    /// refused any profile word of 2^20 or more, so every frame with recorded
+    /// table bits, which the table facet writes from about 8 KiB on), and the
+    /// client's own frame of the README.
+    #[test]
+    fn model_decodes_every_frame_word_native_writes() {
+        let text: Vec<u8> = (0..3000u32)
+            .flat_map(|i| format!("row {} of {}\n", i % 97, i / 7).into_bytes())
+            .take(12_000)
+            .collect();
+        let n = text.len() as u64;
+        let tables = ncm::with_table_bits(ncm::FULL, 22);
+        let both = ncm::with_match_bits(tables, 20);
+        let mut words = Vec::new();
+        for profile in [ncm::FULL, tables, both] {
+            for bits in [12, 16] {
+                words.push((profile, bits));
+            }
+        }
+        for (profile, bits) in words {
+            let plan = ncm::streams::Plan {
+                bits,
+                ..ncm::streams::Plan::ONE
+            };
+            let word = ncm::streams::word(profile, plan).expect("word");
+            let payload =
+                ncm::encode_bits_below(&[], &text, profile, bits, usize::MAX).expect("payload");
+            let a = archive::linked_archive_profile(archive::Codec::Ncm, word, &[n], &payload)
+                .expect("archive");
+            assert_eq!(
+                decompress_frame(&a, DEFAULT_DECODE_WORK).expect("native"),
+                text
+            );
+            assert_eq!(
+                model_decompress_frame(&a).expect("model"),
+                text,
+                "model decode of word {word:#x}"
+            );
+        }
+        // and the client's own frame
+        let readme = include_bytes!("../../../README.md");
+        let own = compress_frame(readme, 0).expect("compress");
+        assert_eq!(model_decompress_frame(&own).expect("model"), readme);
+    }
+
     /// UC-PERF-08: the shipped compress keeps exactly `performance::chosen`
     /// over the raw archive and the trials it coded: least in bytes, then in
     /// decode steps.
@@ -2606,7 +2718,9 @@ mod tests {
                     .collect();
             let want = performance::chosen(raw, &trials);
             let got = compress_frame(frame, 0).expect("compress");
-            assert_eq!(got.len() as u64, want.bytes);
+            // the chosen trial, or the same coding at 16-bit probabilities
+            // when that is shorter (`step_probability`; the steps are the same)
+            assert!(got.len() as u64 <= want.bytes);
             let info = frame::inspect(&got).expect("inspect");
             let steps = match info.state {
                 Some(_) => performance::trial_steps(

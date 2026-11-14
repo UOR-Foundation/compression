@@ -41,7 +41,7 @@ M32 = 1 << 32
 P = Prog()
 for name, w in [('n', 4), ('tb', 1), ('mb', 1), ('pos', 4), ('c4', 4), ('c8', 4), ('wordh', 4), ('word1', 4),
                 ('c0', 2), ('bit', 1), ('mptr', 4), ('mlen', 4), ('mexp', 1), ('mbucket', 1), ('eb', 1),
-                ('r', 4), ('pm1', 2), ('pm2', 2), ('pr', 2), ('acc', 8), ('sso', 4), ('sw', 8),
+                ('r', 4), ('pm1', 2), ('pm2', 2), ('pr', 2), ('pz', 1), ('acc', 8), ('sso', 4), ('sw', 8),
                 ('acc2', 8), ('sw2', 8), ('ml', 4), ('mf', 1), ('pi', 2), ('x1', 4), ('x2', 4), ('x', 4),
                 ('ip', 4), ('op', 4), ('y', 1), ('cap', 4), ('ovf', 1), ('pm3', 2), ('acc3', 8), ('sw3', 8),
                 ('ai1', 4), ('aj1', 1), ('ai2', 4), ('aj2', 1), ('hoff', 4),
@@ -299,6 +299,11 @@ def apm_get(table, idx, j, body):
     body += pre
     return mod(add(ld(table, 2, idx), init), 65536)
 
+# The probability's scale over 12 bits: 1, or 16 under a frame word's probability field 16 (pz 15; every
+# frame coder's pz is 0): a map refines at 16 bits, the coder splits its range in 65536ths.
+PS = add(G('pz'), 1)
+
+
 def refine(out, table, cx, gi, gj, body):
     s, l, w = fresh('as'), fresh('al'), fresh('aw')
     body += [('let', s, ld('STR', 2, V('pa'))), ('let', l, div(V(s), 128)), ('let', w, mod(V(s), 128))]
@@ -306,13 +311,13 @@ def refine(out, table, cx, gi, gj, body):
     body += [('let', base, add(mul(33, cx), V(l)))]
     t0 = apm_get(table, V(base), V(l), body)
     t1 = apm_get(table, add(V(base), 1), add(V(l), 1), body)
-    body += [('let', out, div(add(mul(t0, sub(128, V(w))), mul(t1, V(w))), 2048)),
+    body += [('let', out, div(mul(PS, add(mul(t0, sub(128, V(w))), mul(t1, V(w)))), 2048)),
              ('set', gi, add(V(base), div(V(w), 64))), ('set', gj, add(V(l), div(V(w), 64)))]
 
 refine('r1', 'A1', add(G('c0'), mul(256, G('msel'))), 'ai1', 'aj1', pr)
 hash_('ah2', u32(add(mul(0x2F0B4C27, mod(G('c4'), 1 << 24)), G('c0'))), pr)
 refine('r2', 'A2', div(V('ah2'), 65536), 'ai2', 'aj2', pr)
-pr += [('set', 'pr', mx(mn(div(add(add(V('pa'), V('r1')), mul(2, V('r2'))), 4), 4095), 1))]
+pr += [('set', 'pr', mx(mn(div(add(add(mul(PS, V('pa')), V('r1')), mul(2, V('r2'))), 4), sub(mul(4096, PS), 1)), 1))]
 P.func('predict', [], pr)
 
 # ---- learning ----
@@ -393,7 +398,7 @@ P.func('update', [], up)
 
 # ---- arithmetic coder ----
 def split():
-    return [('let', 'xm', add(G('x1'), div(mul(sub(G('x2'), G('x1')), G('pr')), 4096)))]
+    return [('let', 'xm', add(G('x1'), div(mul(sub(G('x2'), G('x1')), G('pr')), mul(4096, PS))))]
 
 dec = [('call', 'predict', [])] + split() + [
     ('set', 'y', sel(le(G('x'), V('xm')), 1, 0)),
@@ -411,7 +416,8 @@ P.func('decodeStart', [], dstart)
 P.func('decode', [], [('call', 'decodeStart', []), ('loop', G('n'), 'i', [('call', 'decodeByte', [])])])
 # against a window: H already holds the h history bytes
 P.func('decodeWith', ['h'], [('set', 'hoff', V('h')), ('call', 'decode', [])])
-P.func('decodeProfile', ['h', 'pf'], [('set', 'prof', V('pf')), ('call', 'decodeWith', [V('h')])])
+# a frame word: the profile in bits 0-31, the probability field in bits 32-36 (0: 12 bits, 16: 16 bits, pz 15)
+P.func('decodeProfile', ['h', 'pf'], [('set', 'prof', mod(V('pf'), 1 << 32)), ('set', 'pz', sel(eq(mod(div(V('pf'), 1 << 32), 32), 0), 0, 15)), ('call', 'decodeWith', [V('h')])])
 # from a kappa-named model state: H starts holding the state's w bytes, which the whole model codes first as
 # though they were the frame's opening bytes (every context, mixer and map learns them, nothing is emitted), so
 # the frame is coded as their continuation. The tables are sized for w + n bytes.
@@ -467,7 +473,7 @@ P.func('encode', ['size', 'limit'], [('set', 'n', V('size')), ('set', 'cap', V('
                                      ('loop', G('n'), 'i', [('call', 'encodeByte', [V('i')])]),
                                      ('call', 'emit', [div(G('x1'), 1 << 24)])])
 P.func('encodeWith', ['size', 'limit', 'h'], [('set', 'hoff', V('h')), ('call', 'encode', [V('size'), V('limit')])])
-P.func('encodeProfile', ['size', 'limit', 'h', 'pf'], [('set', 'prof', V('pf')), ('call', 'encodeWith', [V('size'), V('limit'), V('h')])])
+P.func('encodeProfile', ['size', 'limit', 'h', 'pf'], [('set', 'prof', mod(V('pf'), 1 << 32)), ('set', 'pz', sel(eq(mod(div(V('pf'), 1 << 32), 32), 0), 0, 15)), ('call', 'encodeWith', [V('size'), V('limit'), V('h')])])
 P.func('encodeWarm', ['size', 'limit', 'w', 'pf'], [('set', 'prof', V('pf')), ('set', 'hoff', 0), ('set', 'n', add(V('size'), V('w'))),
                                                   ('set', 'cap', V('limit')), ('call', 'setup', []), ('set', 'n', V('size')),
                                                   ('call', 'warmState', [V('w')]),
