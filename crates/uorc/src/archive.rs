@@ -460,11 +460,12 @@ pub fn uleb_len(mut n: u64) -> usize {
 /// Read a ULEB128 number at `at`: the value and the offset after it.
 pub(crate) fn read_uleb(data: &[u8], mut at: usize) -> Option<(u64, usize)> {
     let mut value = 0u64;
-    for shift in (0..64).step_by(7) {
+    for shift in (0..u64::BITS).step_by(7) {
         let byte = *data.get(at)?;
         at += 1;
         let part = u64::from(byte & 0x7F);
-        if shift == 63 && part > 1 {
+        // the last group holds the one bit left of the 64
+        if shift == u64::BITS - 1 && part > 1 {
             return None;
         }
         value |= part << shift;
