@@ -54,8 +54,17 @@ class Lex:
     def writer(self, t):
         return 'put' + t[0].upper() + t[1:]
 
+    def gname(self, g):
+        return re.sub(r'[^A-Za-z0-9]', 'X', g[0].upper() + g[1:])
+
+    def gwidth(self, g):
+        return f"(width{self.gname(g)})"
+
+    def gat(self, g):
+        return f"(at{self.gname(g)})"
+
     def gread(self, s, g):
-        return f"(getAt {self.p.globals[g]} {self.L.P(s, 'glob')} {self.gkey[g]})"
+        return f"(getAt {self.gwidth(g)} {self.L.P(s, 'glob')} {self.gat(g)})"
 
     def fresh(self, base='s'):
         self.n += 1
@@ -71,6 +80,13 @@ class Lex:
 
     def helpers(self):
         D = self.D
+        # The globals' layout: each global's width is the one figure of its place; its address is
+        # derived, the address of the global before it plus that global's width.
+        prev = None
+        for g, w in self.p.globals.items():
+            D('width' + self.gname(g), [], 'Nat', str(w))
+            D('at' + self.gname(g), [], 'Nat', '0' if prev is None else f"({self.gat(prev)} + {self.gwidth(prev)})")
+            prev = g
         D('pow2', ['k : Nat'], 'Nat', "(match k\n    | Nat.zero => 1\n    | Nat.succ m => (prim multiply 2 (pow2 m) : Nat))", 'k')
         D('getAt', ['w : Nat', 't : Bytes', 'at : Nat'], 'Nat', f"({TB}::getLoop w t at 0)")
         D('putAt', ['w : Nat', 't : Bytes', 'at : Nat', 'v : Nat'], 'Bytes', f"({TB}::setLoop w t (prim subtract (at + w) 1 : Nat) v)")
@@ -196,7 +212,7 @@ class Lex:
         if k == 'set':
             t = self.nat(self.ex(st[2], env, s))
             v = self.fresh('t'); s2 = self.fresh('s')
-            upd = f"({self.writer('glob')} {s} {self.p.globals[st[1]]} {self.gkey[st[1]]} {v})"
+            upd = f"({self.writer('glob')} {s} {self.gwidth(st[1])} {self.gat(st[1])} {v})"
             return f"(let {v} : Nat := {t}; (let {s2} : {self.St} := {upd}; {self.stmts(rest, env, s2, name)}))"
         if k == 'store':
             tab = st[1] if st[1] in self.big else 'mem'
