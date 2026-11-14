@@ -1738,9 +1738,9 @@ impl Model {
                 };
                 // every lookup's pair asked for first, then looked up
                 let mut hh = [0u32; NC];
-                for j in 0..self.na {
-                    hh[j] = h(self.hb[self.act[j]].wrapping_add(nc.wrapping_mul(0x2F0B_4C27)));
-                    let b = ((hh[j] & self.mask) & !31) as usize >> 4;
+                for (hj, &a) in hh.iter_mut().zip(&self.act[..self.na]) {
+                    *hj = h(self.hb[a].wrapping_add(nc.wrapping_mul(0x2F0B_4C27)));
+                    let b = ((*hj & self.mask) & !31) as usize >> 4;
                     prefetch(&self.sl[b]);
                     prefetch(&self.sl[b + 1]);
                 }

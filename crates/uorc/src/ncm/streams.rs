@@ -186,12 +186,13 @@ pub fn derive(
     bits: u32,
     host: usize,
     coding: u64,
-    threads: usize,
     holds: impl Fn(usize) -> bool,
 ) -> Option<Derived> {
     if host <= 1 || !super::valid_profile(profile) {
         return None;
     }
+    // the trials run on the threads a frame of `host` streams runs on
+    let threads = threads(Plan::of(host, 1));
     let n = data.len();
     // the chain of the best count so far, as (steps, threads) over which they run
     let (mut steps, mut over) = (u128::from(coding), 1u128);
