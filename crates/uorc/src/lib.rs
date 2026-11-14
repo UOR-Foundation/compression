@@ -185,7 +185,7 @@ pub fn default_threads() -> usize {
 /// archive when that is not smaller; with `steps > 0` the exported model also searches and keeps the
 /// smallest.
 pub fn compress_frame(frame: &[u8], steps: u64) -> Result<Vec<u8>, Error> {
-    compress_pieces(frame, &[frame.len() as u64], &[], steps, true)
+    compress_pieces(frame, &[frame.len() as u64], &[], steps, default_threads())
 }
 
 /// [`compress_frame`] for a frame that follows the frames `window` (the
@@ -193,7 +193,13 @@ pub fn compress_frame(frame: &[u8], steps: u64) -> Result<Vec<u8>, Error> {
 /// `compress input window steps`: the ncm candidate is the window archive
 /// whose payload reads those frames as history.
 pub fn compress_frame_with(frame: &[u8], window: &[&[u8]], steps: u64) -> Result<Vec<u8>, Error> {
-    compress_pieces(frame, &[frame.len() as u64], window, steps, true)
+    compress_pieces(
+        frame,
+        &[frame.len() as u64],
+        window,
+        steps,
+        default_threads(),
+    )
 }
 
 /// [`compress_frame`] with the output split into objects of `lengths`, which
@@ -204,10 +210,10 @@ fn compress_pieces(
     lengths: &[u64],
     window: &[&[u8]],
     steps: u64,
-    side_by_side: bool,
+    cores: usize,
 ) -> Result<Vec<u8>, Error> {
     let host = performance::declared_host();
-    compress_pieces_on(frame, lengths, window, steps, side_by_side, host)
+    compress_pieces_on(frame, lengths, window, steps, cores, host)
 }
 
 fn compress_pieces_on(
@@ -215,7 +221,7 @@ fn compress_pieces_on(
     lengths: &[u64],
     window: &[&[u8]],
     steps: u64,
-    side_by_side: bool,
+    cores: usize,
     host: performance::Host,
 ) -> Result<Vec<u8>, Error> {
     if steps > 0 {
@@ -224,7 +230,7 @@ fn compress_pieces_on(
         // search, `Client.search`), the search kept only when strictly shorter
         // (`Client.smaller`); as one object, then relabelled
         let n = [frame.len() as u64];
-        let quick = compress_pieces(frame, &n, window, 0, side_by_side)?;
+        let quick = compress_pieces(frame, &n, window, 0, cores)?;
         let found = on_reference_stack(|| reference_search(frame, steps))?;
         let archive = match found {
             Some(f) if f.len() < quick.len() => f,
@@ -242,13 +248,7 @@ fn compress_pieces_on(
     // epoch, which the declared host holds with it)
     let reach = window;
     let window = &window[window.len().saturating_sub(archive::WINDOW)..];
-    let found = portfolio_trials(
-        frame,
-        lengths,
-        window,
-        &portfolio::plan(frame),
-        side_by_side,
-    );
+    let found = portfolio_trials(frame, lengths, window, &portfolio::plan(frame), cores);
     let best = found
         .into_iter()
         .rev()
@@ -539,7 +539,7 @@ fn portfolio_trials(
     lengths: &[u64],
     window: &[&[u8]],
     plan: &[portfolio::Strategy],
-    side_by_side: bool,
+    cores: usize,
 ) -> Vec<Option<(Vec<u8>, u64)>> {
     let history = window.concat();
     let identity = (!window.is_empty()).then(|| archive::window_identity(window));
@@ -742,7 +742,8 @@ fn portfolio_trials(
         }
         found[k] = Some(a);
     };
-    if side_by_side && cfg!(not(target_family = "wasm")) {
+    // side by side when the coding holds a core for each group
+    if cores >= leads.len() && cfg!(not(target_family = "wasm")) {
         // each group on its own core, bounded by the raw archive
         let coded: Vec<(Trial, Trial)> = std::thread::scope(|s| {
             // each group's thread holds a core of the compression's pool
@@ -928,7 +929,7 @@ pub fn compress_strategy(
     let strategy = *portfolio::plan(frame).get(which)?;
     // the portfolio codes over the fixed entries' window (see compress_pieces)
     let window = &window[window.len().saturating_sub(archive::WINDOW)..];
-    portfolio_trials(frame, lengths, window, &[strategy], true)
+    portfolio_trials(frame, lengths, window, &[strategy], default_threads())
         .pop()
         .flatten()
         .map(|(a, _)| a)
@@ -949,7 +950,7 @@ pub fn compress_with_strategies(
     strategies: &[Option<portfolio::Strategy>],
 ) -> Vec<u8> {
     let plan: Vec<portfolio::Strategy> = strategies.iter().flatten().copied().collect();
-    let best = portfolio_trials(frame, lengths, window, &plan, true)
+    let best = portfolio_trials(frame, lengths, window, &plan, default_threads())
         .into_iter()
         .rev()
         .fold(None, |kept, head| pick_trial(head, kept));
@@ -1672,8 +1673,8 @@ pub fn compress_span(
     threads: usize,
 ) -> Result<Vec<Vec<u8>>, Error> {
     let host = performance::declared_host();
-    let trial = |frame: &[u8], pieces: &[u64], window: &[&[u8]], spare: bool| {
-        compress_pieces_on(frame, pieces, window, steps, spare, host)
+    let trial = |frame: &[u8], pieces: &[u64], window: &[&[u8]], cores: usize| {
+        compress_pieces_on(frame, pieces, window, steps, cores, host)
     };
     cut_span(span, pieces, window, None, threads, host, &trial)
 }
@@ -1689,14 +1690,22 @@ pub fn compress_span_by(
 ) -> Result<Vec<Vec<u8>>, Error> {
     let host = performance::declared_host();
     let trial =
-        |frame: &[u8], pieces: &[u64], window: &[&[u8]], _: bool| Ok(trial(frame, pieces, window));
+        |frame: &[u8], pieces: &[u64], window: &[&[u8]], _: usize| Ok(trial(frame, pieces, window));
     cut_span(span, pieces, &[], None, threads, host, &trial)
 }
 
 /// A frame's coding as [`compress_span_by`] takes it: bytes, pieces, window.
 pub type FrameTrial<'a> = dyn Fn(&[u8], &[u64], &[&[u8]]) -> Vec<u8> + Sync + 'a;
 
-type SpanTrial<'a> = dyn Fn(&[u8], &[u64], &[&[u8]], bool) -> Result<Vec<u8>, Error> + Sync + 'a;
+type SpanTrial<'a> = dyn Fn(&[u8], &[u64], &[&[u8]], usize) -> Result<Vec<u8>, Error> + Sync + 'a;
+
+/// The codings [`cut_span`] compares: a span whole, and its two halves.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Part {
+    Whole,
+    First,
+    Second,
+}
 
 fn cut_span(
     span: &[u8],
@@ -1712,7 +1721,7 @@ fn cut_span(
     if half == 0 {
         return Ok(vec![match whole {
             Some(w) => w,
-            None => trial(span, pieces, window, threads > 1)?,
+            None => trial(span, pieces, window, threads)?,
         }]);
     }
     let (a, b) = span.split_at(half);
@@ -1730,12 +1739,18 @@ fn cut_span(
     }
     let wb = after(fits, window, vec![a]);
     let have = whole.is_some();
-    let jobs: Vec<usize> = (usize::from(have)..3).collect();
-    let spare = threads >= 2 * jobs.len();
-    let mut done = parallel(&jobs, threads, |&j| match j {
-        0 => trial(span, pieces, window, spare),
-        1 => trial(a, &pa, window, spare),
-        _ => trial(b, &pb, &wb, spare),
+    // the trials still to run: the whole span (unless the caller coded it)
+    // and each half
+    let jobs: Vec<Part> = [Part::Whole, Part::First, Part::Second]
+        .into_iter()
+        .filter(|p| !(have && *p == Part::Whole))
+        .collect();
+    // each trial holds an equal share of the cores
+    let spare = (threads / jobs.len()).max(1);
+    let mut done = parallel(&jobs, threads, |j| match j {
+        Part::Whole => trial(span, pieces, window, spare),
+        Part::First => trial(a, &pa, window, spare),
+        Part::Second => trial(b, &pb, &wb, spare),
     })
     .into_iter();
     let whole = match whole {
@@ -2939,7 +2954,7 @@ mod tests {
             };
             let plan = portfolio::plan(frame);
             let trials: Vec<Option<performance::Trial>> =
-                portfolio_trials(frame, &lengths, &[], &plan, true)
+                portfolio_trials(frame, &lengths, &[], &plan, plan.len())
                     .iter()
                     .map(|t| {
                         t.as_ref().map(|(a, s)| performance::Trial {
@@ -2977,7 +2992,8 @@ mod tests {
             .iter()
             .flat_map(|&s| [s, portfolio::Strategy { x86: true, ..s }])
             .collect();
-        let trials = portfolio_trials(frame, &[frame.len() as u64], &[], &plan, true);
+        // a core for every strategy: each codes bounded by the raw archive alone
+        let trials = portfolio_trials(frame, &[frame.len() as u64], &[], &plan, plan.len());
         for (s, t) in plan.iter().zip(&trials) {
             assert_eq!(t.is_none(), s.x86, "{s:?}");
         }
