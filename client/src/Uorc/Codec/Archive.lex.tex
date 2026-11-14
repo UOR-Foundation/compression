@@ -783,10 +783,37 @@ definition{
 }
 
 definition{
+  name: probBase,
+  parameters: [],
+  result: Nat,
+  body: 32,
+  executable: true,
+  axioms: []
+}
+
+definition{
+  name: streamsBase,
+  parameters: [],
+  result: Nat,
+  body: 65536,
+  executable: true,
+  axioms: []
+}
+
+definition{
+  name: epochBase,
+  parameters: [],
+  result: Nat,
+  body: 32,
+  executable: true,
+  axioms: []
+}
+
+definition{
   name: learningBase,
   parameters: [],
   result: Nat,
-  body: (prim multiply (profileBase) (profileBase) : Nat),
+  body: (prim multiply (profileBase) (prim multiply (probBase) (streamsBase) : Nat) : Nat),
   executable: true,
   axioms: []
 }
@@ -813,7 +840,7 @@ definition{
   name: learningWord,
   parameters: [word : Nat],
   result: Bool,
-  body: ((prim quotient word (learningBase) 0 : Nat) <=? (countBitsMax)),
+  body: ((prim remainder (prim quotient word (learningBase) 0 : Nat) (epochBase) 0 : Nat) <=? (countBitsMax)),
   executable: true,
   axioms: []
 }
@@ -918,24 +945,6 @@ definition{
 }
 
 definition{
-  name: probBase,
-  parameters: [],
-  result: Nat,
-  body: 32,
-  executable: true,
-  axioms: []
-}
-
-definition{
-  name: streamsBase,
-  parameters: [],
-  result: Nat,
-  body: 65536,
-  executable: true,
-  axioms: []
-}
-
-definition{
   name: streamsOf,
   parameters: [word : Nat],
   result: Nat,
@@ -948,7 +957,7 @@ definition{
   name: frameWord,
   parameters: [word : Nat],
   result: Bool,
-  body: (let p : Nat := (prim remainder (planField word) (deltaBase) 0 : Nat); (let prob : Nat := (prim remainder p (probBase) 0 : Nat); (let e : Nat := (prim quotient p (prim multiply (probBase) (streamsBase) : Nat) 0 : Nat); (if ((prob =? 0) || (prob =? 16)) then (if (profileWord (prim remainder word (profileBase) 0 : Nat)) then (if ((deltaWord word) && (learningWord word)) then (if (0 <? (streamsOf word)) then (((deltaField word) =? 0) && (word <? (learningBase))) else (e =? 0)) else false) else false) else false)))),
+  body: (let p : Nat := (prim remainder (planField word) (deltaBase) 0 : Nat); (let prob : Nat := (prim remainder p (probBase) 0 : Nat); (if ((prob =? 0) || (prob =? 16)) then (if (profileWord (prim remainder word (profileBase) 0 : Nat)) then (if (deltaWord word) then (if (0 <? (streamsOf word)) then ((deltaField word) =? 0) else (learningWord word)) else false) else false) else false))),
   executable: true,
   axioms: []
 }
@@ -957,7 +966,7 @@ definition{
   name: stateWord,
   parameters: [word : Nat],
   result: Bool,
-  body: (((planField word) =? 0) && ((learningWord word) && (profileWord (prim remainder word (profileBase) 0 : Nat)))),
+  body: (((prim remainder (planField word) (prim multiply (probBase) (streamsBase) : Nat) 0 : Nat) =? 0) && (((deltaField word) =? 0) && ((learningWord word) && (profileWord (prim remainder word (profileBase) 0 : Nat))))),
   executable: true,
   axioms: []
 }
