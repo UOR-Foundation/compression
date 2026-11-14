@@ -80,6 +80,8 @@ pub use frame::{frame_length, frames, inspect, object_lengths, Info, Representat
 /// holds the same at any length well above [`chunk::MAX_UNIT`], while coding
 /// full 8 MiB frames through the whole portfolio cost most of the acceptance
 /// leg's time.
+///
+/// Facet: frameBytes
 pub const FRAME: usize = if cfg!(test) { 1 << 20 } else { 8 << 20 };
 
 /// Coded frames per block, the encoder's schedule: the first frame of every
@@ -89,6 +91,8 @@ pub const FRAME: usize = if cfg!(test) { 1 << 20 } else { 8 << 20 };
 /// decoder finds blocks from the frame headers alone (a frame that reads no
 /// window starts one) and decodes them on separate cores, so any block
 /// length decodes, including a v0.2 stream, which is one block.
+///
+/// Facet: blockFrames
 pub const BLOCK: usize = 4;
 
 /// Most frames a window frame reads: every earlier frame of its block.
