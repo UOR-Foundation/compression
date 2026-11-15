@@ -474,7 +474,8 @@ pub fn write(root: &Path) -> Result<(), crate::Error> {
 pub fn stale(root: &Path) -> Vec<String> {
     let mut out = Vec::new();
     for (file, src) in GENERATED {
-        if !root.join(file).exists() && !root.join(src).exists() {
+        // A missing module is the compiler's to reject (`mod model` names it).
+        if !root.join(file).exists() {
             continue;
         }
         let want = std::fs::read_to_string(root.join(src)).map(|t| generate(src, &t));
