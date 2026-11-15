@@ -108,21 +108,21 @@ definition{
   name: observerBlock,
   parameters: [],
   result: Uorc.Core.Graph::Block,
-  body: (record Uorc.Core.Graph::Block {parameters := (cons (ctor Uorc.Core.Types::ValueType.natural) (cons (ctor Uorc.Core.Types::ValueType.natural) (nil Uorc.Core.Types::ValueType))), result := (ctor Uorc.Core.Types::ValueType.byte), instructions := (cons (ctor Uorc.Core.Graph::Instruction.naturalToByte 1) (nil Uorc.Core.Graph::Instruction)), returnDistance := 1})
+  body: (record Uorc.Core.Graph::Block {parameters := (cons (ctor Uorc.Core.Types::ValueType.natural) (cons (ctor Uorc.Core.Types::ValueType.natural) (nil Uorc.Core.Types::ValueType))), result := (ctor Uorc.Core.Types::ValueType.byte), instructions := (let slotA : Nat := 0; (let slotB : Nat := (slotA + 1); (let slotC : Nat := (slotB + 1); (cons (ctor Uorc.Core.Graph::Instruction.naturalToByte (prim subtract slotC slotB : Nat)) (nil Uorc.Core.Graph::Instruction))))), returnDistance := 1})
 }
 
 definition{
   name: updaterBlock,
   parameters: [parameters : Parameters],
   result: Uorc.Core.Graph::Block,
-  body: (record Uorc.Core.Graph::Block {parameters := (cons (ctor Uorc.Core.Types::ValueType.natural) (cons (ctor Uorc.Core.Types::ValueType.natural) (nil Uorc.Core.Types::ValueType))), result := (ctor Uorc.Core.Types::ValueType.natural), instructions := (cons (ctor Uorc.Core.Graph::Instruction.naturalConstant (project parameters multiplier)) (cons (ctor Uorc.Core.Graph::Instruction.naturalConstant (project parameters increment)) (cons (ctor Uorc.Core.Graph::Instruction.naturalConstant (256 : UInt64)) (cons (ctor Uorc.Core.Graph::Instruction.naturalMultiply 4 3) (cons (ctor Uorc.Core.Graph::Instruction.naturalAdd 1 3) (cons (ctor Uorc.Core.Graph::Instruction.naturalRemainder 1 3) (nil Uorc.Core.Graph::Instruction))))))), returnDistance := 1})
+  body: (record Uorc.Core.Graph::Block {parameters := (cons (ctor Uorc.Core.Types::ValueType.natural) (cons (ctor Uorc.Core.Types::ValueType.natural) (nil Uorc.Core.Types::ValueType))), result := (ctor Uorc.Core.Types::ValueType.natural), instructions := (let slotA : Nat := 0; (let slotB : Nat := (slotA + 1); (let slotC : Nat := (slotB + 1); (let slotD : Nat := (slotC + 1); (let slotE : Nat := (slotD + 1); (let slotF : Nat := (slotE + 1); (let slotG : Nat := (slotF + 1); (let slotH : Nat := (slotG + 1); (cons (ctor Uorc.Core.Graph::Instruction.naturalConstant (project parameters multiplier)) (cons (ctor Uorc.Core.Graph::Instruction.naturalConstant (project parameters increment)) (cons (ctor Uorc.Core.Graph::Instruction.naturalConstant (256 : UInt64)) (cons (ctor Uorc.Core.Graph::Instruction.naturalMultiply (prim subtract slotF slotB : Nat) (prim subtract slotF slotC : Nat)) (cons (ctor Uorc.Core.Graph::Instruction.naturalAdd (prim subtract slotG slotF : Nat) (prim subtract slotG slotD : Nat)) (cons (ctor Uorc.Core.Graph::Instruction.naturalRemainder (prim subtract slotH slotG : Nat) (prim subtract slotH slotE : Nat)) (nil Uorc.Core.Graph::Instruction))))))))))))))), returnDistance := 1})
 }
 
 definition{
   name: stateGraph,
   parameters: [parameters : Parameters, count : UInt64],
   result: Uorc.Core.Graph::Graph,
-  body: (record Uorc.Core.Graph::Graph {blocks := (cons (observerBlock) (cons (updaterBlock parameters) (cons (record Uorc.Core.Graph::Block {parameters := (nil Uorc.Core.Types::ValueType), result := (ctor Uorc.Core.Types::ValueType.sequence), instructions := (cons (ctor Uorc.Core.Graph::Instruction.naturalConstant count) (cons (ctor Uorc.Core.Graph::Instruction.naturalConstant (project parameters initial)) (cons (ctor Uorc.Core.Graph::Instruction.scan 2 1 2 (nil Nat) 1 (nil Nat)) (nil Uorc.Core.Graph::Instruction)))), returnDistance := 1}) (nil Uorc.Core.Graph::Block)))), entry := 2})
+  body: (record Uorc.Core.Graph::Graph {blocks := (cons (observerBlock) (cons (updaterBlock parameters) (cons (record Uorc.Core.Graph::Block {parameters := (nil Uorc.Core.Types::ValueType), result := (ctor Uorc.Core.Types::ValueType.sequence), instructions := (let slotA : Nat := 0; (let slotB : Nat := (slotA + 1); (let slotC : Nat := (slotB + 1); (cons (ctor Uorc.Core.Graph::Instruction.naturalConstant count) (cons (ctor Uorc.Core.Graph::Instruction.naturalConstant (project parameters initial)) (cons (ctor Uorc.Core.Graph::Instruction.scan (prim subtract slotC slotA : Nat) (prim subtract slotC slotB : Nat) 2 (nil Nat) 1 (nil Nat)) (nil Uorc.Core.Graph::Instruction))))))), returnDistance := 1}) (nil Uorc.Core.Graph::Block)))), entry := 2})
 }
 
 definition{
@@ -166,7 +166,7 @@ definition{
   name: foldGraph,
   parameters: [parameters : Parameters, count : UInt64],
   result: Uorc.Core.Graph::Graph,
-  body: (record Uorc.Core.Graph::Graph {blocks := (cons (updaterBlock parameters) (cons (record Uorc.Core.Graph::Block {parameters := (nil Uorc.Core.Types::ValueType), result := (ctor Uorc.Core.Types::ValueType.sequence), instructions := (cons (ctor Uorc.Core.Graph::Instruction.naturalConstant count) (cons (ctor Uorc.Core.Graph::Instruction.naturalConstant (project parameters initial)) (cons (ctor Uorc.Core.Graph::Instruction.fold 2 1 1 (nil Nat)) (cons (ctor Uorc.Core.Graph::Instruction.naturalToByte 1) (cons (ctor Uorc.Core.Graph::Instruction.singletonSequence 1) (nil Uorc.Core.Graph::Instruction)))))), returnDistance := 1}) (nil Uorc.Core.Graph::Block))), entry := 1})
+  body: (record Uorc.Core.Graph::Graph {blocks := (cons (updaterBlock parameters) (cons (record Uorc.Core.Graph::Block {parameters := (nil Uorc.Core.Types::ValueType), result := (ctor Uorc.Core.Types::ValueType.sequence), instructions := (let slotA : Nat := 0; (let slotB : Nat := (slotA + 1); (let slotC : Nat := (slotB + 1); (let slotD : Nat := (slotC + 1); (let slotE : Nat := (slotD + 1); (cons (ctor Uorc.Core.Graph::Instruction.naturalConstant count) (cons (ctor Uorc.Core.Graph::Instruction.naturalConstant (project parameters initial)) (cons (ctor Uorc.Core.Graph::Instruction.fold (prim subtract slotC slotA : Nat) (prim subtract slotC slotB : Nat) 1 (nil Nat)) (cons (ctor Uorc.Core.Graph::Instruction.naturalToByte (prim subtract slotD slotC : Nat)) (cons (ctor Uorc.Core.Graph::Instruction.singletonSequence (prim subtract slotE slotD : Nat)) (nil Uorc.Core.Graph::Instruction))))))))))), returnDistance := 1}) (nil Uorc.Core.Graph::Block))), entry := 1})
 }
 
 theorem{

@@ -136,10 +136,10 @@ TOKEN = re.compile(r'"(?:\\.|[^"\\])*"|[A-Za-z_][\w.\']*(?:::[\w.\']+)*|\d+|:=|=
 
 
 class Node:
-    __slots__ = ('open', 'kids', 'parent')
+    __slots__ = ('open', 'kids', 'parent', 'start', 'end')
 
-    def __init__(self, open_, parent):
-        self.open, self.kids, self.parent = open_, [], parent
+    def __init__(self, open_, parent, start=None):
+        self.open, self.kids, self.parent, self.start, self.end = open_, [], parent, start, None
 
 
 def parse(text, base):
@@ -152,10 +152,11 @@ def parse(text, base):
             if t == '{' and cur.kids and tok(cur.kids[-1]) == 'var':
                 cur.kids.pop()                 # var{name: x} is the binder x
                 t = 'var'
-            n = Node(t, cur)
+            n = Node(t, cur, base + m.start())
             cur.kids.append(n)
             cur = n
         elif t in ')]}':
+            cur.end = base + m.end()
             if cur.open == 'var':
                 names = [k for k in cur.kids if isinstance(k, tuple)]
                 cur.kids = names[2:3] if len(names) >= 3 and names[0][0] == 'name' else names
