@@ -75,7 +75,7 @@ export function run(root) {
   const receipts=[];
   const execute=(project,label,command='verify')=>{
     const args=['--project',path.join(project,'lexlean.toml'),'--diagnostic-format','json',command,sourcePath];
-    const result=spawnSync('/usr/local/bin/lexlean',args,{cwd:project,encoding:'utf8',timeout:300000,maxBuffer:32*1024*1024});
+    const result=spawnSync('lexlean',args,{cwd:project,encoding:'utf8',timeout:300000,maxBuffer:32*1024*1024});
     fs.writeFileSync(path.join(output,`${label}.stdout`),result.stdout??'');
     fs.writeFileSync(path.join(output,`${label}.stderr`),result.stderr??'');
     return result;

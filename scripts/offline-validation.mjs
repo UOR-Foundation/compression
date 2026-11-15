@@ -255,6 +255,8 @@ function setup(root, acquisition) {
   fs.mkdirSync(env.HOME, { recursive: true }); fs.mkdirSync(env.XDG_CACHE_HOME, { recursive: true });
   run(root, 'cargo', ['fetch', '--locked'], { env, log: path.join(acquisition, 'fetch.log') });
   run(root, 'cargo', ['deny', '--locked', '--all-features', 'fetch'], { env, log: path.join(acquisition, 'deny-fetch.log') });
+  // The pinned LexLean (lexlean.pin.json) is a tool, sealed with the cache.
+  run(root, 'node', ['scripts/lexlean-pin.mjs', 'install'], { env: { ...env, LEXLEAN_TOOL_ROOT: path.join(cache, 'lexlean') }, log: path.join(acquisition, 'lexlean-install.log') });
   // Acquisition never compiles, generates, or verifies UORC outputs.
   cleanOutputs(root);
   writeJson(path.join(acquisition, 'setup.json'), { schema: 'uorc/dependency-setup/1', sdk_image: lock.sdk_image,
@@ -275,7 +277,7 @@ function offline(root, acquisition) {
   cleanOutputs(root);
   const cache = fs.mkdtempSync(path.join(os.tmpdir(), 'uorc-acquired-'));
   fs.cpSync(path.join(acquisition, 'cache'), cache, { recursive: true });
-  const env = { ...cacheEnvironment(cache), CARGO_NET_OFFLINE: 'true', CARGO_INCREMENTAL: '0', CARGO_TARGET_DIR: path.join(root, 'target'),
+  const env = { ...cacheEnvironment(cache), LEXLEAN_TOOL_ROOT: path.join(cache, 'lexlean'), CARGO_NET_OFFLINE: 'true', CARGO_INCREMENTAL: '0', CARGO_TARGET_DIR: path.join(root, 'target'),
     SOURCE_DATE_EPOCH: '0', TZ: 'UTC', LC_ALL: 'C.UTF-8' };
   Object.assign(process.env, env);
   // Current-build verification is always executed, never accepted from a cache receipt.

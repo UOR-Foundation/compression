@@ -8,6 +8,11 @@ export LEXLEAN_VERIFY_WIDTH := env_var_or_default("LEXLEAN_VERIFY_WIDTH", "4")
 export LEXLEAN_VERIFY_MEMORY_KIB := env_var_or_default("LEXLEAN_VERIFY_MEMORY_KIB", "9437184")
 export LEXLEAN_VERIFY_HINTS := env_var_or_default("LEXLEAN_VERIFY_HINTS", justfile_directory() + "/validation/lexlean-verify-hints.json")
 
+# Every recipe runs the one pinned LexLean (lexlean.pin.json), the compiler the
+# client is exported with, ahead of any other on PATH; `lexlean-tool` builds it
+# once per revision.
+export PATH := `node scripts/lexlean-pin.mjs dir` + ":" + env_var("PATH")
+
 default: vv
 
 # The whole gate.
@@ -17,7 +22,10 @@ vv: lexlean-authority template-check fmt-check model lint test features bdd deny
 # The UORC authority files are real LexLean source, not merely files with a
 # LexLean suffix. The locked compiler must accept the exact project before the
 # Rust projection/gate layer is allowed to consume it.
-lexlean-authority:
+lexlean-tool:
+    node scripts/lexlean-pin.mjs install > /dev/null
+
+lexlean-authority: lexlean-tool
     lexlean lock --check
     lexlean fmt --check --all
     lexlean check --all
@@ -76,7 +84,7 @@ pages:
     node scripts/page-acceptance.mjs .tmp/site --report .tmp/page-acceptance.json
 
 # The xtask suite: product-runtime, integrity, claims and offline harnesses.
-formal-tests:
+formal-tests: lexlean-tool
     cargo test --locked -p xtask
 
 # A feature only its author has built is a feature that does not work: nothing
@@ -102,12 +110,12 @@ deny:
     node scripts/offline-validation.mjs deny
 
 # Full formal construction/replay of the declared charter authority.
-lexlean-artifacts:
+lexlean-artifacts: lexlean-tool
     lexlean build --all
     lexlean verify --all
 
 # Execute every source-owned promotion and verify every restored control.
-claim-dispositions:
+claim-dispositions: lexlean-tool
     node scripts/claims-validation.mjs
 
 # Always executed, including in the two complete offline CI invocations.
@@ -116,7 +124,7 @@ reproducibility:
     node scripts/offline-validation.mjs reproduce
 
 # Actual core-source defects must fail at their owning kernel declarations.
-varint-proofs:
+varint-proofs: lexlean-tool
     node scripts/varint-validation.mjs
 
 # Numbers in what the release ships (the client crates, the page's JavaScript
@@ -133,7 +141,7 @@ figures-write:
     cargo run --locked -q -p figures -- write
 
 # Source-owned SHA-256 and bounded chain: independent data and mutation controls.
-integrity:
+integrity: lexlean-tool
     node --test scripts/integrity-vectors.test.mjs
     node scripts/integrity-validation.mjs
 
