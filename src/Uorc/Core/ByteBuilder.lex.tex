@@ -1,4 +1,5 @@
 \begin{lexlean}{Uorc.Core.ByteBuilder}
+\importmodule{Uorc.Wire.Domains}
 \importmodule{Uorc.Core.Bytes}
 \importmodule{Uorc.Core.Types}
 \importmodule{Uorc.Core.Resources}
@@ -69,7 +70,7 @@ definition{
   result: Nat,
   body: (match depth
     | Nat.zero => current
-    | Nat.succ remainingDepth => (if (current <=? 2048) then (if ((prim multiply 2 current : Nat) <=? limit) then (chooseCapacity remainingDepth (prim multiply 2 current : Nat) limit) else current) else current)),
+    | Nat.succ remainingDepth => (if (current <=? 2048) then (if ((prim multiply (Uorc.Wire.Domains::radix) current : Nat) <=? limit) then (chooseCapacity remainingDepth (prim multiply (Uorc.Wire.Domains::radix) current : Nat) limit) else current) else current)),
   recursive_argument: depth
 }
 
@@ -133,12 +134,12 @@ definition{
       | Option.none => (ctor Event.failed (ctor Error.invalidState))
       | Option.some singleByte => (ctor Event.advanced (ctor Work.merging (project builder completed) singleByte (project builder bins) 0 ((project builder buffered) + 1) (project builder capacity)))) else (ctor Event.failed (ctor Error.invalidState)))
     | Work.merging completed carry remainingBins zeros count capacity => (if ((0 <? capacity) && (capacity <=? 4096)) then (if ((prim length carry : Nat) =? capacity) then (match remainingBins
-      | List.nil => (if (count =? capacity) then (if (Uorc.Core.Resources::fitsAddition 18446744073709551615 (Uorc.Core.Bytes::length completed) (prim length carry : Nat)) then (ctor Event.advanced (ctor Work.flushing (Uorc.Core.Bytes::startJoin completed (Uorc.Core.Bytes::fromBytes carry)) capacity)) else (ctor Event.failed (ctor Error.addressSpaceExhausted))) else (ctor Event.failed (ctor Error.invalidState)))
+      | List.nil => (if (count =? capacity) then (if (Uorc.Core.Resources::fitsAddition (Uorc.Wire.Domains::wordLast) (Uorc.Core.Bytes::length completed) (prim length carry : Nat)) then (ctor Event.advanced (ctor Work.flushing (Uorc.Core.Bytes::startJoin completed (Uorc.Core.Bytes::fromBytes carry)) capacity)) else (ctor Event.failed (ctor Error.addressSpaceExhausted))) else (ctor Event.failed (ctor Error.invalidState)))
       | List.cons headBin restBins => (ctor Event.failed (ctor Error.invalidState))) else (if ((0 <? (prim length carry : Nat)) && ((prim length carry : Nat) <? capacity)) then (match remainingBins
       | List.nil => (ctor Event.advanced (ctor Work.rebuilding completed (cons (ctor Option.some [Bytes] carry) (nil (Option Bytes))) zeros count capacity))
       | List.cons headBin restBins => (match headBin
         | Option.none => (ctor Event.advanced (ctor Work.rebuilding completed (cons (ctor Option.some [Bytes] carry) restBins) zeros count capacity))
-        | Option.some oldBlock => (if (((prim length oldBlock : Nat) =? (prim length carry : Nat)) && ((prim length carry : Nat) <=? (prim quotient capacity 2 0 : Nat))) then (ctor Event.advanced (ctor Work.merging completed (prim append oldBlock carry : Bytes) restBins (zeros + 1) count capacity)) else (ctor Event.failed (ctor Error.invalidState))))) else (ctor Event.failed (ctor Error.invalidState)))) else (ctor Event.failed (ctor Error.invalidState)))
+        | Option.some oldBlock => (if (((prim length oldBlock : Nat) =? (prim length carry : Nat)) && ((prim length carry : Nat) <=? (prim quotient capacity (Uorc.Wire.Domains::radix) 0 : Nat))) then (ctor Event.advanced (ctor Work.merging completed (prim append oldBlock carry : Bytes) restBins (zeros + 1) count capacity)) else (ctor Event.failed (ctor Error.invalidState))))) else (ctor Event.failed (ctor Error.invalidState)))) else (ctor Event.failed (ctor Error.invalidState)))
     | Work.rebuilding completed bins zeros count capacity => (match zeros
       | Nat.zero => (ctor Event.appended (record Builder {completed := completed, bins := bins, buffered := count, capacity := capacity}))
       | Nat.succ remainingZeros => (ctor Event.advanced (ctor Work.rebuilding completed (cons (ctor Option.none [Bytes]) bins) remainingZeros count capacity)))
@@ -148,7 +149,7 @@ definition{
       | Uorc.Core.Bytes::WorkEvent.byteDone resultByte => (ctor Event.failed (ctor Error.invalidState))
       | Uorc.Core.Bytes::WorkEvent.failed ropeError => (ctor Event.failed (ctor Error.rope ropeError)))
     | Work.tail completed remainingBins tailBytes => (match remainingBins
-      | List.nil => (if ((prim length tailBytes : Nat) =? 0) then (ctor Event.finished completed) else (if (Uorc.Core.Resources::fitsAddition 18446744073709551615 (Uorc.Core.Bytes::length completed) (prim length tailBytes : Nat)) then (ctor Event.advanced (ctor Work.tailFlushing (Uorc.Core.Bytes::startJoin completed (Uorc.Core.Bytes::fromBytes tailBytes)))) else (ctor Event.failed (ctor Error.addressSpaceExhausted))))
+      | List.nil => (if ((prim length tailBytes : Nat) =? 0) then (ctor Event.finished completed) else (if (Uorc.Core.Resources::fitsAddition (Uorc.Wire.Domains::wordLast) (Uorc.Core.Bytes::length completed) (prim length tailBytes : Nat)) then (ctor Event.advanced (ctor Work.tailFlushing (Uorc.Core.Bytes::startJoin completed (Uorc.Core.Bytes::fromBytes tailBytes)))) else (ctor Event.failed (ctor Error.addressSpaceExhausted))))
       | List.cons headBin restBins => (match headBin
         | Option.none => (ctor Event.advanced (ctor Work.tail completed restBins tailBytes))
         | Option.some oldBlock => (if (((prim length oldBlock : Nat) <=? 4096) && ((prim length tailBytes : Nat) <=? (prim subtract 4096 (prim length oldBlock : Nat) : Nat))) then (ctor Event.advanced (ctor Work.tail completed restBins (if ((prim length tailBytes : Nat) =? 0) then oldBlock else (prim append oldBlock tailBytes : Bytes)))) else (ctor Event.failed (ctor Error.invalidState)))))
@@ -269,7 +270,7 @@ definition{
       | List.nil => true
       | List.cons headBin restBins => ((match headBin
         | Option.none => true
-        | Option.some chunk => ((prim length chunk : Nat) =? expectedSize)) && (validBins remainingLevels (prim multiply 2 expectedSize : Nat) restBins)))),
+        | Option.some chunk => ((prim length chunk : Nat) =? expectedSize)) && (validBins remainingLevels (prim multiply (Uorc.Wire.Domains::radix) expectedSize : Nat) restBins)))),
   recursive_argument: levels
 }
 

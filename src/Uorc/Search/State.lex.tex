@@ -1,4 +1,5 @@
 \begin{lexlean}{Uorc.Search.State}
+\importmodule{Uorc.Wire.Domains}
 \importmodule{Uorc.Core.Graph}
 \importmodule{Uorc.Core.Types}
 \importmodule{Uorc.Search.Effort}
@@ -128,7 +129,7 @@ definition{
   name: step,
   parameters: [input : Bytes, cursor : Cursor],
   result: Step,
-  body: (if (256 <=? (project cursor nextMultiplier)) then (ctor Step.finished) else (match (Uorc.Search.Effort::checkedU64 (project cursor nextMultiplier))
+  body: (if ((Uorc.Wire.Domains::byteBase) <=? (project cursor nextMultiplier)) then (ctor Step.finished) else (match (Uorc.Search.Effort::checkedU64 (project cursor nextMultiplier))
     | Result.error conversionError => (ctor Step.rejected (ctor Error.arithmeticOverflow) (record Cursor {nextMultiplier := ((project cursor nextMultiplier) + 1)}))
     | Result.ok multiplier => (match (infer input multiplier)
       | Result.error inferenceError => (ctor Step.rejected inferenceError (record Cursor {nextMultiplier := ((project cursor nextMultiplier) + 1)}))

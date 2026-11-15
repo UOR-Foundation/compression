@@ -1,4 +1,5 @@
 \begin{lexlean}{Uorc.Search.Compose}
+\importmodule{Uorc.Wire.Domains}
 \importmodule{Uorc.Core.Graph}
 \title{Parameters}
 \begin{semanticmodule}
@@ -54,10 +55,10 @@ definition{
   body: (match (project cursor phase)
     | Phase.prefix => (match (project cursor prefix)
       | List.nil => (ctor Step.pending (record Cursor {phase := (ctor Phase.suffix), prefix := (project cursor prefix), suffix := (project cursor suffix), reversed := (project cursor reversed), forward := (project cursor forward), blockCount := (project cursor blockCount), completedEvents := ((project cursor completedEvents) + 1)}))
-      | List.cons block rest => (if ((project cursor blockCount) <? 18446744073709551615) then (ctor Step.pending (record Cursor {phase := (project cursor phase), prefix := rest, suffix := (project cursor suffix), reversed := (cons block (project cursor reversed)), forward := (project cursor forward), blockCount := ((project cursor blockCount) + 1), completedEvents := ((project cursor completedEvents) + 1)})) else (ctor Step.addressSpaceExhausted)))
+      | List.cons block rest => (if ((project cursor blockCount) <? (Uorc.Wire.Domains::wordLast)) then (ctor Step.pending (record Cursor {phase := (project cursor phase), prefix := rest, suffix := (project cursor suffix), reversed := (cons block (project cursor reversed)), forward := (project cursor forward), blockCount := ((project cursor blockCount) + 1), completedEvents := ((project cursor completedEvents) + 1)})) else (ctor Step.addressSpaceExhausted)))
     | Phase.suffix => (match (project cursor suffix)
       | List.nil => (ctor Step.pending (record Cursor {phase := (ctor Phase.reverse), prefix := (project cursor prefix), suffix := (project cursor suffix), reversed := (project cursor reversed), forward := (project cursor forward), blockCount := (project cursor blockCount), completedEvents := ((project cursor completedEvents) + 1)}))
-      | List.cons block rest => (if ((project cursor blockCount) <? 18446744073709551615) then (ctor Step.pending (record Cursor {phase := (project cursor phase), prefix := (project cursor prefix), suffix := rest, reversed := (cons block (project cursor reversed)), forward := (project cursor forward), blockCount := ((project cursor blockCount) + 1), completedEvents := ((project cursor completedEvents) + 1)})) else (ctor Step.addressSpaceExhausted)))
+      | List.cons block rest => (if ((project cursor blockCount) <? (Uorc.Wire.Domains::wordLast)) then (ctor Step.pending (record Cursor {phase := (project cursor phase), prefix := (project cursor prefix), suffix := rest, reversed := (cons block (project cursor reversed)), forward := (project cursor forward), blockCount := ((project cursor blockCount) + 1), completedEvents := ((project cursor completedEvents) + 1)})) else (ctor Step.addressSpaceExhausted)))
     | Phase.reverse => (match (project cursor reversed)
       | List.nil => (if (0 <? (project cursor blockCount)) then (ctor Step.complete (record Uorc.Core.Graph::Graph {blocks := (project cursor forward), entry := (prim subtract (project cursor blockCount) 1 : Nat)}) ((project cursor completedEvents) + 1)) else (ctor Step.empty))
       | List.cons block rest => (ctor Step.pending (record Cursor {phase := (project cursor phase), prefix := (project cursor prefix), suffix := (project cursor suffix), reversed := rest, forward := (cons block (project cursor forward)), blockCount := (project cursor blockCount), completedEvents := ((project cursor completedEvents) + 1)}))))
