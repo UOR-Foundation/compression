@@ -66,6 +66,9 @@ def declarations():
         # so a node is named below radix times the alphabet, in one bit more than an octet
         ('nodeBase', '(prim multiply (radix) (byteBase) : Nat)', 512),
         ('nodeBits', '((byteBits) + 1)', 9),
+        # a node is written in whole octets, and an inner node as its radix children
+        ('nodeBytes', '(prim quotient (prim subtract ((nodeBits) + (byteBits)) 1 : Nat) (byteBits) 0 : Nat)', 2),
+        ('nodeRecordBytes', '(prim multiply (radix) (nodeBytes) : Nat)', 4),
     ]
     return out
 
@@ -79,6 +82,7 @@ DOMAINS = {
     #                                  model is lowered to the declared word: its top and byte places
     'key': ['wordBits', 'nodeBits'],   # a trie keyed by a word (or a tree node) is walked once per key bit
     'node': ['byteBase', 'nodeBase'],  # a tree node: the first inner node, and past the last
+    'nodes': ['nodeRecordBytes'],      # a count of inner nodes: the octets each is written in
     'bits': ['byteBits', 'wordBits'],  # a count of bits: whole bytes and words of it
     'byte': ['byteBase', 'byteLast'],  # an octet value
     'place': ['radix', 'byteBase'],    # the base of a place-value digit, in a binary definition
@@ -105,6 +109,11 @@ FIELDS = {
 BINARY = {'wordToNatAux', 'wordOfNatAux', 'natToU64Bits', 'powerTwo', 'indexBitsAux', 'Search.PackedFit.step',
           'Search.HuffmanFit.perform', 'Search.Normalize.buildStep', 'chooseCapacity', 'validBins',
           'Core.ByteBuilder.step'}
+
+# Binders declared to hold a domain, by the definition that binds them.
+BINDERS = {
+    'Search.HuffmanFit.perform': {n: 'node' for n in ('first', 'second', 'index', 'best', 'node', 'parent')},
+}
 
 COMPARE = {'<?', '<=?', '=?', '<', '<=', '>', '>=', '=', '!=?'}
 ARITH = {'+', '-'}
@@ -152,6 +161,18 @@ def domain_of(kids, defn_params):
     if head == 'project' and len(kids) >= 3:
         f = tok(kids[-1])
         return FIELDS.get(f, 'word')
+    if head == 'var' and len(kids) >= 2 and isinstance(kids[1], Node):
+        kids = kids[1].kids
+        head = tok(kids[0]) if kids else None
+    if head == 'name' and len(kids) == 3 and tok(kids[1]) == ':':
+        kids = [kids[2]]
+        head = tok(kids[0])
+    if head == 'prim' and len(kids) >= 4 and tok(kids[1]) == 'subtract':
+        a = domain_of([kids[2]], defn_params)
+        if a == 'node' and tok(kids[3]) is None:
+            return 'nodes'             # nodes past the first inner one: a count of inner nodes
+        if a and a != 'word':
+            return a
     if head == 'prim' and len(kids) >= 2:
         op = tok(kids[1])
         if op == 'length':
@@ -167,6 +188,8 @@ def domain_of(kids, defn_params):
             ty = defn_params.get(t)
             if ty == 'Nat':
                 return 'word'
+            if ty and ty.startswith('@'):
+                return ty[1:]
         if isinstance(kids[0], Node):
             return domain_of(kids[0].kids, defn_params)
     # an infix sum or difference keeps its operands' domain
@@ -213,7 +236,7 @@ def contexts(node, defn_params, out, binary=False):
             elif op == 'multiply' and i in (2, 3):
                 other = kids[3 if i == 2 else 2]
                 dd = domain_of([other], defn_params)
-                doms += ['bits'] if dd == 'bits' else []
+                doms += [dd] if dd in ('bits', 'nodes') else []
                 doms += ['place'] if binary else []
             elif op == 'subtract' and i in (2, 3):
                 dd = domain_of([kids[3 if i == 2 else 2]], defn_params)
@@ -225,7 +248,7 @@ def contexts(node, defn_params, out, binary=False):
                 doms.append(d)
         else:
             if i + 1 < len(kids) and tok(kids[i + 1]) in COMPARE | ARITH and i + 2 < len(kids):
-                d = domain_of([kids[i + 2]], defn_params)
+                d = domain_of(kids[i + 2:i + 4] if tok(kids[i + 2]) == 'var' else [kids[i + 2]], defn_params)
                 compare = tok(kids[i + 1]) in COMPARE
                 if d:
                     doms.append(d)
@@ -268,7 +291,9 @@ def rewrite(path, residue, derived):
         tree = parse(body, start + b + 5)
         out = []
         qual = '%s.%s.%s' % (path.parent.name, path.name.split('.')[0], name)
-        contexts(tree, params_of(decl), out, name in BINARY or qual in BINARY)
+        ps = params_of(decl)
+        ps.update({b: '@' + d for b, d in BINDERS.get(qual, {}).items()})
+        contexts(tree, ps, out, name in BINARY or qual in BINARY)
         for (t, s, e), qn, doms in out:
             if qn:
                 edits.append((s, e, q(qn)))
