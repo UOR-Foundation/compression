@@ -36,15 +36,11 @@
 // literal second, with x not a literal and N above SECOND_LITERAL_BOUND, stops
 // the export with its module and definition named.
 //
-// The export uses LexLean pinned at LEXLEAN_REV, the branch
-// claude/release-staged-certificates of UOR-Foundation/LexLean (claude/uorc-pin
-// plus LexLean#537): the rust-std shared-box lowering (LexLean#441) keeps
-// search states behind reference-counted boxes instead of copying them on every
-// field read, the in-place byte update primitive (LexLean#443) gives the codec
-// O(1) table writes, and #537 releases each certificate once staged and restates
-// a conditional's taken branch by if_pos/if_neg, so the kernel never evaluates
-// a branch's computation to compare it with its unreduced selection. The pin
-// moves to a LexLean release once these ship.
+// The export uses the LexLean the whole gate runs, pinned in lexlean.pin.json
+// (scripts/lexlean-pin.mjs): the rust-std shared-box lowering (LexLean#441)
+// keeps search states behind reference-counted boxes instead of copying them on
+// every field read, and the in-place byte update primitive (LexLean#443) gives
+// the codec O(1) table writes. The pin moves to a LexLean release once these ship.
 // Set LEXLEAN to an already built binary of the same revision to skip the build.
 //
 // The export is the factory obligation `export` (factory/graph.json): its
@@ -59,26 +55,18 @@ import {spawnSync} from 'node:child_process';
 import {fileURLToPath} from 'node:url';
 import {dataForm, notation} from './semantic-source.mjs';
 import {loadGraph, identities, workingTree} from './factory.mjs';
+import {lexleanBinary} from './lexlean-pin.mjs';
 
 const root = process.cwd();
 const out = path.join(root, 'generated/rust');
 const entry = 'src/Uorc/Client.lex.tex'; // staged path
 const roots = [['uorc_compress', 'Uorc.Uorc.Client.compress'], ['uorc_decompress', 'Uorc.Uorc.Client.decompress'], ['uorc_search', 'Uorc.Uorc.Client.search']];
-const LEXLEAN_REPO = 'https://github.com/UOR-Foundation/LexLean';
-const LEXLEAN_REV = '560b64905d86f9711b4f986a9916f505067b08d8';
 const fail = m => { throw new Error(m); };
 const run = (cmd, args, cwd) => {
   const r = spawnSync(cmd, args, {cwd, encoding: 'utf8', maxBuffer: 256 * 1024 * 1024});
   if (r.error || r.status !== 0) fail(`${cmd} ${args.join(' ')}: ${r.error ?? ''}${r.stdout}${r.stderr}`);
   return r.stdout;
 };
-function lexleanBinary() {
-  if (process.env.LEXLEAN) return process.env.LEXLEAN;
-  const tool = path.join(root, '.lexlean/tool', LEXLEAN_REV);
-  const bin = path.join(tool, 'bin', 'lexlean');
-  if (!fs.existsSync(bin)) run('cargo', ['install', '--locked', '--git', LEXLEAN_REPO, '--rev', LEXLEAN_REV, '--root', tool, 'lexlean'], root);
-  return bin;
-}
 const moduleFile = (dir, m) => path.join(dir, 'src', ...m.split('.')) + '.lex.tex';
 
 // `file` maps a module name to its source: the stage, or for --check the
