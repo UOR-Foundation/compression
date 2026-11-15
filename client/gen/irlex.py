@@ -39,6 +39,7 @@ class Lex:
         self.cells()
         self.n = 0
         self.done = set()
+        self.knames = set()
         self.helpers()
         emitted = set()
         def post(name):
@@ -131,7 +132,6 @@ class Lex:
         for params, body in self.p.funcs.values():
             ir.kdeps(body, named)
         ir.kdeps([self.base(t) for t in self.p.tables], named)
-        self.knames = set()
         for k in named.values():
             self.need(k)
         # The globals' layout: each global's width is the one figure of its place; its address is
@@ -203,10 +203,14 @@ class Lex:
                 if k.name not in self.knames:
                     self.knames.add(k.name)
                     self.D(k.name, [], 'Nat', self.kbody(k.body), ax=[])
-        return self.lit(x)
+            return f"({x.name})"
+        return str(x)
 
     def lit(self, x):
-        """A number of the program: a named quantity by its name, any other by its numeral."""
+        """A number of the program: a named quantity by its name (defined on its first use), any other
+        by its numeral."""
+        if isinstance(x, ir.K) and x.name not in self.knames:
+            self.need(x)
         return f"({x.name})" if isinstance(x, ir.K) else str(x)
 
     def kbody(self, b):

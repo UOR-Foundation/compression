@@ -653,12 +653,12 @@ pub fn step_streams(
         ..ncm::streams::Plan::ONE
     };
     let mut best = chosen;
-    let mut bits = 12;
+    let mut bits = ncm::streams::Plan::ONE.bits;
     // one stream is the serial coder's payload, as v0.6 frames carry it
     if let Some(payload) = ncm::encode_plan_below(past, data, profile, wide, best.len()) {
         if let Some(a) = archive_of(wide, &payload).filter(|a| a.len() < best.len()) {
             best = a;
-            bits = 16;
+            bits = wide.bits;
         }
     }
     if host_threads <= 1 {

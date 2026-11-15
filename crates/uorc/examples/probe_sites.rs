@@ -39,8 +39,8 @@ fn main() {
         assert_eq!(back, data);
         let merge: f64 = s.secs.iter().sum();
         let steps = s.steps;
-        let changes: u64 = (0..5).map(|i| s.one[i] + s.versions[i]).sum();
-        let shared: u64 = s.versions.iter().sum();
+        let changes: u64 = s.kinds.iter().map(|c| c.one + c.versions).sum();
+        let shared: u64 = s.kinds.iter().map(|c| c.versions).sum();
         println!(
             "{name} k={k} e={e} threads={th} bytes={} enc={enc:.2}s dec={dec:.2}s merge={merge:.2}s ({:.1}% of enc) phases b/m/h/w={:.2}/{:.2}/{:.2}/{:.2} epochs={} steps={steps} changes={changes} shared-versions={shared}",
             out.len(),
@@ -51,15 +51,15 @@ fn main() {
             s.secs[3],
             s.epochs
         );
-        for (i, kind) in streams::KINDS.iter().enumerate() {
-            let tot = s.one[i] + s.shared[i];
+        for (kind, c) in streams::KINDS.iter().zip(&s.kinds) {
+            let tot = c.one + c.shared;
             println!(
                 "    {kind:14} one={:>11} shared={:>10} ({:5.2}% of sites) versions={:>11} ({:5.2}% of changes)",
-                s.one[i],
-                s.shared[i],
-                100.0 * s.shared[i] as f64 / tot.max(1) as f64,
-                s.versions[i],
-                100.0 * s.versions[i] as f64 / (s.one[i] + s.versions[i]).max(1) as f64
+                c.one,
+                c.shared,
+                100.0 * c.shared as f64 / tot.max(1) as f64,
+                c.versions,
+                100.0 * c.versions as f64 / (c.one + c.versions).max(1) as f64
             );
         }
     }
