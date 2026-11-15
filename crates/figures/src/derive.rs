@@ -707,10 +707,12 @@ impl Pass<'_> {
                 d
             }
             E::Tuple(t) => {
+                // a tuple's parts bound together (`let (a, b) = (x, y)`) share its domains
+                let mut d = Ds::new();
                 for x in &t.elems {
-                    self.ex(x, &Ds::new());
+                    d.extend(self.ex(x, &Ds::new()));
                 }
-                Ds::new()
+                d
             }
             E::Range(r) => {
                 let mut scope = want.clone();
@@ -1040,7 +1042,7 @@ impl Pass<'_> {
             syn::Pat::Reference(r) => self.pat(&r.pat, d),
             syn::Pat::Tuple(t) => {
                 for x in &t.elems {
-                    self.pat(x, &Ds::new());
+                    self.pat(x, d);
                 }
             }
             syn::Pat::Slice(s) => {
@@ -1149,7 +1151,18 @@ impl Pass<'_> {
                         .init
                         .as_ref()
                         .map(|i| {
-                            let v = self.ex(&i.expr, &used);
+                            // a local's uses reach its value only when the value is a
+                            // numeral or a choice of numerals, not through arithmetic
+                            let direct = matches!(
+                                &*i.expr,
+                                syn::Expr::Lit(_)
+                                    | syn::Expr::If(_)
+                                    | syn::Expr::Match(_)
+                                    | syn::Expr::Unary(_)
+                                    | syn::Expr::Block(_)
+                            );
+                            let w = if direct { used.clone() } else { Ds::new() };
+                            let v = self.ex(&i.expr, &w);
                             if let Some((_, e)) = &i.diverge {
                                 self.ex(e, &Ds::new());
                             }

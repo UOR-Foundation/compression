@@ -1231,7 +1231,8 @@ impl Acc {
                 _ => num / den,
             }
         };
-        (p.clamp(0, 65535) as u32) | ((tot.clamp(0, 127) as u32) << 16)
+        (p.clamp(0, crate::model::ncm::i64::slotLast) as u32)
+            | ((tot.clamp(0, 127) as u32) << crate::model::ncm::i32::bits::slotRange)
     }
 }
 
@@ -1480,7 +1481,8 @@ fn encode_frame<K: Kernel, const W: usize>(
     let mut out = Vec::new();
     out.extend_from_slice(&(data.len() as u32).to_be_bytes());
     for (j, c) in coders.iter_mut().enumerate() {
-        c.out.push((c.x1 >> 24) as u8);
+        c.out
+            .push((c.x1 >> crate::model::ncm::i32::bits::cell3Base) as u8);
         // a stream's coder abandons the encoding past twice its length and
         // 64 bytes, as a frame's coder does (`ncm::encode`)
         let len = ((j + 1) * r).min(f.n) - (j * r).min(f.n);
@@ -1509,10 +1511,12 @@ fn code<K: Kernel, const W: usize>(m: &mut Model, c: &mut Coder, bytes: &[u8]) {
             } else {
                 c.x1 = xm + 1;
             }
-            while (c.x1 ^ c.x2) >> 24 == 0 {
-                c.out.push((c.x2 >> 24) as u8);
-                c.x1 <<= 8;
-                c.x2 = (c.x2 << 8) | 255;
+            while (c.x1 ^ c.x2) >> crate::model::ncm::i32::bits::cell3Base == 0 {
+                c.out
+                    .push((c.x2 >> crate::model::ncm::i32::bits::cell3Base) as u8);
+                c.x1 <<= crate::model::ncm::i32::bits::byteBase;
+                c.x2 = (c.x2 << crate::model::ncm::u32::bits::byteBase)
+                    | crate::model::ncm::u32::cell1Last;
             }
             m.update::<K, W>(y);
         }
@@ -1624,7 +1628,10 @@ fn decode_k<K: Kernel>(
         at = end;
     }
     for (c, s) in coders.iter().zip(&streams) {
-        if !c.ok || (canonical && (s.len() != c.emitted + 1 || s[c.emitted] != (c.x1 >> 24) as u8))
+        if !c.ok
+            || (canonical
+                && (s.len() != c.emitted + 1
+                    || s[c.emitted] != (c.x1 >> crate::model::ncm::i32::bits::cell3Base) as u8))
         {
             return None;
         }
@@ -1657,16 +1664,19 @@ fn uncode<K: Kernel, const W: usize>(
             } else {
                 c.x1 = xm + 1;
             }
-            while (c.x1 ^ c.x2) >> 24 == 0 {
+            while (c.x1 ^ c.x2) >> crate::model::ncm::i32::bits::cell3Base == 0 {
                 if canonical {
-                    if s.get(c.emitted) != Some(&((c.x2 >> 24) as u8)) {
+                    if s.get(c.emitted)
+                        != Some(&((c.x2 >> crate::model::ncm::i32::bits::cell3Base) as u8))
+                    {
                         c.ok = false;
                         return;
                     }
                     c.emitted += 1;
                 }
-                c.x1 <<= 8;
-                c.x2 = (c.x2 << 8) | 255;
+                c.x1 <<= crate::model::ncm::i32::bits::byteBase;
+                c.x2 = (c.x2 << crate::model::ncm::u32::bits::byteBase)
+                    | crate::model::ncm::u32::cell1Last;
                 c.x = (c.x << 8) | u32::from(s.get(c.ip).copied().unwrap_or(255));
                 c.ip += 1;
             }

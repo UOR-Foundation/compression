@@ -3543,7 +3543,9 @@ fn run_encoder<K: Kernel>(mut m: Model, data: &[u8], learn: bool, stops: [usize;
 /// One binary arithmetic coder: its interval, its output and the cap past
 /// which its payload is abandoned.
 struct Coder {
+    /// Domain: coder, cell4, cell3, cell1
     x1: u32,
+    /// Domain: coder, cell4, cell3, cell1
     x2: u32,
     out: Vec<u8>,
     cap: usize,
@@ -3593,14 +3595,15 @@ impl Coder {
         } else {
             x1 = xm + 1;
         }
-        while (x1 ^ x2) >> 24 == 0 {
+        while (x1 ^ x2) >> crate::model::ncm::i32::bits::cell3Base == 0 {
             if self.out.len() - 4 >= self.cap {
                 self.live = false;
                 return;
             }
-            self.out.push((x2 >> 24) as u8);
-            x1 <<= 8;
-            x2 = (x2 << 8) | 255;
+            self.out
+                .push((x2 >> crate::model::ncm::i32::bits::cell3Base) as u8);
+            x1 <<= crate::model::ncm::i32::bits::byteBase;
+            x2 = (x2 << crate::model::ncm::u32::bits::byteBase) | crate::model::ncm::u32::cell1Last;
         }
         self.x1 = x1;
         self.x2 = x2;
@@ -3610,7 +3613,8 @@ impl Coder {
         if !self.live || self.out.len() - 4 >= self.cap {
             return None;
         }
-        self.out.push((self.x1 >> 24) as u8);
+        self.out
+            .push((self.x1 >> crate::model::ncm::i32::bits::cell3Base) as u8);
         Some(self.out)
     }
 }
