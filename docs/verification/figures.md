@@ -27,6 +27,47 @@ It compares them with `model/figures.toml`. The register was seeded on main
 | web/*.js | 60 |
 | model (Uorc.Client closure) | 7,076 |
 
+## The ratchet
+
+The register only falls, and it falls as figures are derived, never as they are
+renamed. A literal that moves into a named constant is still the same fixed
+figure. The ratchet works the way the rule 30 engine and verdant-resonance's
+shrink-only ratchet do:
+
+- **Shrink-only.** The check rejects any site the register does not list, and
+  `figures write` never raises a count (verdant-resonance's `--ratchet-down`).
+- **Release.** `Uorc.Performance::parametricRelease` names the first release
+  that ships only a parametric implementation (0.7.0). From that workspace
+  version on, the check rejects the tree while any site is listed, so the
+  version bump that tags the release cannot land before the distance is 0.
+- **Derivations.** Each class of figure is retired by the abstraction that
+  derives it, applied by the writing aid for the whole class at once:
+
+| Class | Derived from | Status | Sites |
+| --- | --- | --- | --- |
+| global addresses of the NCM models' state (`getAt w glob a`) | the layout: a global's address is the one before it plus that global's width | derived (`client/gen/irlex.py`) | 8,252 → 6,166 |
+| global widths | the field's representation; one site per global | open | 64 per model |
+| table bases and element widths in `mem` | the table extents | open | about 100 |
+| byte-to-`Bytes` comparison trees (`singletonSequence`, `byteSlice`, `natByteSlice`) | the identity map of the byte ring | open, kernel modules | 763 |
+| codec arithmetic (shifts, scales, masks, rates, limits) | coordinates decided by outcome (below) | open | most of the rest |
+
+**Coordinates by outcome.** A codec figure that is not structural is a
+coordinate. The engine decides it over the κ-named corpus, tick by tick, by
+galloping search from the identity (1, 2, 4, …, then bisection), bounded by
+the declared host. Each decision is recorded by its κ and never rerun.
+There are two outcomes:
+
+- If the best value is the same on every family, that value is a decided
+  figure, admitted with its evidence row.
+- If the best value differs by family, a single value is refused. The
+  coordinate becomes a frame-word facet stepped per frame (as the
+  consolidation and delta facets are). Until then it stays open, with its
+  measured distance: the bytes the best single value loses against the
+  per-family best.
+
+Frames of earlier eras keep the values their archives were written with.
+Those values are format identities of the era, stated in the wire model.
+
 ## Planted defects
 
 Each defect was planted in the obligation's closure copy

@@ -6,7 +6,8 @@
 //! fixed by an exhaustive destructuring of [`Model`], so a field added to the
 //! model and left out here does not compile. It is keyed by the build that
 //! wrote it (the executable's identity and the kernel), the state's bytes,
-//! the profile and the table mask, and is used only by a process of the same
+//! the profile, the table mask and the coordinates the model learns at
+//! ([`crate::coordinates::current`]), and is used only by a process of the same
 //! build: a read model is the replayed model, value for value, so it changes
 //! the time a frame takes and never its bytes (`stored_warm_keeps_bytes`).
 //!
@@ -465,6 +466,9 @@ fn place<K: Kernel>(
     h.update(mask.to_le_bytes());
     h.update(mb.to_le_bytes());
     h.update([form]);
+    for v in crate::coordinates::current() {
+        h.update(v.to_le_bytes());
+    }
     h.update(Sha256::digest(state));
     let key: [u8; 32] = h.finalize().into();
     let name: String = key.iter().map(|b| format!("{b:02x}")).collect();

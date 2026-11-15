@@ -7,6 +7,7 @@ use crate::space::Point;
 use crate::state::HypothesisRow;
 use crate::tick::{Decider, Measure};
 use frontier::{CodecPoint, Corpus, Plan, Register, Status};
+use std::collections::BTreeMap;
 use std::path::Path;
 use uorc::portfolio::{self, Strategy};
 
@@ -78,6 +79,49 @@ impl FrontierDecider {
             plan,
             state: None,
             lanes: 1,
+            coordinates: BTreeMap::new(),
+        }
+    }
+
+    /// The closed claim of `codec` on the corpus: decided once by its κ,
+    /// then read from the register.
+    pub fn measure_codec(&mut self, codec: &CodecPoint) -> Result<Measure, String> {
+        let closed = self
+            .register
+            .decide(codec, &self.corpus, &self.files, &self.by)
+            .map_err(err)?;
+        let mut m = Measure {
+            bytes: closed.bytes,
+            steps: closed.steps,
+            members: closed.members.iter().map(|r| r.bytes).collect(),
+            ..Measure::default()
+        };
+        for (f, name) in portfolio::FAMILY_NAMES.iter().enumerate() {
+            m.family[f] = closed.family(Some(name));
+        }
+        Ok(m)
+    }
+
+    /// The shipped client's point with `coordinates` set.
+    pub fn shipped_at(&self, coordinates: &BTreeMap<String, i64>) -> CodecPoint {
+        CodecPoint {
+            coordinates: coordinates.clone(),
+            ..CodecPoint::shipped(&self.export)
+        }
+    }
+
+    /// Whether `codec`'s closed claim needs no new run.
+    pub fn settled(&self, codec: &CodecPoint) -> bool {
+        self.register
+            .settled(codec, &self.corpus, &self.by)
+            .is_some()
+    }
+
+    /// The codec point of `point` with `coordinates` set.
+    pub fn codec_at(&self, point: &Point, coordinates: &BTreeMap<String, i64>) -> CodecPoint {
+        CodecPoint {
+            coordinates: coordinates.clone(),
+            ..self.codec(point)
         }
     }
 
@@ -101,20 +145,7 @@ impl Decider for FrontierDecider {
 
     fn measure(&mut self, point: &Point) -> Result<Measure, String> {
         let codec = self.codec(point);
-        let closed = self
-            .register
-            .decide(&codec, &self.corpus, &self.files, &self.by)
-            .map_err(err)?;
-        let mut m = Measure {
-            bytes: closed.bytes,
-            steps: closed.steps,
-            members: closed.members.iter().map(|r| r.bytes).collect(),
-            ..Measure::default()
-        };
-        for (f, name) in portfolio::FAMILY_NAMES.iter().enumerate() {
-            m.family[f] = closed.family(Some(name));
-        }
-        Ok(m)
+        self.measure_codec(&codec)
     }
 
     fn claim(&self, candidate: &Point, incumbent: &Point, family: Option<usize>) -> String {

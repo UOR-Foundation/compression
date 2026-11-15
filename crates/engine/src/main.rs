@@ -2,7 +2,7 @@
 
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
-use uorc_engine::{decide, model::Laws, render, space, state, tick};
+use uorc_engine::{coordinates, decide, model::Laws, render, space, state, tick};
 
 fn arg(args: &[String], name: &str) -> Option<String> {
     args.iter()
@@ -54,6 +54,7 @@ fn run_tick(root: &Path, args: &[String]) -> Result<(), String> {
     let by = arg(args, "--by").unwrap_or_else(|| "local".to_owned());
     let mut decider = decide::FrontierDecider::open(root, &corpus, &by)?;
     let report = tick::tick(&laws, &mut engine, &mut hypotheses, &mut decider)?;
+    let coordinates = coordinates::stage(root, &mut decider, laws.hypothesis_budget)?;
     decider.save(root)?;
     engine.save(root)?;
     hypotheses.save(root)?;
@@ -65,6 +66,12 @@ fn run_tick(root: &Path, args: &[String]) -> Result<(), String> {
     println!("{title}");
     for h in &report.decided {
         println!("  {}: {}", h.status, h.statement);
+    }
+    for r in &coordinates.rows {
+        println!(
+            "  coordinate {}: {} (standard {} {} B, best {} {} B, distance {})",
+            r.name, r.status, r.standard, r.standard_bytes, r.best, r.best_bytes, r.distance
+        );
     }
     if let Some(out) = arg(args, "--output") {
         use std::io::Write;
@@ -95,6 +102,35 @@ fn decider_corpus(root: &Path, name: &str) -> Result<String, String> {
         c.members.len(),
         c.bytes()
     ))
+}
+
+/// The coordinate stage alone, within the model's budget unless `--budget`
+/// names another.
+fn run_coordinates(root: &Path, args: &[String]) -> Result<(), String> {
+    let laws = Laws::load(root)?;
+    let corpus = arg(args, "--corpus").unwrap_or_else(|| CORPUS.to_owned());
+    let by = arg(args, "--by").unwrap_or_else(|| "local".to_owned());
+    let budget = match arg(args, "--budget") {
+        Some(b) => b.parse().map_err(|e| format!("--budget: {e}"))?,
+        None => laws.hypothesis_budget,
+    };
+    let mut decider = decide::FrontierDecider::open(root, &corpus, &by)?;
+    let file = coordinates::stage(root, &mut decider, budget)?;
+    decider.save(root)?;
+    for r in &file.rows {
+        println!(
+            "coordinate {}: {} (standard {} {} B, best {} {} B, distance {}, {} measured)",
+            r.name,
+            r.status,
+            r.standard,
+            r.standard_bytes,
+            r.best,
+            r.best_bytes,
+            r.distance,
+            r.measured.len()
+        );
+    }
+    Ok(())
 }
 
 /// Print the engine's state.
@@ -142,6 +178,7 @@ fn main() -> ExitCode {
         Some("tick") => run_tick(&root, &args),
         Some("render") => render(&root, args.iter().any(|a| a == "--check")),
         Some("status") => status(&root),
+        Some("coordinates") => run_coordinates(&root, &args),
         _ => {
             eprintln!(
                 "uorc-engine <command> [--root DIR]\n\
@@ -149,6 +186,7 @@ fn main() -> ExitCode {
                  tick     one tick: mint, decide by κ, learn, consolidate\n\
                  \x20        (--corpus NAME, --by local|factory:ID, --output FILE, --summary FILE)\n\
                  status   the portfolio's schedule per family and the recent ticks\n\
+                 coordinates  the tick's coordinate stage alone (--corpus NAME, --budget N)\n\
                  render   regenerate crates/uorc/src/weights.rs and .github/workflows/engine.yml\n\
                  \x20        (--check: refuse drift instead)"
             );

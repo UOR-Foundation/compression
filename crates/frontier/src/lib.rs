@@ -344,6 +344,10 @@ pub struct CodecPoint {
     pub state: Option<String>,
     /// Independent lanes per frame (1: one coder per frame).
     pub lanes: u32,
+    /// Coordinates set away from their standard values
+    /// ([`uorc::coordinates`]), by register name; empty for the standard
+    /// coder.
+    pub coordinates: BTreeMap<String, i64>,
 }
 
 impl CodecPoint {
@@ -355,6 +359,7 @@ impl CodecPoint {
             plan: Plan::shipped(),
             state: None,
             lanes: 1,
+            coordinates: BTreeMap::new(),
         }
     }
 
@@ -401,6 +406,12 @@ impl CodecPoint {
         }
         h.update(self.state.as_deref().and_then(unhex32).unwrap_or([0; 32]));
         h.update(self.lanes.to_le_bytes());
+        // the standard coder's points keep the κ they had before coordinates
+        for (name, value) in &self.coordinates {
+            h.update(b"uorc/coordinate/1");
+            h.update(Sha256::digest(name.as_bytes()));
+            h.update(value.to_le_bytes());
+        }
         hex(&h.finalize())
     }
 
@@ -435,6 +446,7 @@ impl CodecPoint {
             from_state,
             state: self.state.clone(),
             lanes: self.lanes,
+            coordinates: self.coordinates.clone(),
         }
     }
 }
@@ -473,6 +485,9 @@ pub struct Point {
     pub state: Option<String>,
     /// Lanes per frame.
     pub lanes: u32,
+    /// Coordinates set away from their standard values.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub coordinates: BTreeMap<String, i64>,
 }
 
 impl Point {
@@ -505,6 +520,7 @@ impl Point {
             plan,
             state: self.state.clone(),
             lanes: self.lanes,
+            coordinates: self.coordinates.clone(),
         })
     }
 }
@@ -1573,8 +1589,26 @@ pub struct Run {
 /// [`measure`], keeping each member's decode schedule; with `timed`, also
 /// the wall time of the shipped client's compress and decompress on all of
 /// this host's threads. The shipped plan is coded by the shipped client
-/// itself ([`uorc::compress`]).
+/// itself ([`uorc::compress`]). A point's coordinates are set for the run
+/// ([`uorc::coordinates::with`]): its compressions and the round-trip
+/// decodes read them.
 pub fn run(
+    point: &CodecPoint,
+    corpus: &Corpus,
+    files: &[Vec<u8>],
+    timed: bool,
+) -> Result<Run, Error> {
+    let mut values = Vec::with_capacity(point.coordinates.len());
+    for (name, &v) in &point.coordinates {
+        let c = uorc::coordinates::Coordinate::named(name)
+            .ok_or_else(|| Error::Codec(format!("no coordinate {name}")))?;
+        values.push((c, v));
+    }
+    uorc::coordinates::with(&values, || run_set(point, corpus, files, timed))
+        .map_err(Error::Codec)?
+}
+
+fn run_set(
     point: &CodecPoint,
     corpus: &Corpus,
     files: &[Vec<u8>],
@@ -1731,6 +1765,7 @@ mod tests {
                 }),
                 state: None,
                 lanes: 1,
+                coordinates: BTreeMap::new(),
             };
             let record = point.record(None);
             assert_eq!(record.point().expect("a valid plan").kappa(), record.kappa);
