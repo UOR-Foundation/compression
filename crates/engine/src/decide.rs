@@ -38,7 +38,7 @@ impl FrontierDecider {
         let export = frontier::export_identity(root).map_err(err)?;
         let mut members = [0; portfolio::FAMILIES];
         for f in &files {
-            members[portfolio::family(&f[..f.len().min(uorc::FRAME)])] += 1;
+            members[portfolio::family(&f[..f.len().min(uorc::frame_bytes())])] += 1;
         }
         Ok(FrontierDecider {
             register,

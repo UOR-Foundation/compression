@@ -110,7 +110,7 @@ impl Plan {
     }
 
     /// The stream of `input` under this plan: framed exactly as the shipped
-    /// encoder frames it (repeats, windows), each coded frame coded by
+    /// encoder frames it (repeats, spans and their cuts), each frame coded by
     /// [`uorc::compress_with_strategies`], frames on up to `threads` cores.
     pub fn compress(&self, input: &[u8], threads: usize) -> Vec<u8> {
         let mut encoder = uorc::FrameEncoder::new();
@@ -118,13 +118,13 @@ impl Plan {
         planned.extend(encoder.plan_end());
         let code = |p: &uorc::Planned| match p {
             uorc::Planned::Done { archive, .. } => archive.clone(),
-            uorc::Planned::Code {
-                bytes,
-                pieces,
-                window,
-            } => {
-                let window: Vec<&[u8]> = window.iter().map(Vec::as_slice).collect();
-                uorc::compress_with_strategies(bytes, pieces, &window, &self.strategies(bytes))
+            uorc::Planned::Code { bytes, pieces } => {
+                let trial = |frame: &[u8], pieces: &[u64], window: &[&[u8]]| {
+                    uorc::compress_with_strategies(frame, pieces, window, &self.strategies(frame))
+                };
+                uorc::compress_span_by(bytes, pieces, 1, &trial)
+                    .expect("a span's frames")
+                    .concat()
             }
         };
         let mut out = Vec::new();
@@ -1642,7 +1642,7 @@ pub fn run(
                 return Err(fail("the archive does not round-trip"));
             }
         }
-        let head = &input[..input.len().min(uorc::FRAME)];
+        let head = &input[..input.len().min(uorc::frame_bytes())];
         members.push(MemberResult {
             name: m.name.clone(),
             family: FAMILIES[portfolio::family(head)].to_owned(),

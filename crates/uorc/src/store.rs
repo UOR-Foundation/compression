@@ -16,7 +16,7 @@
 //! ([`Shared`]): a reference frame whose frame another block is still decoding
 //! waits until that frame is offered.
 //!
-//! Kept frames stay in memory up to [`STORE_MEMORY`] bytes; beyond that they
+//! Kept frames stay in memory up to [`store_memory`] bytes; beyond that they
 //! go to an unnamed temporary file, so memory stays bounded whatever the
 //! stream holds.
 
@@ -26,9 +26,13 @@ use std::sync::{Condvar, Mutex, MutexGuard};
 
 use crate::archive;
 
-/// Bytes of referenced frames kept in memory before the rest go to a temporary file.
+/// Bytes of referenced frames kept in memory before the rest go to a
+/// temporary file: the declared decode host's memory, which holds every
+/// frame a stream written for it reads.
 #[cfg_attr(target_family = "wasm", allow(dead_code))]
-pub const STORE_MEMORY: usize = 32 * crate::FRAME;
+pub fn store_memory() -> usize {
+    usize::try_from(crate::performance::declared_host().memory).unwrap_or(usize::MAX)
+}
 
 enum Slot {
     Memory(Vec<u8>),
@@ -104,7 +108,7 @@ impl Store {
 
     fn keep(&mut self, frame: &[u8]) -> io::Result<Slot> {
         #[cfg(not(target_family = "wasm"))]
-        if self.in_memory + frame.len() > STORE_MEMORY {
+        if self.in_memory + frame.len() > store_memory() {
             if self.spill.is_none() {
                 self.spill = Some(spill::File::create()?);
             }
@@ -341,7 +345,7 @@ mod tests {
             .collect();
         let views: Vec<&[u8]> = refs.iter().map(Vec::as_slice).collect();
         let mut store = Store::of(&views);
-        store.in_memory = STORE_MEMORY - 100; // room for one frame only
+        store.in_memory = store_memory() - 100; // room for one frame only
         for f in &frames {
             store.offer(f).expect("offer");
         }

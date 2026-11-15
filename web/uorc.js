@@ -77,31 +77,6 @@ function frameRequest(pieces, window, frame) {
   return out;
 }
 
-// A frame's request (as frameRequest) followed by the archive choose_frame kept (see step_frame).
-function stepRequest(pieces, window, frame, chosen) {
-  const head = frameRequest(pieces, window, frame);
-  const out = new Uint8Array(head.length + 8 + chosen.length);
-  out.set(head, 0);
-  new DataView(out.buffer).setBigUint64(head.length, BigInt(chosen.length), true);
-  out.set(chosen, head.length + 8);
-  return out;
-}
-
-// The choice among a frame's strategy archives, in `which` order (see choose_frame).
-function chooseRequest(pieces, frame, archives) {
-  const parts = [frame, ...archives];
-  const out = new Uint8Array(4 + 8 * pieces.length + 8 * parts.length + parts.reduce((n, p) => n + p.length, 0));
-  const view = new DataView(out.buffer);
-  let at = 0;
-  view.setUint32(at, pieces.length, true); at += 4;
-  for (const p of pieces) { view.setBigUint64(at, p, true); at += 8; }
-  for (const part of parts) {
-    view.setBigUint64(at, BigInt(part.length), true); at += 8;
-    out.set(part, at); at += part.length;
-  }
-  return out;
-}
-
 // A frame's coding runs a few passes (the scheduled strategies, a learned
 // re-encode, and in small schedules the v0.3 entry), how many is known only
 // as they run. After x passes (whole and part) the share done is
@@ -153,70 +128,143 @@ export async function load(source) {
       if (length === -1 || head.length < want) throw failure(3);
     }
   };
-  // Start decoding a stream: read the headers first and note every reference
-  // frame, so the decoder keeps the frames they name (and only those).
+  // Start decoding a stream: note every archive first (a reference frame
+  // names a frame to keep, and each archive how many frames before it it
+  // reads), so the decoder keeps exactly the frames later ones read.
   const begin = async (blob) => {
     x.window_reset();
     for (let at = 0; at < blob.size;) {
       const length = await archiveLength(blob, at);
-      if (x.may_be_reference()) {
-        put(x.input_buffer, await bytesOf(blob.slice(at, at + length)));
-        x.note_frame();
-      }
+      put(x.input_buffer, await bytesOf(blob.slice(at, at + length)));
+      x.note_frame();
       at += length;
     }
   };
   // Code the stream the encoder has been started on (window_reset, or
   // tree_start for a tree): here, a frame at a time, or with a pool of
-  // workers (see `workers`) on several cores, each frame's two scheduled
-  // strategies on two of them, frames in order. Either way the bytes are the
+  // workers (see `workers`) on several cores, a span to a worker, spans in
+  // order. Either way the bytes are the
   // library's.
   const codeStream = async (blob, steps, progress, pool) => {
     const total = blob.size;
     // Until two pool workers have loaded, the page's worker codes alone, so
-    // the first file does not wait behind their start.
-    if (!pool || pool.ready < 2) {
-      const parts = [];
-      // A whole frame is coded as it is given; a shorter last one is coded
-      // when the stream ends.
-      const coding = (at, length) => {
+    // the first file does not wait behind their start: the same plan and
+    // cuts, each trial coded here, one after another.
+    const coder = pool && pool.ready >= 2 ? pool : {
+      async code(job, onShare) {
+        const parts = await Promise.all([...job.window, job.frame].map(bytesOf));
         const share = frameShare();
-        onPass = (done, of) => progress(at + Math.floor(length * share(done, of)), total);
-      };
-      for (let at = 0; at < total; at += frame) {
-        coding(at, Math.min(frame, total - at));
-        parts.push(call(await bytesOf(blob.slice(at, at + frame)), () => x.compress_frame(BigInt(steps))));
-      }
-      coding(total - (total % frame), total % frame);
-      parts.push(call(new Uint8Array(0), () => x.compress_end(BigInt(steps))));
-      onPass = () => {};
-      progress(total, total);
-      return new Blob(parts);
-    }
-    // Plan here, code on the pool. A frame's window is the frames before it.
+        onPass = (done, of) => onShare(share(done, of));
+        try {
+          return call(frameRequest(job.pieces, parts.slice(0, -1), parts.at(-1)), () => x.code_frame(job.which, BigInt(job.steps)));
+        } finally {
+          onPass = () => {};
+        }
+      },
+    };
+    // Plan here, code each span's trials on the pool.
     const archives = [];
-    const recent = [];
     const shares = new Map();
     let finished = 0;
     const report = () => progress(Math.min(total, finished + [...shares.values()].reduce((n, v) => n + v, 0)), total);
     const settle = (index, length, promise) => {
       archives[index] = promise.then((archive) => { shares.delete(index); finished += length; report(); return archive; });
     };
-    const job = (f, which) => ({ which, steps, pieces: f.pieces, window: f.window.map((r) => blob.slice(r.start, r.start + r.length)), frame: blob.slice(f.start, f.start + f.length) });
-    const split = (f) => {
-      const count = x.strategies();
-      const parts = new Array(count).fill(0);
-      // the strategies and the table step after them each count as one share of the frame's bar
-      const all = parts.map((_, which) => pool.code(job(f, which), (share) => { parts[which] = share; shares.set(f.index, (f.length * parts.reduce((n, v) => n + v, 0)) / (count + 1)); report(); }));
-      settle(f.index, f.length, Promise.all(all).then(async (archives) => {
-        const frameBytes = await bytesOf(blob.slice(f.start, f.start + f.length));
-        const chosen = call(chooseRequest(f.pieces, frameBytes, archives), () => x.choose_frame());
-        // the window facets, then the context table, stepped on the kept archive while it pays and the worker holds it (Client.stepWindow, Client.stepTable)
-        const window = await Promise.all(f.window.map((r) => bytesOf(blob.slice(r.start, r.start + r.length))));
-        const share = frameShare();
-        onPass = (done, of) => { shares.set(f.index, (f.length * (count + share(done, of))) / (count + 1)); report(); };
-        try { return call(stepRequest(f.pieces, window, frameBytes, chosen), () => x.step_frame()); } finally { onPass = () => {}; }
-      }));
+    // A span is cut as the library cuts it (uorc::compress_span): a part
+    // that repeats a frame before it in its span is that frame's reference,
+    // a second half that repeats its first is the first's reference (the
+    // first one frame); otherwise it is coded whole and as two halves, the second reading the
+    // first while the declared host holds them, the halves kept only when
+    // shorter, each half cut the same way. Every trial is one frame coded on
+    // a pool worker (code_frame with no strategy), so the bytes are the
+    // library's. Both halves are cut at once, the second over the first
+    // whole, and cut again over the first's frames when the first is cut
+    // further.
+    const slice = (r) => blob.slice(r.start, r.start + r.length);
+    const reads = (n, history) => x.span_reads(BigInt(n), BigInt(history)) === 1;
+    const label = async (r) => call(await bytesOf(slice(r)), () => x.frame_label());
+    const labels = (frames) => Promise.all(frames.map(label));
+    // The reference archive of a part that repeats one of `earlier`, or null.
+    const repeat = async (r, pieces, earlier) => {
+      const request = frameRequest(pieces, earlier, await bytesOf(slice(r)));
+      const reference = call(request, () => x.repeat_frame());
+      return reference.length ? reference : null;
+    };
+    const splitPieces = (pieces, at) => {
+      const first = [], rest = [];
+      let used = 0n, i = 0;
+      for (; i < pieces.length; i++) {
+        const take = pieces[i] < at - used ? pieces[i] : at - used;
+        first.push(take);
+        used += take;
+        if (used === at) { rest.push(pieces[i] - take); i++; break; }
+      }
+      return [first, [...rest, ...pieces.slice(i)]];
+    };
+    // Progress: each part of a cut owns a share of its span's bar (a meter),
+    // split over its trials and its halves' cuts by their bytes. A meter
+    // moves with its trials' passes, is credited whole when its part ends,
+    // and a part cut again maps its new passes onto what its meter has left,
+    // so the bar never moves back and never waits on work it did not count.
+    const meter = (weight, add) => {
+      let base = 0, got = 0;
+      const m = {
+        move(f) { const v = base + (weight - base) * Math.min(1, f); if (v > got) { add(v - got); got = v; } },
+        again() { base = got; },
+        end() { m.move(1); },
+        // Meters for parts of `ranges`, sharing this one's weight by bytes.
+        split(ranges) {
+          const bytes = ranges.reduce((n, r) => n + r.length, 0);
+          return ranges.map((r) => meter((weight * r.length) / bytes, (d) => { got += d; add(d); }));
+        },
+      };
+      return m;
+    };
+    const cut = async (range, pieces, window, earlier, whole, m) => {
+      const parts = await cutParts(range, pieces, window, earlier, whole, m);
+      m.end();
+      return parts;
+    };
+    const cutParts = async (range, pieces, window, earlier, whole, m) => {
+      const trial = (r, p, w, t) => coder.code({ which: -1, steps, pieces: p, window: w.map(slice), frame: slice(r) }, (share) => t.move(share));
+      if (!whole) {
+        const reference = await repeat(range, pieces, earlier);
+        if (reference) return [{ ...range, archive: reference }];
+      }
+      const half = range.length >>> 1;
+      if (half === 0) return [{ ...range, archive: whole ?? await trial(range, pieces, window, m) }];
+      const a = { start: range.start, length: half };
+      const b = { start: range.start + half, length: range.length - half };
+      const [pa, pb] = splitPieces(pieces, BigInt(half));
+      const held = window.reduce((n, w) => n + w.length, 0);
+      const fits = reads(b.length, held + half);
+      const after = (frames) => (fits ? [...window, ...frames] : []);
+      const overA = [...earlier, await label(a)];
+      const known = await repeat(b, pb, earlier);
+      if (known) return [...await cut(a, pa, window, earlier, null, m), { ...b, archive: known }];
+      const repeated = await repeat(b, pb, overA.slice(earlier.length));
+      if (repeated) {
+        const first = await trial(a, pa, window, m);
+        if (whole && whole.length <= first.length + repeated.length) return [{ ...range, archive: whole }];
+        return [{ ...a, archive: first }, { ...b, archive: repeated }];
+      }
+      // the trials to run (the whole span unless the caller coded it, then
+      // each half), then each half's cut
+      const trials = whole ? [a, b] : [range, a, b];
+      const meters = m.split([...trials, a, b]);
+      const coded = await Promise.all(trials.map((r, i) => trial(r, r === a ? pa : r === b ? pb : pieces, r === b ? after([a]) : window, meters[i])));
+      const [w, ca, cb] = whole ? [whole, ...coded] : coded;
+      if (ca.length + cb.length >= w.length) return [{ ...range, archive: w }];
+      const [ma, mb] = meters.slice(trials.length);
+      const [firsts, overWhole] = await Promise.all([cut(a, pa, window, earlier, ca, ma), cutParts(b, pb, after([a]), overA, cb, mb)]);
+      if (firsts.length === 1) return [...firsts, ...overWhole];
+      mb.again();
+      return [...firsts, ...await cut(b, pb, after(firsts), [...earlier, ...await labels(firsts)], null, mb)];
+    };
+    const span = (f) => {
+      const m = meter(f.length, (d) => { shares.set(f.index, (shares.get(f.index) ?? 0) + d); report(); });
+      const frames = cut({ start: f.start, length: f.length }, f.pieces, [], [], null, m);
+      settle(f.index, f.length, frames.then((parts) => new Blob(parts.map((p) => p.archive))));
     };
     let index = 0;
     let position = 0;
@@ -236,12 +284,8 @@ export async function load(source) {
           const count = view.getUint32(p, true); p += 4;
           f.pieces = [];
           for (let k = 0; k < count; k++) { f.pieces.push(view.getBigUint64(p, true)); p += 8; }
-          const window = view.getUint32(p, true); p += 4;
-          f.window = recent.slice(recent.length - window);
-          split(f);
+          span(f);
         }
-        recent.push({ start: position, length });
-        if (recent.length > x.reach()) recent.shift();
         position += length;
       }
     };

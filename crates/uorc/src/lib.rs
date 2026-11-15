@@ -1,20 +1,24 @@
 //! The uorc client library.
 //!
 //! A uorc stream is a sequence of standard self-contained UORC archives laid
-//! end to end, one per frame of at most [`FRAME`] input bytes. Each archive is
+//! end to end, one per frame of at most [`frame_bytes`] input bytes (the
+//! longest frame the declared decode host holds). Each archive is
 //! self-delimiting, so a stream needs no container, and a one-frame stream is
 //! exactly the archive the LexLean model (`client/src/Uorc/Client.lex.tex`)
 //! writes for that input.
 //!
-//! Frames are compressed in parallel, in blocks of [`BLOCK`] frames. Every
-//! frame of a block after its first is a window frame: a conditional archive
-//! over the standard basis plus the outputs of the frames before it in the
-//! block (up to [`REACH`]), which its payload reads as history, so the
-//! model's contexts and matches reach back across frame boundaries. A frame
-//! that reads no window starts a block, so the decoder finds the blocks from
-//! the frame headers alone and decodes them on separate cores, frames in order
-//! inside each block. Memory stays bounded by a few frames per core, never by
-//! the input.
+//! The stream is one productive stream cut into epochs. An epoch is a run of
+//! frames each of which reads every earlier frame of its epoch as history:
+//! a window frame, a conditional archive over the standard basis plus those
+//! frames' outputs, so the model's matches reach back across frame
+//! boundaries. A frame starts a new epoch (it reads no window) only where the
+//! declared host could not hold its decoder after the epoch so far
+//! ([`performance::Host::reads`]) or where a reference frame came before it,
+//! so epochs depend on the input and the declared host alone. Frames are
+//! compressed in parallel; the decoder finds the epochs from the frame
+//! headers alone and decodes them on separate cores, frames in order inside
+//! each epoch, keeping only the frames the next frame reads. Memory stays
+//! bounded by what the declared host holds per core, never by the input.
 //!
 //! The hot paths are native Rust ports of the model: the ncm codec ([`ncm`]),
 //! the x86 filter ([`x86`]), the ulz decoder for archives earlier versions
@@ -74,30 +78,31 @@ pub mod x86;
 
 pub use frame::{frame_length, frames, inspect, object_lengths, Info, Representation, HEADER_HINT};
 
-/// Input bytes per frame. Each frame becomes one self-contained archive.
+/// Input bytes per frame of the streams this process writes: the frame of
+/// the declared decode host ([`performance::declared_host`],
+/// [`performance::Host::frame_bytes`]), the longest frame whose decoder that
+/// host holds. Each frame becomes one self-contained archive; a frame
+/// boundary restarts the context model, so the stream is cut no finer than
+/// the decode host requires. The stream does not store this number: every
+/// frame's header records its own length, so a stream cut for any host
+/// decodes.
 ///
-/// Unit tests cut frames at 1 MiB: every framing rule (cuts, references,
-/// windows, blocks) reads the frame length only through this constant and
-/// holds the same at any length well above [`chunk::MAX_UNIT`], while coding
-/// full 8 MiB frames through the whole portfolio cost most of the acceptance
-/// leg's time.
-///
-/// Facet: frameBytes
-pub const FRAME: usize = if cfg!(test) { 1 << 20 } else { 8 << 20 };
+/// Unit tests cut frames at [`FRAME`]: every framing rule (cuts, references,
+/// epochs) reads the frame length only through this function and holds the
+/// same at any length well above [`chunk::MAX_UNIT`], while coding a page
+/// worker's whole frame through the portfolio would cost most of the
+/// acceptance leg's time.
+pub fn frame_bytes() -> usize {
+    #[cfg(any(test, feature = "test-frames"))]
+    return FRAME;
+    #[cfg(not(any(test, feature = "test-frames")))]
+    usize::try_from(performance::declared_host().frame_bytes()).unwrap_or(usize::MAX)
+}
 
-/// Coded frames per block, the encoder's schedule: the first frame of every
-/// block reads no window, and the others read up to every frame before them
-/// in the same block ([`REACH`]). Reference frames inside a block do
-/// not count, so they do not shorten the stretch one core decodes. The stream does not store this number. The
-/// decoder finds blocks from the frame headers alone (a frame that reads no
-/// window starts one) and decodes them on separate cores, so any block
-/// length decodes, including a v0.2 stream, which is one block.
-///
-/// Facet: blockFrames
-pub const BLOCK: usize = 4;
-
-/// Most frames a window frame reads: every earlier frame of its block.
-pub const REACH: usize = BLOCK - 1;
+/// The frame unit tests cut streams at (see [`frame_bytes`]), here and in
+/// the tests of crates built with the `test-frames` feature.
+#[cfg(any(test, feature = "test-frames"))]
+pub const FRAME: usize = 1 << 20;
 
 /// Search steps spent by [`compress`] when the caller names no budget. With
 /// none, compress takes the smaller of the linked ncm archive and the raw one;
@@ -181,7 +186,7 @@ pub fn default_threads() -> usize {
 /// archive when that is not smaller; with `steps > 0` the exported model also searches and keeps the
 /// smallest.
 pub fn compress_frame(frame: &[u8], steps: u64) -> Result<Vec<u8>, Error> {
-    compress_pieces(frame, &[frame.len() as u64], &[], steps, true)
+    compress_pieces(frame, &[frame.len() as u64], &[], steps, default_threads())
 }
 
 /// [`compress_frame`] for a frame that follows the frames `window` (the
@@ -189,7 +194,13 @@ pub fn compress_frame(frame: &[u8], steps: u64) -> Result<Vec<u8>, Error> {
 /// `compress input window steps`: the ncm candidate is the window archive
 /// whose payload reads those frames as history.
 pub fn compress_frame_with(frame: &[u8], window: &[&[u8]], steps: u64) -> Result<Vec<u8>, Error> {
-    compress_pieces(frame, &[frame.len() as u64], window, steps, true)
+    compress_pieces(
+        frame,
+        &[frame.len() as u64],
+        window,
+        steps,
+        default_threads(),
+    )
 }
 
 /// [`compress_frame`] with the output split into objects of `lengths`, which
@@ -200,10 +211,10 @@ fn compress_pieces(
     lengths: &[u64],
     window: &[&[u8]],
     steps: u64,
-    side_by_side: bool,
+    cores: usize,
 ) -> Result<Vec<u8>, Error> {
     let host = performance::declared_host();
-    compress_pieces_on(frame, lengths, window, steps, side_by_side, host)
+    compress_pieces_on(frame, lengths, window, steps, cores, host)
 }
 
 /// The archive a frame gets when it is written for a decode host whose
@@ -215,8 +226,15 @@ pub fn compress_frame_for(frame: &[u8], window: &[&[u8]], threads: u64) -> Vec<u
         threads,
         ..performance::declared_host()
     };
-    compress_pieces_on(frame, &[frame.len() as u64], window, 0, true, host)
-        .unwrap_or_else(|_| archive::raw_objects(frame, &[frame.len() as u64]))
+    compress_pieces_on(
+        frame,
+        &[frame.len() as u64],
+        window,
+        0,
+        default_threads(),
+        host,
+    )
+    .unwrap_or_else(|_| archive::raw_objects(frame, &[frame.len() as u64]))
 }
 
 fn compress_pieces_on(
@@ -224,7 +242,7 @@ fn compress_pieces_on(
     lengths: &[u64],
     window: &[&[u8]],
     steps: u64,
-    side_by_side: bool,
+    cores: usize,
     host: performance::Host,
 ) -> Result<Vec<u8>, Error> {
     if steps > 0 {
@@ -233,7 +251,7 @@ fn compress_pieces_on(
         // search, `Client.search`), the search kept only when strictly shorter
         // (`Client.smaller`); as one object, then relabelled
         let n = [frame.len() as u64];
-        let quick = compress_pieces(frame, &n, window, 0, side_by_side)?;
+        let quick = compress_pieces(frame, &n, window, 0, cores)?;
         let found = on_reference_stack(|| reference_search(frame, steps))?;
         let archive = match found {
             Some(f) if f.len() < quick.len() => f,
@@ -247,16 +265,11 @@ fn compress_pieces_on(
     }
     let raw = archive::raw_length(lengths);
     // the portfolio codes over the fixed entries' window; the window step
-    // then reaches every frame given
+    // then reaches every frame given (the earlier frames of the frame's
+    // epoch, which the declared host holds with it)
     let reach = window;
     let window = &window[window.len().saturating_sub(archive::WINDOW)..];
-    let found = portfolio_trials(
-        frame,
-        lengths,
-        window,
-        &portfolio::plan(frame),
-        side_by_side,
-    );
+    let found = portfolio_trials(frame, lengths, window, &portfolio::plan(frame), cores);
     let best = found
         .into_iter()
         .rev()
@@ -351,7 +364,7 @@ pub fn step_delta(frame: &[u8], lengths: &[u64], window: &[&[u8]], chosen: Vec<u
 /// The window facets stepped on the frame's chosen archive
 /// (`Client.stepWindow`), before the table facet ([`step_table`]). The
 /// chosen coding (x86 or not, and its profile word) is recoded over one more
-/// earlier frame of `reach` at a time (all the frames before it in its block,
+/// earlier frame of `reach` at a time (all the frames before it in its epoch,
 /// oldest first), then with one more match table bit at a time, and each
 /// step is kept only while the archive gets strictly shorter and the decoder
 /// still fits `host` ([`performance::Host::holds`]); each facet stops at the first
@@ -792,7 +805,7 @@ fn portfolio_trials(
     lengths: &[u64],
     window: &[&[u8]],
     plan: &[portfolio::Strategy],
-    side_by_side: bool,
+    cores: usize,
 ) -> Vec<Option<(Vec<u8>, u64)>> {
     let history = window.concat();
     let identity = (!window.is_empty()).then(|| archive::window_identity(window));
@@ -1002,7 +1015,8 @@ fn portfolio_trials(
         }
         found[k] = Some(a);
     };
-    if side_by_side && cfg!(not(target_family = "wasm")) {
+    // side by side when the coding holds a core for each group
+    if cores >= leads.len() && cfg!(not(target_family = "wasm")) {
         // each group on its own core, bounded by the raw archive
         let coded: Vec<(Trial, Trial)> = std::thread::scope(|s| {
             // each group's thread holds a core of the compression's pool
@@ -1188,7 +1202,7 @@ pub fn compress_strategy(
     let strategy = *portfolio::plan(frame).get(which)?;
     // the portfolio codes over the fixed entries' window (see compress_pieces)
     let window = &window[window.len().saturating_sub(archive::WINDOW)..];
-    portfolio_trials(frame, lengths, window, &[strategy], true)
+    portfolio_trials(frame, lengths, window, &[strategy], default_threads())
         .pop()
         .flatten()
         .map(|(a, _)| a)
@@ -1209,7 +1223,7 @@ pub fn compress_with_strategies(
     strategies: &[Option<portfolio::Strategy>],
 ) -> Vec<u8> {
     let plan: Vec<portfolio::Strategy> = strategies.iter().flatten().copied().collect();
-    let best = portfolio_trials(frame, lengths, window, &plan, true)
+    let best = portfolio_trials(frame, lengths, window, &plan, default_threads())
         .into_iter()
         .rev()
         .fold(None, |kept, head| pick_trial(head, kept));
@@ -1410,34 +1424,103 @@ fn reference_decompress(archive: &[u8], window: &[&[u8]], work: u64) -> Result<V
     }
 }
 
-/// Whether frame `i` starts a block: it reads no window, and none of the
-/// frames after it (`next`, those whose windows could reach before it) reads
-/// a frame before it. A window frame of unknown layout reads up to
-/// [`archive::WINDOW`] frames.
-fn starts_block(reads: Option<usize>, next: impl Iterator<Item = Option<usize>>) -> bool {
-    reads == Some(0)
-        && next
-            .take(REACH - 1)
-            .enumerate()
-            .all(|(d, r)| r.unwrap_or(archive::WINDOW) <= d + 1)
+/// The epochs of a stream as its decoder schedules them, from how many
+/// frames each archive reads (`reads`, one entry per archive in stream
+/// order: [`archive::window_len`]).
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+struct Epochs {
+    /// Whether each frame starts an epoch (a block one core decodes): it
+    /// reads no window and no later frame reads a frame before it.
+    starts: Vec<bool>,
+    /// How many of the newest outputs, up to and including each frame's own,
+    /// the frames after it read: what the decoder keeps after that frame.
+    keep: Vec<usize>,
+}
+
+impl Epochs {
+    /// Exact, from the reads alone: a window frame reads the newest frames
+    /// before it that its entry names, a window frame of unknown layout
+    /// (the v0.2 encoder's) up to [`archive::WINDOW`], any other frame none.
+    fn of(reads: &[Option<usize>]) -> Epochs {
+        let n = reads.len();
+        let mut epochs = Epochs {
+            starts: vec![false; n],
+            keep: vec![0; n],
+        };
+        // the oldest frame any later frame reads (`n`: none)
+        let mut oldest = n;
+        for i in (0..n).rev() {
+            epochs.starts[i] = reads[i] == Some(0) && oldest >= i;
+            epochs.keep[i] = (i + 1).saturating_sub(oldest);
+            let r = reads[i].unwrap_or(archive::WINDOW);
+            if r > 0 {
+                oldest = oldest.min(i.saturating_sub(r));
+            }
+        }
+        if let Some(first) = epochs.starts.first_mut() {
+            *first = true;
+        }
+        epochs
+    }
+
+    /// Frames and output bytes of the longest epoch, by the output lengths
+    /// of the archives (`outputs`): what the decoder holds in flight per
+    /// core.
+    fn longest(&self, outputs: &[u64]) -> (usize, u64) {
+        let (mut frames, mut bytes, mut most) = (0usize, 0u64, (0usize, 0u64));
+        for (start, &out) in self.starts.iter().zip(outputs) {
+            if *start {
+                (frames, bytes) = (0, 0);
+            }
+            frames += 1;
+            bytes = bytes.saturating_add(out);
+            most = (most.0.max(frames), most.1.max(bytes));
+        }
+        most
+    }
+}
+
+/// Which earlier outputs a decoder keeps after a frame (see [`decode_into`]).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Keep {
+    /// Exactly this many of the newest ([`Epochs::keep`]).
+    Newest(usize),
+    /// The frames after it are not known: the newest up to this many bytes
+    /// (the declared host's memory, past which no frame written for it
+    /// reads), the oldest dropped first.
+    Within(u64),
+}
+
+/// Keep the newest `k` frames of `window`.
+fn keep_newest(window: &mut Vec<Vec<u8>>, k: usize) {
+    let drop = window.len().saturating_sub(k);
+    window.drain(..drop);
 }
 
 /// Decode `archive`, frame `index` of a stream, against `window` (the outputs
-/// of the frames before it in its block, at most [`REACH`]), then
-/// make its output the newest frame of the window. A failure is reported to
-/// `store`, so that references waiting for this block's frames give up.
+/// of the frames before it in its epoch that frames from it on read), then
+/// make its output the newest frame of the window and keep what `keep` says.
+/// A failure is reported to `store`, so that references waiting for this
+/// epoch's frames give up.
 fn decode_into(
     window: &mut Vec<Vec<u8>>,
     archive: &[u8],
     index: usize,
     store: &store::Shared,
     work: u64,
+    keep: Keep,
 ) -> Result<Vec<u8>, Error> {
     let view: Vec<&[u8]> = window.iter().map(Vec::as_slice).collect();
     let output = decode_next(archive, &view, index, store, work).inspect_err(|_| store.fail())?;
     window.push(output.clone());
-    if window.len() > REACH {
-        window.remove(0);
+    match keep {
+        Keep::Newest(k) => keep_newest(window, k),
+        Keep::Within(bytes) => {
+            let mut held: u64 = window.iter().map(|f| f.len() as u64).sum();
+            while held > bytes && window.len() > 1 {
+                held -= window.remove(0).len() as u64;
+            }
+        }
     }
     Ok(output)
 }
@@ -1500,6 +1583,7 @@ pub fn decode_schedule(stream: &[u8], work: u64) -> Result<(Vec<u8>, Schedule), 
         }
     }
     let reads: Vec<Option<usize>> = archives.iter().map(|a| archive::window_len(a)).collect();
+    let epochs = Epochs::of(&reads);
     // the frame each wanted run is first found in, and the run's bytes
     let mut held: std::collections::HashMap<[u8; 32], (usize, Vec<u8>)> = Default::default();
     let mut finish: Vec<u64> = Vec::with_capacity(archives.len());
@@ -1510,7 +1594,7 @@ pub fn decode_schedule(stream: &[u8], work: u64) -> Result<(Vec<u8>, Schedule), 
         let info = inspect(a)?;
         let steps = performance::frame_steps(&info).ok_or(Error::Decode)?;
         total = total.checked_add(steps).ok_or(Error::Decode)?;
-        let starts = i == 0 || starts_block(reads[i], reads[i + 1..].iter().copied());
+        let starts = epochs.starts[i];
         let mut ready = if starts { 0 } else { finish[i - 1] };
         let output = match archive::reference_of(a) {
             Some(label) => {
@@ -1558,9 +1642,7 @@ pub fn decode_schedule(stream: &[u8], work: u64) -> Result<(Vec<u8>, Schedule), 
         }
         out.extend_from_slice(&output);
         window.push(output);
-        if window.len() > REACH {
-            window.remove(0);
-        }
+        keep_newest(&mut window, epochs.keep[i]);
     }
     Ok((
         out,
@@ -1749,11 +1831,12 @@ fn framed(
     let mut read = 0u64;
     let mut ready: Vec<chunk::Frame> = Vec::new();
     let mut buf = Vec::new();
+    let frame = frame_bytes();
     loop {
         buf.clear();
-        read_full(&mut reader, &mut buf, FRAME)?;
+        read_full(&mut reader, &mut buf, frame)?;
         read += buf.len() as u64;
-        let end = buf.len() < FRAME;
+        let end = buf.len() < frame;
         if end {
             if limit.is_some_and(|n| read < n) {
                 return Err(io::ErrorKind::UnexpectedEof.into());
@@ -1769,7 +1852,7 @@ fn framed(
             let mut bytes = 0;
             let full = ready.iter().position(|f| {
                 bytes += f.bytes.len();
-                bytes >= batch * FRAME
+                bytes >= batch.saturating_mul(frame)
             });
             let take = match full {
                 Some(k) => k + 1,
@@ -1798,52 +1881,288 @@ fn compress_frames(
 ) -> io::Result<Totals> {
     let threads = threads.max(1);
     let mut totals = Totals::default();
-    // The frames before the batch that its first frames read.
-    let mut before: Vec<Vec<u8>> = Vec::new();
     framed(framer, reader, limit, threads, &mut |batch| {
-        let all: Vec<&[u8]> = before
-            .iter()
-            .map(Vec::as_slice)
-            .chain(batch.iter().map(|f| f.bytes.as_slice()))
-            .collect();
-        let jobs: Vec<usize> = (before.len()..all.len())
-            .filter(|&k| batch[k - before.len()].reference.is_none())
-            .collect();
-        // a frame codes its two strategies side by side when the batch leaves a core free
-        let spare = 2 * jobs.len() <= threads;
-        // the cores no frame's worker holds, lent to the encoders as they start
-        let cores = ncm::Cores::new(threads.saturating_sub(jobs.len().max(1)));
-        let mut coded = parallel(&jobs, threads, |&k| {
-            let frame = &batch[k - before.len()];
-            cores.enter(|| {
-                compress_pieces(
-                    all[k],
-                    &frame.pieces,
-                    &all[k - frame.window..k],
-                    steps,
-                    spare,
-                )
-            })
+        let jobs: Vec<&chunk::Frame> = batch.iter().filter(|f| f.reference.is_none()).collect();
+        // the cores no span's worker holds, shared by the spans' trials
+        let each = (threads / jobs.len().max(1)).max(1);
+        let mut coded = parallel(&jobs, threads, |frame| {
+            compress_span(&frame.bytes, &frame.pieces, &[], steps, each)
         })
         .into_iter();
-        drop(all);
         for frame in &batch {
-            let archive = match frame.reference {
-                Some(label) => reference_or_raw(&frame.bytes, &label, &frame.pieces),
-                None => coded.next().expect("one archive per coded frame")?,
+            let archives = match frame.reference {
+                Some(label) => vec![reference_or_raw(&frame.bytes, &label, &frame.pieces)],
+                None => coded.next().expect("archives per coded span")?,
             };
-            writer.write_all(&archive)?;
+            for archive in &archives {
+                writer.write_all(archive)?;
+                totals.written += archive.len() as u64;
+                totals.frames += 1;
+            }
             totals.read += frame.bytes.len() as u64;
-            totals.written += archive.len() as u64;
-            totals.frames += 1;
         }
-        before.extend(batch.into_iter().map(|f| f.bytes));
-        let keep = before.len().saturating_sub(REACH);
-        before.drain(..keep);
         Ok(())
     })?;
     writer.flush()?;
     Ok(totals)
+}
+
+/// Split the `pieces` of a span (object lengths summing to its length) at
+/// byte `at`: the pieces of the part before and of the part from it on,
+/// whose first piece continues the last object of the part before (an
+/// empty piece where that object ends exactly at `at`).
+pub fn split_pieces(pieces: &[u64], at: u64) -> (Vec<u64>, Vec<u64>) {
+    let (mut first, mut rest) = (Vec::new(), Vec::new());
+    let mut used = 0u64;
+    let mut it = pieces.iter().copied();
+    for p in it.by_ref() {
+        let take = p.min(at - used);
+        first.push(take);
+        used += take;
+        if used == at {
+            rest.push(p - take);
+            break;
+        }
+    }
+    rest.extend(it);
+    (first, rest)
+}
+
+/// The archives of one span the framer cut (at most [`frame_bytes`], the
+/// longest frame the declared host holds) after the frames `window` of its
+/// epoch: a part that repeats an earlier frame of the span is that frame's
+/// reference, and a second half that repeats its first is the first's
+/// reference (the first one frame, unless the part's own coding is
+/// shorter); otherwise the span is one frame, unless coding it as its two
+/// halves (the second reading the first as history, while the host holds
+/// them) is strictly shorter; then each half is cut the same way, the second
+/// coded after the first's frames. A frame boundary restarts the context model and
+/// lets each part choose its own coding and tables, so whether one pays is
+/// decided by the bytes alone, and the frames depend on the input and the
+/// declared host only. The three trials of a cut run on up to `threads`
+/// cores.
+pub fn compress_span(
+    span: &[u8],
+    pieces: &[u64],
+    window: &[&[u8]],
+    steps: u64,
+    threads: usize,
+) -> Result<Vec<Vec<u8>>, Error> {
+    let host = performance::declared_host();
+    let trial = |frame: &[u8], pieces: &[u64], window: &[&[u8]], cores: usize| {
+        compress_pieces_on(frame, pieces, window, steps, cores, host)
+    };
+    cut_span(span, pieces, window, None, threads, host, &trial)
+}
+
+/// One frame of `pieces` coded over `window` as one archive, uncut: a trial
+/// of [`compress_span`], for a client that runs a span's trials on its own
+/// workers and cuts as [`compress_span`] does (the page's pool).
+pub fn compress_trial(
+    frame: &[u8],
+    pieces: &[u64],
+    window: &[&[u8]],
+    steps: u64,
+) -> Result<Vec<u8>, Error> {
+    let host = performance::declared_host();
+    compress_pieces_on(frame, pieces, window, steps, default_threads(), host)
+}
+
+/// [`compress_span`] with each frame coded by `trial` (its bytes, pieces and
+/// window) instead of the shipped portfolio: the same cuts, decided by the
+/// bytes `trial` writes (the frontier's plans code spans this way).
+pub fn compress_span_by(
+    span: &[u8],
+    pieces: &[u64],
+    threads: usize,
+    trial: &FrameTrial<'_>,
+) -> Result<Vec<Vec<u8>>, Error> {
+    let host = performance::declared_host();
+    let trial =
+        |frame: &[u8], pieces: &[u64], window: &[&[u8]], _: usize| Ok(trial(frame, pieces, window));
+    cut_span(span, pieces, &[], None, threads, host, &trial)
+}
+
+/// A frame's coding as [`compress_span_by`] takes it: bytes, pieces, window.
+pub type FrameTrial<'a> = dyn Fn(&[u8], &[u64], &[&[u8]]) -> Vec<u8> + Sync + 'a;
+
+type SpanTrial<'a> = dyn Fn(&[u8], &[u64], &[&[u8]], usize) -> Result<Vec<u8>, Error> + Sync + 'a;
+
+/// The codings [`cut_span`] compares: a span whole, and its two halves.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Part {
+    Whole,
+    First,
+    Second,
+}
+
+/// What every node of a span's cut shares: the declared host and the trial.
+struct Cutter<'t> {
+    host: performance::Host,
+    trial: &'t SpanTrial<'t>,
+}
+
+/// A span equal to an earlier frame of its span (`earlier`, their κ-labels)
+/// is that frame's reference, as the framer makes a frame that repeats one
+/// (the v0.3 floor), where the reference is shorter than the raw archive.
+pub fn repeat_of(bytes: &[u8], pieces: &[u64], earlier: &[[u8; archive::SEAL]]) -> Option<Vec<u8>> {
+    if archive::reference_length(pieces) >= archive::raw_length(pieces) {
+        return None;
+    }
+    let label = archive::frame_label(bytes);
+    earlier
+        .contains(&label)
+        .then(|| archive::reference_archive(&label, pieces))
+}
+
+/// The frames of `span` the archives `firsts` code, in order.
+fn frames_of<'a>(span: &'a [u8], firsts: &[Vec<u8>]) -> Result<Vec<&'a [u8]>, Error> {
+    let mut parts = Vec::new();
+    let mut at = 0usize;
+    for archive in firsts {
+        let len = object_lengths(archive)?.iter().sum::<u64>() as usize;
+        parts.push(&span[at..at + len]);
+        at += len;
+    }
+    Ok(parts)
+}
+
+fn cut_span(
+    span: &[u8],
+    pieces: &[u64],
+    window: &[&[u8]],
+    whole: Option<Vec<u8>>,
+    threads: usize,
+    host: performance::Host,
+    trial: &SpanTrial<'_>,
+) -> Result<Vec<Vec<u8>>, Error> {
+    let cutter = Cutter { host, trial };
+    cutter.cut(span, pieces, window, &[], whole, threads)
+}
+
+impl Cutter<'_> {
+    /// The frames of `span` after the frames `window` reads and the frames
+    /// `earlier` names (every frame before it in its span), `whole` its
+    /// coding when the caller has it.
+    fn cut(
+        &self,
+        span: &[u8],
+        pieces: &[u64],
+        window: &[&[u8]],
+        earlier: &[[u8; archive::SEAL]],
+        whole: Option<Vec<u8>>,
+        threads: usize,
+    ) -> Result<Vec<Vec<u8>>, Error> {
+        let trial = self.trial;
+        if whole.is_none() {
+            if let Some(reference) = repeat_of(span, pieces, earlier) {
+                return Ok(vec![reference]);
+            }
+        }
+        let n = span.len();
+        let half = n >> 1;
+        if half == 0 {
+            return Ok(vec![match whole {
+                Some(w) => w,
+                None => trial(span, pieces, window, threads)?,
+            }]);
+        }
+        let (a, b) = span.split_at(half);
+        let (pa, pb) = split_pieces(pieces, half as u64);
+        let held: u64 = window.iter().map(|f| f.len() as u64).sum();
+        // the second half's window: the epoch so far and the first half's
+        // frames, while the host holds it after them
+        let fits = self.host.reads(b.len() as u64, held + half as u64);
+        fn after<'a>(fits: bool, window: &[&'a [u8]], firsts: Vec<&'a [u8]>) -> Vec<&'a [u8]> {
+            if fits {
+                window.iter().copied().chain(firsts).collect()
+            } else {
+                Vec::new()
+            }
+        }
+        let with = |frames: &[&[u8]]| -> Vec<[u8; archive::SEAL]> {
+            let mut labels = earlier.to_vec();
+            labels.extend(frames.iter().map(|f| archive::frame_label(f)));
+            labels
+        };
+        let wb = after(fits, window, vec![a]);
+        let over_a = with(&[a]);
+        // A second half that repeats an earlier frame of the span is cut off
+        // as its reference. One that repeats the first half names it whole,
+        // so the first half is one frame: the two are its coding and the
+        // reference, unless the span's own coding (when given) is shorter.
+        if let Some(reference) = repeat_of(b, &pb, earlier) {
+            let firsts = self.cut(a, &pa, window, earlier, None, threads)?;
+            return Ok(firsts.into_iter().chain([reference]).collect());
+        }
+        if let Some(reference) = repeat_of(b, &pb, &over_a[earlier.len()..]) {
+            let first = trial(a, &pa, window, threads)?;
+            return Ok(match whole {
+                Some(w) if w.len() <= first.len() + reference.len() => vec![w],
+                _ => vec![first, reference],
+            });
+        }
+        let have = whole.is_some();
+        // the trials still to run: the whole span (unless the caller coded it)
+        // and each half
+        let jobs: Vec<Part> = [Part::Whole, Part::First, Part::Second]
+            .into_iter()
+            .filter(|p| !(have && *p == Part::Whole))
+            .collect();
+        // each trial holds an equal share of the cores
+        let spare = (threads / jobs.len()).max(1);
+        let mut done = parallel(&jobs, threads, |j| match j {
+            Part::Whole => trial(span, pieces, window, spare),
+            Part::First => trial(a, &pa, window, spare),
+            Part::Second => trial(b, &pb, &wb, spare),
+        })
+        .into_iter();
+        let whole = match whole {
+            Some(w) => w,
+            None => done.next().expect("the whole span")?,
+        };
+        let (ca, cb) = (
+            done.next().expect("the first half")?,
+            done.next().expect("the second half")?,
+        );
+        if ca.len() + cb.len() >= whole.len() {
+            return Ok(vec![whole]);
+        }
+        // With a core for each half, both are cut at once, the second over the
+        // first half whole (cut again below when the first is cut further);
+        // otherwise the first, then the second.
+        let halves = [Part::First, Part::Second];
+        let (firsts, over_whole) = if threads >= halves.len() {
+            let share = threads / halves.len();
+            let mut cut = parallel(&halves, threads, |h| match h {
+                Part::First => self.cut(a, &pa, window, earlier, Some(ca.clone()), share),
+                _ => self.cut(b, &pb, &wb, &over_a, Some(cb.clone()), share),
+            })
+            .into_iter();
+            let firsts = cut.next().expect("the first half")?;
+            (firsts, cut.next())
+        } else {
+            (self.cut(a, &pa, window, earlier, Some(ca), threads)?, None)
+        };
+        let seconds = if firsts.len() == 1 {
+            match over_whole {
+                Some(cut) => cut?,
+                None => self.cut(b, &pb, &wb, &over_a, Some(cb), threads)?,
+            }
+        } else {
+            // the second half reads the first half's frames as they were cut
+            let parts = frames_of(a, &firsts)?;
+            self.cut(
+                b,
+                &pb,
+                &after(fits, window, parts.clone()),
+                &with(&parts),
+                None,
+                threads,
+            )?
+        };
+        Ok(firsts.into_iter().chain(seconds).collect())
+    }
 }
 
 /// The reference frame for a repeated run, or its raw archive when that is
@@ -1954,12 +2273,24 @@ pub fn may_be_reference(head: &[u8]) -> bool {
     }
 }
 
-/// Read the headers of the stream from `reader`'s position to its end,
-/// skipping bodies, and note the reference frames: the store that decoding
-/// it needs. `reader` is left where it started.
-fn scan(reader: &mut (impl Read + Seek)) -> io::Result<store::Store> {
+/// What decoding a stream needs to know before its first frame: the store
+/// of the frames reference frames name, and the epochs.
+struct Scanned {
+    store: store::Store,
+    epochs: Epochs,
+    /// Output bytes of each frame, from its header.
+    outputs: Vec<u64>,
+}
+
+/// Read the stream from `reader`'s position to its end without decoding:
+/// note the reference frames (the store decoding it needs) and how many
+/// frames each archive reads ([`Epochs`]). `reader` is left where it started.
+/// It reads every archive once more than decoding does, which costs far
+/// less than decoding it.
+fn scan(reader: &mut (impl Read + Seek)) -> io::Result<Scanned> {
     let start = reader.stream_position()?;
     let mut store = store::Store::default();
+    let (mut reads, mut outputs) = (Vec::new(), Vec::new());
     let mut head = Vec::new();
     loop {
         head.clear();
@@ -1968,7 +2299,11 @@ fn scan(reader: &mut (impl Read + Seek)) -> io::Result<store::Store> {
             read_full(reader, &mut head, want)?;
             if head.is_empty() {
                 reader.seek(SeekFrom::Start(start))?;
-                return Ok(store);
+                return Ok(Scanned {
+                    store,
+                    epochs: Epochs::of(&reads),
+                    outputs,
+                });
             }
             match frame_length(&head)? {
                 Some(len) => break len,
@@ -1976,10 +2311,13 @@ fn scan(reader: &mut (impl Read + Seek)) -> io::Result<store::Store> {
                 None => want *= 2,
             }
         };
-        if may_be_reference(&head) {
-            read_full(reader, &mut head, len)?;
-            store.want(&head[..len.min(head.len())]);
+        read_full(reader, &mut head, len)?;
+        let archive = &head[..len.min(head.len())];
+        if may_be_reference(archive) {
+            store.want(archive);
         }
+        reads.push(archive::window_len(archive));
+        outputs.push(object_lengths(archive)?.iter().sum::<u64>());
         let past = head.len() as i64 - len as i64;
         reader.seek(SeekFrom::Current(-past))?;
     }
@@ -2095,8 +2433,23 @@ fn decode_stream(
         Ok(())
     }
 
-    let store = store::Shared::new(scan(&mut reader)?);
+    let Scanned {
+        store,
+        epochs,
+        outputs,
+    } = scan(&mut reader)?;
+    let store = store::Shared::new(store);
     let store = &store;
+    // what to keep after frame `i`; past the frames scanned (a reader that
+    // grew since), every frame the declared host could read
+    let keep = |i: usize| {
+        epochs
+            .keep
+            .get(i)
+            .map_or(Keep::Within(performance::declared_host().memory), |&k| {
+                Keep::Newest(k)
+            })
+    };
     if threads <= 1 {
         // One core decodes in stream order with no worker thread, which is
         // also the only schedule a host without threads (WebAssembly) can run.
@@ -2105,7 +2458,8 @@ fn decode_stream(
             totals.read += archive.len() as u64;
             on_archive(&archive)?;
             let lengths = object_lengths(&archive)?;
-            let output = decode_into(&mut window, &archive, totals.frames as usize, store, work)?;
+            let at = totals.frames as usize;
+            let output = decode_into(&mut window, &archive, at, store, work, keep(at))?;
             totals.written += output.len() as u64;
             totals.frames += 1;
             on_output(&lengths, output)?;
@@ -2115,8 +2469,12 @@ fn decode_stream(
         }
         return Ok(totals);
     }
-    // Output bytes of frames sent to the decoders and not yet handed on.
-    let limit = threads * BLOCK * FRAME;
+    // Output bytes of frames sent to the decoders and not yet handed on, and
+    // epochs in flight: as many as `threads` of the stream's longest epoch
+    // hold, so every core has an epoch to decode.
+    let (epoch_frames, epoch_bytes) = epochs.longest(&outputs);
+    let limit = usize::try_from(epoch_bytes.saturating_mul(threads as u64)).unwrap_or(usize::MAX);
+    let in_flight_blocks = threads.saturating_mul(epoch_frames.max(1));
     // Cores decoding coded frames: a block whose reference frame waits for a
     // frame of another block holds none, so other blocks run meanwhile.
     let cores = &Cores::new(threads);
@@ -2130,36 +2488,20 @@ fn decode_stream(
             let mut blocks: VecDeque<(Outputs, usize)> = VecDeque::new();
             let mut current = None;
             let mut in_flight = 0usize;
-            // The next frame and the frames after it that decide whether it
-            // starts a block.
-            let mut ahead: VecDeque<(Vec<u8>, Option<usize>)> = VecDeque::new();
             let mut index = 0usize;
-            let mut end = false;
-            loop {
-                while !end && ahead.len() < REACH {
-                    match next_archive(&mut reader, &mut carry)? {
-                        Some(archive) => {
-                            totals.read += archive.len() as u64;
-                            on_archive(&archive)?;
-                            let reads = archive::window_len(&archive);
-                            ahead.push_back((archive, reads));
-                        }
-                        None => end = true,
-                    }
-                }
-                let Some((archive, reads)) = ahead.pop_front() else {
-                    break;
-                };
-                if index == 0 || starts_block(reads, ahead.iter().map(|(_, r)| *r)) {
+            while let Some(archive) = next_archive(&mut reader, &mut carry)? {
+                totals.read += archive.len() as u64;
+                on_archive(&archive)?;
+                if index == 0 || epochs.starts.get(index).copied().unwrap_or(false) {
                     drop(current.take());
-                    while blocks.len() >= threads * BLOCK {
+                    while blocks.len() >= in_flight_blocks {
                         drain(&mut blocks, on_output, &mut totals, &mut in_flight, true)?;
                     }
-                    let (frames, inbox) = channel::<(usize, Vec<u8>)>();
+                    let (frames, inbox) = channel::<(usize, Vec<u8>, Keep)>();
                     let (send, outputs) = channel();
                     scope.spawn(move || {
                         let mut window = Vec::new();
-                        for (at, archive) in inbox {
+                        for (at, archive, keep) in inbox {
                             let core = archive::reference_of(&archive)
                                 .is_none()
                                 .then(|| (cores.take(), lend.hold()));
@@ -2167,7 +2509,7 @@ fn decode_stream(
                                 object_lengths(&archive).and_then(|lengths| {
                                     Ok((
                                         lengths,
-                                        decode_into(&mut window, &archive, at, store, work)?,
+                                        decode_into(&mut window, &archive, at, store, work, keep)?,
                                     ))
                                 })
                             };
@@ -2195,7 +2537,9 @@ fn decode_stream(
                     drain(&mut blocks, on_output, &mut totals, &mut in_flight, true)?;
                 }
                 // A decoder that failed has sent its error, which drain reports.
-                let _ = current.as_ref().map(|frames| frames.send((index, archive)));
+                let _ = current
+                    .as_ref()
+                    .map(|frames| frames.send((index, archive, keep(index))));
                 if let Some((_, sent)) = blocks.back_mut() {
                     *sent += 1;
                 }
@@ -2331,8 +2675,6 @@ pub fn verify_stream(
 /// [`compress_stream`] writes for the same input, however it is pieced.
 pub struct FrameEncoder {
     framer: chunk::Framer,
-    /// The frames before the next one that it may read.
-    before: Vec<Vec<u8>>,
 }
 
 impl Default for FrameEncoder {
@@ -2346,7 +2688,6 @@ impl FrameEncoder {
     pub fn new() -> Self {
         FrameEncoder {
             framer: chunk::Framer::plain(),
-            before: Vec::new(),
         }
     }
 
@@ -2356,7 +2697,6 @@ impl FrameEncoder {
     pub fn objects(lengths: &[u64]) -> Self {
         FrameEncoder {
             framer: chunk::Framer::objects(lengths),
-            before: Vec::new(),
         }
     }
 
@@ -2389,25 +2729,19 @@ impl FrameEncoder {
     }
 
     fn planned(&mut self, frames: Vec<chunk::Frame>) -> Vec<Planned> {
-        let mut out = Vec::new();
-        for frame in frames {
-            out.push(match frame.reference {
+        frames
+            .into_iter()
+            .map(|frame| match frame.reference {
                 Some(label) => Planned::Done {
                     length: frame.bytes.len() as u64,
                     archive: reference_or_raw(&frame.bytes, &label, &frame.pieces),
                 },
                 None => Planned::Code {
-                    bytes: frame.bytes.clone(),
+                    bytes: frame.bytes,
                     pieces: frame.pieces,
-                    window: self.before[self.before.len() - frame.window..].to_vec(),
                 },
-            });
-            self.before.push(frame.bytes);
-            if self.before.len() > REACH {
-                self.before.remove(0);
-            }
-        }
-        out
+            })
+            .collect()
     }
 }
 
@@ -2429,29 +2763,24 @@ pub enum Planned {
         /// Its archive.
         archive: Vec<u8>,
     },
-    /// A frame still to code after the frames of its window (oldest first).
+    /// A span still to code ([`compress_span`]): one frame, or the frames
+    /// it is cut into where that pays.
     Code {
-        /// The frame's input bytes.
+        /// The span's input bytes.
         bytes: Vec<u8>,
         /// The pieces of objects it holds.
         pieces: Vec<u64>,
-        /// The frames it reads as history.
-        window: Vec<Vec<u8>>,
     },
 }
 
 impl Planned {
-    /// The frame's archive, the one [`FrameEncoder::push`] writes for it.
+    /// The span's archives back to back, the ones [`FrameEncoder::push`]
+    /// writes for it.
     pub fn code(&self, steps: u64) -> Result<Vec<u8>, Error> {
         match self {
             Planned::Done { archive, .. } => Ok(archive.clone()),
-            Planned::Code {
-                bytes,
-                pieces,
-                window,
-            } => {
-                let window: Vec<&[u8]> = window.iter().map(Vec::as_slice).collect();
-                compress_pieces(bytes, pieces, &window, steps, true)
+            Planned::Code { bytes, pieces } => {
+                Ok(compress_span(bytes, pieces, &[], steps, default_threads())?.concat())
             }
         }
     }
@@ -2463,6 +2792,10 @@ impl Planned {
 pub struct FrameDecoder {
     window: Vec<Vec<u8>>,
     store: store::Shared,
+    /// How many frames each noted archive reads, in stream order.
+    reads: Vec<Option<usize>>,
+    /// The epochs of the noted archives, worked out at the first frame.
+    epochs: Option<Epochs>,
     frames: usize,
     work: u64,
 }
@@ -2473,25 +2806,41 @@ impl FrameDecoder {
         FrameDecoder {
             window: Vec::new(),
             store: store::Shared::new(store::Store::default()),
+            reads: Vec::new(),
+            epochs: None,
             frames: 0,
             work,
         }
     }
 
-    /// Note an archive of the stream before decoding any: a reference frame
-    /// names a frame to keep until it is read. Other archives need no note.
+    /// Note every archive of the stream, in order, before decoding any: a
+    /// reference frame names a frame to keep until it is read, and each
+    /// archive names how many frames before it it reads, so the decoder
+    /// keeps exactly the frames later ones read ([`Epochs`]). A stream whose
+    /// archives are not all noted still decodes, keeping as many earlier
+    /// frames as the declared host could read.
     pub fn note(&mut self, archive: &[u8]) {
         self.store.want(archive);
+        self.reads.push(archive::window_len(archive));
     }
 
     /// The output of the stream's next archive.
     pub fn push(&mut self, archive: &[u8]) -> Result<Vec<u8>, Error> {
+        let reads = &self.reads;
+        let epochs = self.epochs.get_or_insert_with(|| Epochs::of(reads));
+        let keep = epochs
+            .keep
+            .get(self.frames)
+            .map_or(Keep::Within(performance::declared_host().memory), |&k| {
+                Keep::Newest(k)
+            });
         let output = decode_into(
             &mut self.window,
             archive,
             self.frames,
             &self.store,
             self.work,
+            keep,
         )?;
         self.frames += 1;
         Ok(output)
@@ -2505,6 +2854,10 @@ mod tests {
     /// 200 zero bytes as a 64-byte program archive, found by the same exported
     /// search at 9.3M steps. Decoding it exercises the program path, not raw.
     const ZEROS_200: &str = "554f52430201000101c80114020100010101000100030200c8012401010001010b1420bec29aa29cd5b2136b604ed97ba986b96e842955bf7feb8e396389b2b5";
+
+    fn archive_count(stream: &[u8]) -> usize {
+        frames(stream).expect("frames").len()
+    }
 
     fn hex(text: &str) -> Vec<u8> {
         (0..text.len())
@@ -2978,7 +3331,7 @@ mod tests {
             };
             let plan = portfolio::plan(frame);
             let trials: Vec<Option<performance::Trial>> =
-                portfolio_trials(frame, &lengths, &[], &plan, true)
+                portfolio_trials(frame, &lengths, &[], &plan, plan.len())
                     .iter()
                     .map(|t| {
                         t.as_ref().map(|(a, s)| performance::Trial {
@@ -3016,7 +3369,8 @@ mod tests {
             .iter()
             .flat_map(|&s| [s, portfolio::Strategy { x86: true, ..s }])
             .collect();
-        let trials = portfolio_trials(frame, &[frame.len() as u64], &[], &plan, true);
+        // a core for every strategy: each codes bounded by the raw archive alone
+        let trials = portfolio_trials(frame, &[frame.len() as u64], &[], &plan, plan.len());
         for (s, t) in plan.iter().zip(&trials) {
             assert_eq!(t.is_none(), s.x86, "{s:?}");
         }
@@ -3186,13 +3540,16 @@ mod tests {
         compress_stream(&b""[..], &mut stream, 0, 4).expect("empty");
         assert_eq!(frames(&stream).expect("one").len(), 1);
         assert_eq!(decompress(&stream, DEFAULT_DECODE_WORK), Ok(Vec::new()));
+        // Exactly one span: its frames, and no empty frame after them (a
+        // span of one repeated byte is cut into a frame and its reference).
         let input = vec![7u8; FRAME];
         let mut stream = Vec::new();
+        let written = compress_stream(&input[..], &mut stream, 0, 1).expect("one span");
+        let archives = frames(&stream).expect("frames");
+        assert_eq!(written.frames, archives.len() as u64);
         assert_eq!(
-            compress_stream(&input[..], &mut stream, 0, 1)
-                .expect("one frame")
-                .frames,
-            1
+            archives,
+            compress_span(&input, &[input.len() as u64], &[], 0, 1).expect("span")
         );
         assert!(decompress(&stream, DEFAULT_DECODE_WORK).expect("decodes") == input);
         assert_eq!(
@@ -3357,8 +3714,8 @@ mod tests {
         }
     }
 
-    /// Frames match into the frames before them: a stream that repeats one
-    /// frame costs about one frame's archive, not three.
+    /// Frames of an epoch match into the frames before them: three frames
+    /// that repeat one cost about one frame's archive, not three.
     #[test]
     fn windows_carry_matches_across_frames() {
         let block = text(FRAME, 61);
@@ -3368,7 +3725,10 @@ mod tests {
         for at in (FRAME..3 * FRAME).step_by(997) {
             input[at] ^= 1;
         }
-        let stream = compress(&input, 0).expect("stream");
+        let parts: Vec<&[u8]> = input.chunks(FRAME).collect();
+        let stream: Vec<u8> = (0..parts.len())
+            .flat_map(|k| compress_frame_with(parts[k], &parts[..k], 0).expect("frame"))
+            .collect();
         let archives = frames(&stream).expect("frames");
         assert_eq!(archives.len(), 3);
         // The first frame reads no window: it is the block's archive alone.
@@ -3382,6 +3742,51 @@ mod tests {
         // Every decode path over window frames is identical_frames_are_stored_once's
         // check; one decode here shows these matches resolve.
         assert!(decompress(&stream, DEFAULT_DECODE_WORK).expect("decodes") == input);
+    }
+
+    /// A part of a span that repeats a frame before it is that frame's
+    /// reference, and frames after it read across it; every decode path
+    /// restores the span.
+    #[test]
+    fn a_repeated_half_is_a_reference() {
+        let x = text(40_000, 3);
+        let y = text(30_000, 9);
+        // x x: the second half is the first's reference. x x y y': each
+        // half may be cut, as its bytes decide; it decodes either way.
+        for (span, repeats) in [
+            ([&x[..], &x].concat(), true),
+            (vec![0; 1 << 21], true),
+            ([&x[..], &x, &y, &y[..1000]].concat(), false),
+        ] {
+            let archives = compress_span(&span, &[span.len() as u64], &[], 0, 1).expect("span");
+            let kinds: Vec<Representation> = archives
+                .iter()
+                .map(|a| inspect(a).expect("inspect").representation)
+                .collect();
+            if repeats {
+                assert_eq!(kinds.last(), Some(&Representation::Reference), "{kinds:?}");
+            }
+            let stream = archives.concat();
+            assert!(decompress(&stream, DEFAULT_DECODE_WORK).expect("decodes") == span);
+            for threads in [1, 2, 4] {
+                let mut back = Vec::new();
+                decompress_stream(
+                    io::Cursor::new(&stream[..]),
+                    &mut back,
+                    DEFAULT_DECODE_WORK,
+                    threads,
+                )
+                .expect("streams");
+                assert!(back == span, "{threads} threads");
+            }
+            let mut decoder = FrameDecoder::new(DEFAULT_DECODE_WORK);
+            archives.iter().for_each(|a| decoder.note(a));
+            let back: Vec<u8> = archives
+                .iter()
+                .flat_map(|a| decoder.push(a).expect("frame decodes"))
+                .collect();
+            assert!(back == span);
+        }
     }
 
     /// The decoder finds blocks from the frame headers alone, whatever block
@@ -3398,13 +3803,55 @@ mod tests {
         let archives: Vec<Vec<u8>> = [0, 1, 2, 0, 1, 2, 0, 2].into_iter().map(frame).collect();
         let reads: Vec<Option<usize>> = archives.iter().map(|a| archive::window_len(a)).collect();
         assert_eq!(reads, [0, 1, 2, 0, 1, 2, 0, 2].map(Some));
-        let starts: Vec<usize> = (0..reads.len())
-            .filter(|&i| i == 0 || starts_block(reads[i], reads[i + 1..].iter().copied()))
-            .collect();
-        assert_eq!(starts, vec![0, 3]);
+        let starts = |reads: &[Option<usize>]| -> Vec<usize> {
+            let epochs = Epochs::of(reads);
+            (0..reads.len()).filter(|&i| epochs.starts[i]).collect()
+        };
+        assert_eq!(starts(&reads), vec![0, 3]);
+        // Frames that read no window inside an epoch (raw frames, a model
+        // state's), however many in a row, do not start one when a later
+        // frame reads past them, and the decoder keeps what it reads.
+        let gap_reads = [0, 1, 0, 0, 0, 5, 0].map(Some);
+        assert_eq!(starts(&gap_reads), vec![0, 6]);
+        assert_eq!(Epochs::of(&gap_reads).keep, vec![1, 2, 3, 4, 5, 0, 0]);
+        // a raw frame inside an epoch, then a frame reading across it
+        let gaps: Vec<Vec<u8>> = vec![
+            frame(0),
+            frame(1),
+            archive::raw_archive(&t),
+            frame(2),
+            frame(0),
+        ];
+        let reads: Vec<Option<usize>> = gaps.iter().map(|a| archive::window_len(a)).collect();
+        assert_eq!(reads, [0, 1, 0, 2, 0].map(Some));
+        assert_eq!(starts(&reads), vec![0, 4]);
+        for stream in [archives.concat(), gaps.concat()] {
+            let count = archive_count(&stream);
+            let input = t.repeat(count);
+            assert!(decompress(&stream, DEFAULT_DECODE_WORK).expect("decodes") == input);
+            for threads in [1, 2, 4] {
+                let mut back = Vec::new();
+                decompress_stream(
+                    io::Cursor::new(&stream[..]),
+                    &mut back,
+                    DEFAULT_DECODE_WORK,
+                    threads,
+                )
+                .expect("streams");
+                assert!(back == input, "{threads} threads");
+            }
+            let mut decoder = FrameDecoder::new(DEFAULT_DECODE_WORK);
+            let all = frames(&stream).expect("frames");
+            all.iter().for_each(|a| decoder.note(a));
+            let back: Vec<u8> = all
+                .iter()
+                .flat_map(|a| decoder.push(a).expect("frame decodes"))
+                .collect();
+            assert!(back == input);
+            assert!(decoder.window.len() <= 1);
+        }
         let stream = archives.concat();
         let input = t.repeat(archives.len());
-        assert!(decompress(&stream, DEFAULT_DECODE_WORK).expect("decodes") == input);
         for threads in [1, 2, 4] {
             let mut back = Vec::new();
             let totals = decompress_stream(
