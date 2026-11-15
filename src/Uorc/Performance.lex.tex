@@ -1885,7 +1885,14 @@ definition{
   name: streamsPerFrame,
   parameters: [],
   result: Facet,
-  body: (record Facet {quantity := "contiguous streams a frame is coded as", fixedAt := "derived (Client.stepStreams): streams step up from one while the counted chain, coding steps plus merge steps over the declared decode host's threads, falls; past the host's threads a further stream is kept only on fewer bytes, then fewer steps; bounded by one 64-byte stride unit a stream and by the host's memory. One on the page worker (one thread)", standing := "derived", measured := "declared 4-thread host: 7.8 MB Python, 4 streams of 64 KiB epochs, 1.09 percent larger than one stream, merge steps 3.5 percent of the coding steps; 8 MiB ELF, 4 streams of 32 KiB epochs, 1.83 percent larger, merge 10.2 percent"})
+  body: (record Facet {quantity := "contiguous streams a frame is coded as", fixedAt := "derived (Client.stepStreams): streams step up from one while the counted chain, coding steps plus merge steps over the declared decode host's threads, falls; past the host's threads a further stream is kept only on fewer bytes, then fewer steps; bounded by one 64-byte stride unit a stream and by the host's memory: each count is coded at the largest context and match tables, no larger than the frame's chosen ones, at which the host holds the decoder of that many streams (Client.fitStreams). A frame that continues a model state is cut the same way, every stream starting from the warmed model (Client.stateStreams). One on the page worker (one thread)", standing := "derived", measured := "2 MiB of Python, declared 4-thread host: 4 streams; decode 4.04 s to 2.35 s on a 512 MiB host (6.2 percent larger) and 3.06 s on a 4 GB host (3.5 percent larger); the page worker's archive is unchanged byte for byte"})
+}
+
+definition{
+  name: streamWorkingTables,
+  parameters: [],
+  result: Facet,
+  body: (record Facet {quantity := "bytes of the working tables each thread of a frame's streams holds", fixedAt := "one set as large as the frame's shared tables (Host::holds_streams, Client.holdsStreams), so a declared host's memory is shared by the tables and one working set per thread", standing := "unmet: a stream's working set holds only the buckets and match entries its epochs copy, which a set sized by the epoch would bound; with sets as large as the tables, the tables of a frame cut into streams step down until they fit", measured := "2 MiB of Python on a declared 4-thread host: context tables of 2^23 slots for 4 streams against 2^24 for one on 512 MiB, and 2^26 against 2^29 on 4 GB"})
 }
 
 definition{

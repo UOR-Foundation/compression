@@ -15,6 +15,7 @@
 #   serial-*-cb2     consolidation field 2 (a context slot's count stops at 3, ncm::encode_plan_below), and at 16 bits
 #   streams-encode-k ncm_streams.py py_encode_streams, against ncm::streams::encode (k streams, epoch E)
 #   streams-decode-k ncm_streams.py py_decode_streams of the native payload, against the input
+#   warm-streams-encode/decode-k  the same with the history as a model state the streams continue (--h > 0)
 #   ...-k-p16        the same at 16-bit probabilities (the frame word's probability field 16)
 # The streams cases run only when client/gen/ncm_streams.py and the native ncm::streams API exist.
 # The native side is a throwaway cargo package written under target/ir-check (its own workspace,
@@ -111,6 +112,15 @@ fn streams(history: &[u8], data: &[u8], ks: &[usize], epoch: usize, bits: &[u32]
             .expect("native streams decode");
         assert_eq!(back, data, "native streams round trip");
         std::fs::write(out.join(format!("streams-{b}-{k}.bin")), &p).unwrap();
+        // the history as a model state the streams continue (12-bit probabilities)
+        if b == 12 && !history.is_empty() {
+            let (p, _) = streams::encode_warm_below(history, data, ncm::FULL, plan, 1, usize::MAX)
+                .expect("native warm streams encode");
+            let back = streams::decode_warm(history, &p, u64::MAX, ncm::FULL, plan, 1, true)
+                .expect("native warm streams decode");
+            assert_eq!(back, data, "native warm streams round trip");
+            std::fs::write(out.join(format!("warm-streams-{k}.bin")), &p).unwrap();
+        }
     }
     }
 }
@@ -204,7 +214,11 @@ def run_case(job):
             return name, len(want), len(got), 'DIFFERENT learned profile; ' + note, time.time() - t
     else:
         import ncm_streams as ns
-        if kind == 'streams-encode':
+        if kind == 'warm-streams-encode':
+            want, got = nat(f'warm-streams-{k}.bin'), ns.py_encode_warm_streams(data, history, FULL, k, a['epoch'])
+        elif kind == 'warm-streams-decode':
+            want, got = data, ns.py_decode_warm_streams(nat(f'warm-streams-{k}.bin'), history, FULL, k, a['epoch'])
+        elif kind == 'streams-encode':
             want, got = nat(f'streams-{bits}-{k}.bin'), ns.py_encode_streams(data, history, FULL, k, a['epoch'], bits)
         else:
             want, got = data, ns.py_decode_streams(nat(f'streams-{bits}-{k}.bin'), history, FULL, k, a['epoch'], bits)
@@ -258,6 +272,9 @@ def main():
             tag = f'{k}' if b == 12 else f'{k}-p{b}'
             jobs += [(f'streams-encode-{tag}', 'streams-encode', (k, b), a),
                      (f'streams-decode-{tag}', 'streams-decode', (k, b), a)]
+            if b == 12 and args.h > 0:
+                jobs += [(f'warm-streams-encode-{k}', 'warm-streams-encode', (k, b), a),
+                         (f'warm-streams-decode-{k}', 'warm-streams-decode', (k, b), a)]
     if not jobs:
         sys.exit('ir-check: no cases to run')
     print(f'ir-check: {len(jobs)} cases, {args.jobs} at a time; input {os.path.relpath(args.file, ROOT)} '

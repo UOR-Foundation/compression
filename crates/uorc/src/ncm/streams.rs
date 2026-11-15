@@ -221,6 +221,9 @@ pub fn split(word: Word) -> Option<(u32, Plan)> {
 /// steps.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Derived {
+    /// The model profile the payload is coded under: the frame's, with the
+    /// context table the declared host holds for the plan's streams.
+    pub profile: u32,
     /// The plan the payload is coded under.
     pub plan: Plan,
     /// The streams payload ([`encode`]).
@@ -251,14 +254,46 @@ pub fn derive(
     bits: u32,
     host: usize,
     coding: u64,
-    holds: impl Fn(usize) -> bool,
+    fit: impl Fn(usize) -> Option<u32>,
+) -> Option<Derived> {
+    let code = |at: u32, plan: Plan, threads: usize, stop: usize| {
+        encode_below(history, data, at, plan, threads, stop)
+    };
+    derive_with(data.len(), profile, bits, host, coding, fit, code)
+}
+
+/// [`derive`] for a frame that continues the model state `state`: every
+/// stream starts from the warmed model ([`encode_warm_below`]), at 12-bit
+/// probabilities.
+#[must_use]
+pub fn derive_warm(
+    state: &[u8],
+    data: &[u8],
+    profile: u32,
+    host: usize,
+    coding: u64,
+    fit: impl Fn(usize) -> Option<u32>,
+) -> Option<Derived> {
+    let code = |at: u32, plan: Plan, threads: usize, stop: usize| {
+        encode_warm_below(state, data, at, plan, threads, stop)
+    };
+    derive_with(data.len(), profile, Plan::ONE.bits, host, coding, fit, code)
+}
+
+fn derive_with(
+    n: usize,
+    profile: u32,
+    bits: u32,
+    host: usize,
+    coding: u64,
+    fit: impl Fn(usize) -> Option<u32>,
+    code: impl Fn(u32, Plan, usize, usize) -> Option<(Vec<u8>, u64)>,
 ) -> Option<Derived> {
     if host <= 1 || !super::valid_profile(profile) {
         return None;
     }
     // the trials run on the threads a frame of `host` streams runs on
     let threads = threads(Plan::of(host, 1));
-    let n = data.len();
     // the chain of the best count so far, as (steps, threads) over which they run
     let (mut steps, mut over) = (u128::from(coding), 1u128);
     let mut best: Option<Derived> = None;
@@ -270,10 +305,13 @@ pub fn derive(
         };
         // every stream holds at least one stride unit, and the host holds
         // the decoder's working tables
-        if plan.stride(n) * (k - 1) >= n || !holds(k) {
+        if plan.stride(n) * (k - 1) >= n {
             break;
         }
-        let trial = epochs(history, data, profile, plan, threads)?;
+        let Some(at) = fit(k) else {
+            break;
+        };
+        let trial = epochs(n, at, plan, |plan, stop| code(at, plan, threads, stop))?;
         let (s, o) = (
             u128::from(coding) + u128::from(trial.merge),
             k.min(host) as u128,
@@ -298,12 +336,18 @@ pub fn derive(
 
 /// The epoch of `k` streams by the least payload, then steps: one epoch per
 /// stream first, then halved while the payload shrinks.
-fn epochs(history: &[u8], data: &[u8], profile: u32, one: Plan, threads: usize) -> Option<Derived> {
-    let stride = one.stride(data.len());
+fn epochs(
+    n: usize,
+    profile: u32,
+    one: Plan,
+    code: impl Fn(Plan, usize) -> Option<(Vec<u8>, u64)>,
+) -> Option<Derived> {
+    let stride = one.stride(n);
     let mut epoch = stride.next_power_of_two();
     let trial = |epoch, stop| {
         let plan = Plan { epoch, ..one };
-        encode_below(history, data, profile, plan, threads, stop).map(|(payload, merge)| Derived {
+        code(plan, stop).map(|(payload, merge)| Derived {
+            profile,
             plan,
             payload,
             merge,
@@ -481,7 +525,15 @@ pub fn encode_sites(
     plan: Plan,
     threads: usize,
 ) -> Option<(Vec<u8>, Sites)> {
-    let (out, steps, sites) = encode_with(history, data, profile, plan, threads, usize::MAX, true)?;
+    let (out, steps, sites) = encode_with(
+        Start::Window(&[history]),
+        data,
+        profile,
+        plan,
+        threads,
+        usize::MAX,
+        true,
+    )?;
     let mut sites = *sites?;
     sites.steps = steps;
     Some((out, sites))
@@ -664,6 +716,18 @@ where
     std::mem::swap(&mut own.hist, &mut m.hist);
 }
 
+/// Where a frame's model starts: after a window's frames (read in place),
+/// or as the continuation of a κ-named model state the whole model learned
+/// first (a state frame, `Ncm.decodeWarm`). Every stream starts from that
+/// one model, so a state frame cut into streams shares its warmed tables.
+#[derive(Clone, Copy)]
+pub enum Start<'a> {
+    /// After the window's frames.
+    Window(&'a [&'a [u8]]),
+    /// After the model state's bytes.
+    State(&'a [u8]),
+}
+
 /// A frame's streams and their shared state.
 struct Frame {
     base: Model,
@@ -672,6 +736,9 @@ struct Frame {
     plan: Plan,
     before: usize,
     n: usize,
+    /// bytes the base model learned before the frame (a model state's,
+    /// which the warmed model coded first; none after a window)
+    learned: u32,
     /// bytes of every stream merged so far
     coded: usize,
     /// one set of working tables per thread
@@ -685,10 +752,23 @@ struct Frame {
 }
 
 impl Frame {
-    fn new(history: &[&[u8]], n: usize, profile: u32, plan: Plan) -> Frame {
-        let mut base = Model::new(n as u32, history, plan.learning.point(profile));
+    fn new<K: Kernel>(
+        start: Start<'_>,
+        n: usize,
+        profile: u32,
+        plan: Plan,
+        keep: bool,
+    ) -> Option<Frame> {
+        let point = plan.learning.point(profile);
+        let mut base = match start {
+            Start::Window(history) => Model::new(u32::try_from(n).ok()?, history, point),
+            Start::State(state) => Model::warmed::<K>(u32::try_from(n).ok()?, state, point, keep)?,
+        };
         base.pbits = plan.bits;
-        let before = base.hoff as usize;
+        // the absolute position the frame starts at: after the window's
+        // frames, or after the state's bytes, which a warmed model coded as
+        // its first positions
+        let before = (base.hoff + base.pos) as usize;
         let mut hist = std::mem::take(&mut base.hist);
         hist.resize(before + n, 0);
         let shared = Arc::new(Shared {
@@ -718,24 +798,28 @@ impl Frame {
                 m2d: Vec::new(),
             }));
             if i > 0 {
-                m.hoff = start as u32;
+                // the stream's first position is `start`: its positions count
+                // on from the base model's, as one model's would
+                m.hoff = start as u32 - m.pos;
                 run_on(&mut own, &mut m, Model::new_byte);
             }
             lanes.push(m);
         }
-        Frame {
+        let learned = base.seen;
+        Some(Frame {
             base,
             shared,
             lanes,
             plan,
             before,
             n,
+            learned,
             coded: 0,
             own: vec![own],
             steps: 0,
             sites: None,
             mark: Vec::new(),
-        }
+        })
     }
 
     /// Stream `i`'s bytes in epoch `[at, end)` (offsets within a stream).
@@ -992,7 +1076,7 @@ impl Frame {
             }
         }
         for m in lanes.iter_mut() {
-            m.seen = self.coded as u32;
+            m.seen = self.learned + self.coded as u32;
             let l = m.lane.as_mut().expect("a stream");
             l.delta.clear();
             l.mtd.clear();
@@ -1374,14 +1458,53 @@ pub fn encode_below(
     if plan.streams == 1 {
         return super::encode_plan_below(history, data, profile, plan, stop).map(|p| (p, 0));
     }
-    encode_with(history, data, profile, plan, threads, stop, false).map(|(p, s, _)| (p, s))
+    encode_with(
+        Start::Window(&[history]),
+        data,
+        profile,
+        plan,
+        threads,
+        stop,
+        false,
+    )
+    .map(|(p, s, _)| (p, s))
+}
+
+/// [`encode_below`] of `data` as the continuation of the model state
+/// `state` (a state frame's payload, [`decode_warm`]): every stream starts
+/// from the warmed model. One stream is the serial warm coder byte for byte.
+#[must_use]
+pub fn encode_warm_below(
+    state: &[u8],
+    data: &[u8],
+    profile: u32,
+    plan: Plan,
+    threads: usize,
+    stop: usize,
+) -> Option<(Vec<u8>, u64)> {
+    if state.is_empty() {
+        return None;
+    }
+    if plan.streams == 1 {
+        return super::encode_warm_plan_below(state, data, profile, plan, stop).map(|p| (p, 0));
+    }
+    encode_with(
+        Start::State(state),
+        data,
+        profile,
+        plan,
+        threads,
+        stop,
+        false,
+    )
+    .map(|(p, s, _)| (p, s))
 }
 
 type Encoded = (Vec<u8>, u64, Option<Box<Sites>>);
 
 /// [`encode_below`], with what the merges did when `sites`.
 fn encode_with(
-    history: &[u8],
+    start: Start<'_>,
     data: &[u8],
     profile: u32,
     plan: Plan,
@@ -1393,7 +1516,7 @@ fn encode_with(
         return None;
     }
     u32::try_from(data.len()).ok()?;
-    let a = (history, data, profile, plan, threads, stop, sites);
+    let a = (start, data, profile, plan, threads, stop, sites);
     #[cfg(target_arch = "x86_64")]
     {
         if std::arch::is_x86_feature_detected!("avx2") {
@@ -1420,7 +1543,7 @@ fn encode_with(
     }
 }
 
-type EncodeArgs<'a> = (&'a [u8], &'a [u8], u32, Plan, usize, usize, bool);
+type EncodeArgs<'a> = (Start<'a>, &'a [u8], u32, Plan, usize, usize, bool);
 
 #[cfg(target_arch = "x86_64")]
 #[target_feature(enable = "avx2")]
@@ -1430,9 +1553,10 @@ fn encode_avx2(a: EncodeArgs<'_>) -> Option<Encoded> {
 
 #[inline(always)]
 fn encode_k<K: Kernel>(
-    (history, data, profile, plan, threads, stop, sites): EncodeArgs<'_>,
+    (start, data, profile, plan, threads, stop, sites): EncodeArgs<'_>,
 ) -> Option<Encoded> {
-    let mut f = Frame::new(&[history], data.len(), profile, plan);
+    // an encoder's model is one trial, kept by nobody
+    let mut f = Frame::new::<K>(start, data.len(), profile, plan, false)?;
     if sites {
         f.sites = Some(Box::default());
     }
@@ -1522,6 +1646,52 @@ pub fn decode(
     threads: usize,
     canonical: bool,
 ) -> Option<Vec<u8>> {
+    decode_from(
+        Start::Window(history),
+        payload,
+        limit,
+        profile,
+        plan,
+        threads,
+        canonical,
+    )
+}
+
+/// [`decode`] of a payload [`encode_warm_below`] wrote from the model state
+/// `state`.
+#[must_use]
+pub fn decode_warm(
+    state: &[u8],
+    payload: &[u8],
+    limit: u64,
+    profile: u32,
+    plan: Plan,
+    threads: usize,
+    canonical: bool,
+) -> Option<Vec<u8>> {
+    if state.is_empty() {
+        return None;
+    }
+    decode_from(
+        Start::State(state),
+        payload,
+        limit,
+        profile,
+        plan,
+        threads,
+        canonical,
+    )
+}
+
+fn decode_from(
+    history: Start<'_>,
+    payload: &[u8],
+    limit: u64,
+    profile: u32,
+    plan: Plan,
+    threads: usize,
+    canonical: bool,
+) -> Option<Vec<u8>> {
     if !super::valid_profile(profile) || !plan.valid() {
         return None;
     }
@@ -1558,7 +1728,7 @@ pub fn decode(
     }
 }
 
-type DecodeArgs<'a> = (&'a [&'a [u8]], &'a [u8], usize, u32, Plan, usize, bool);
+type DecodeArgs<'a> = (Start<'a>, &'a [u8], usize, u32, Plan, usize, bool);
 
 #[cfg(target_arch = "x86_64")]
 #[target_feature(enable = "avx2")]
@@ -1595,7 +1765,8 @@ fn decode_k<K: Kernel>(
             c
         })
         .collect();
-    let mut f = Frame::new(history, n, profile, plan);
+    // a decoder keeps the warmed model for the next frame of the same state
+    let mut f = Frame::new::<K>(history, n, profile, plan, true)?;
     let narrow = f.base.stride == NINP_NARROW;
     let r = plan.stride(n);
     let mut at = 0;
@@ -1687,6 +1858,23 @@ mod tests {
         v
     }
 
+    /// Streams over a warmed model state decode to their input, and one
+    /// stream is the serial warm coder byte for byte.
+    #[test]
+    fn warm_streams_round_trip() {
+        let state = sample(1 << 15, 3);
+        let data = sample(1 << 15, 11);
+        let one = encode_warm_below(&state, &data, FULL, Plan::ONE, 1, usize::MAX).map(|p| p.0);
+        assert_eq!(one, crate::ncm::encode_warm(&state, &data, FULL));
+        for k in [2, 3] {
+            let plan = Plan::of(k, 1 << 12);
+            let (payload, _) =
+                encode_warm_below(&state, &data, FULL, plan, k, usize::MAX).expect("streams");
+            let out = decode_warm(&state, &payload, data.len() as u64, FULL, plan, k, true);
+            assert_eq!(out.as_deref(), Some(&data[..]), "{k} streams");
+        }
+    }
+
     /// One stream is the serial coder, byte for byte.
     #[test]
     fn one_stream_is_serial() {
@@ -1709,7 +1897,8 @@ mod tests {
             ..Plan::ONE
         };
         let serial = super::super::encode_plan_below(&w, &d, FULL, wide, usize::MAX);
-        let lanes = encode_with(&w, &d, FULL, wide, 1, usize::MAX, false).map(|(p, _, _)| p);
+        let lanes = encode_with(Start::Window(&[&w]), &d, FULL, wide, 1, usize::MAX, false)
+            .map(|(p, _, _)| p);
         assert_eq!(lanes, serial);
         let serial = serial.expect("fits");
         let back = decode(&[&w], &serial, d.len() as u64, FULL, wide, 1, true);

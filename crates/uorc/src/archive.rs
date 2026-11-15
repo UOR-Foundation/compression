@@ -927,13 +927,42 @@ pub fn state_archive(
     lengths: &[u64],
     payload: &[u8],
 ) -> Option<Vec<u8>> {
-    if !crate::ncm::valid_profile(profile) {
-        return None;
-    }
     let plan = crate::ncm::streams::Plan {
         learning,
         ..crate::ncm::streams::Plan::ONE
     };
+    state_archive_plan(x86, profile, plan, identity, lengths, payload)
+}
+
+/// Whether a state frame carries `plan`: the serial coder under its
+/// learning, or streams ([`crate::ncm::streams`]) over the warmed model at
+/// the standard learning and 12-bit probabilities.
+pub fn state_plan(plan: crate::ncm::streams::Plan) -> bool {
+    use crate::ncm::streams::Plan;
+    plan == Plan {
+        learning: plan.learning,
+        ..Plan::ONE
+    } || (plan.streams > 1
+        && plan
+            == Plan {
+                streams: plan.streams,
+                epoch: plan.epoch,
+                ..Plan::ONE
+            })
+}
+
+/// [`state_archive`] of a payload coded under `plan` ([`state_plan`]).
+pub fn state_archive_plan(
+    x86: bool,
+    profile: u32,
+    plan: crate::ncm::streams::Plan,
+    identity: &[u8],
+    lengths: &[u64],
+    payload: &[u8],
+) -> Option<Vec<u8>> {
+    if !crate::ncm::valid_profile(profile) || !state_plan(plan) {
+        return None;
+    }
     let word = crate::ncm::streams::word(profile, plan)?;
     let (prefix, tail): (&[u8], &[u8]) = if x86 {
         (&NCMWX_PREFIX, &NCMWX_TAIL)
@@ -971,6 +1000,8 @@ pub struct StateFrame<'a> {
     pub profile: u32,
     /// How the model learns ([`state_archive`]).
     pub learning: crate::ncm::Learning,
+    /// The plan the payload is coded under ([`state_plan`]).
+    pub plan: crate::ncm::streams::Plan,
     /// The object lengths.
     pub lengths: Vec<u64>,
     /// The coded payload.
@@ -997,19 +1028,15 @@ pub fn state_frame(data: &[u8]) -> Option<StateFrame<'_>> {
         let (payload, rest) = rest[after..].split_at(p);
         let rest = rest.strip_prefix(&[0])?;
         let (w, after) = read_uleb(rest, 0)?;
-        // the serial plan: only the learning fields join the profile
-        let (profile, plan) = crate::ncm::streams::split(w).filter(|(_, p)| {
-            *p == crate::ncm::streams::Plan {
-                learning: p.learning,
-                ..crate::ncm::streams::Plan::ONE
-            }
-        })?;
+        // the serial plan with its learning, or streams
+        let (profile, plan) = crate::ncm::streams::split(w).filter(|(_, p)| state_plan(*p))?;
         let ok = after == uleb_len(w) && rest[after..] == tail[..];
         ok.then(|| StateFrame {
             state,
             x86,
             profile,
             learning: plan.learning,
+            plan,
             lengths: lengths.clone(),
             payload,
         })
@@ -1025,22 +1052,38 @@ pub fn state_decode(data: &[u8]) -> Option<Vec<u8>> {
         x86,
         profile,
         learning,
+        plan,
         lengths,
         payload,
     } = state_frame(data)?;
     let (pre, seal) = data.split_at(data.len() - SEAL);
     let identity = crate::states::identity(state)?;
     let n = lengths.iter().try_fold(0u64, |a, &l| a.checked_add(l))?;
-    let rebuilt = state_archive(x86, profile, learning, &identity, &lengths, payload)?;
+    let rebuilt = state_archive_plan(x86, profile, plan, &identity, &lengths, payload)?;
     if rebuilt != data || seal != chain(pre) {
         return None;
     }
     let s = crate::states::state(state)?;
+    let filtered;
+    let past = if x86 {
+        filtered = crate::x86::filter(s, false, 0).0;
+        &filtered[..]
+    } else {
+        s
+    };
+    let out = if plan.streams == 1 {
+        crate::ncm::decode_canonical_warm_learning(past, payload, n, profile, learning)?
+    } else {
+        let threads = crate::ncm::streams::threads(plan);
+        let out = crate::ncm::streams::decode_warm(past, payload, n, profile, plan, threads, true)?;
+        if out.len() as u64 != n {
+            return None;
+        }
+        out
+    };
     if !x86 {
-        return crate::ncm::decode_canonical_warm_learning(s, payload, n, profile, learning);
+        return Some(out);
     }
-    let h = crate::x86::filter(s, false, 0).0;
-    let out = crate::ncm::decode_canonical_warm_learning(&h, payload, n, profile, learning)?;
     Some(crate::x86::filter(&out, true, s.len() as u64).0)
 }
 
