@@ -330,7 +330,8 @@ fn cost_table() -> [u16; 4096] {
 fn tables() -> &'static Tables {
     static T: std::sync::OnceLock<Tables> = std::sync::OnceLock::new();
     T.get_or_init(|| {
-        let mut stretch = [crate::model::ncm::i16::stretchHalfLast; 4096];
+        let mut stretch =
+            [crate::model::ncm::i16::stretchHalfLast; crate::model::ncm::usize::stretchRange];
         let mut pi = 0usize;
         for x in -2047..=2047 {
             let v = squash(x) as usize;
@@ -346,7 +347,7 @@ fn tables() -> &'static Tables {
         for (c, r) in rate.rate.iter_mut().enumerate() {
             *r = standard::RATE_NUMERATOR / (2 * c as i32 + 3);
         }
-        let mut sq = [0i16; 4096];
+        let mut sq = [0i16; crate::model::ncm::usize::stretchRange];
         for (i, v) in sq.iter_mut().enumerate() {
             *v = squash(i as i32 - crate::model::ncm::i32::stretchHalf) as i16;
         }
@@ -1056,15 +1057,15 @@ impl Model {
             m2exp: 0,
             m2b: 0,
             m2sp: msp,
-            m2sn: [0; 64],
+            m2sn: [0; crate::model::ncm::usize::extentM2S],
             m2i: 0,
             rd: 0,
             rrun: 0,
             rexp: 0,
             rok: false,
             ra: false,
-            rsp: [crate::model::ncm::u16::slotHalf; 128],
-            rsn: [0; 128],
+            rsp: [crate::model::ncm::u16::slotHalf; crate::model::ncm::usize::extentRS],
+            rsn: [0; crate::model::ncm::usize::extentRS],
             ri: 0,
             mptr: 0,
             mlen: 0,
@@ -1072,8 +1073,8 @@ impl Model {
             mbucket: 0,
             msp,
             msn: [0; 64],
-            lastp: [0; 256],
-            lastd: [0; 256],
+            lastp: [0; crate::model::ncm::usize::byteBase],
+            lastd: [0; crate::model::ncm::usize::byteBase],
             rcnt: vec![0; 65536],
             r: 0,
             hb: [0; NC],

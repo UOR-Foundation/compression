@@ -703,7 +703,7 @@ impl Pass<'_> {
             }
             E::Repeat(r) => {
                 let d = self.ex(&r.expr, want);
-                self.ex(&r.len, &Ds::new());
+                self.ex(&r.len, want);
                 d
             }
             E::Tuple(t) => {
@@ -771,7 +771,20 @@ impl Pass<'_> {
                         syn::Member::Unnamed(_) => Ds::new(),
                     };
                     self.used(&f.expr, &w);
-                    let d = self.ex(&f.expr, &w);
+                    // a field's array value: its length acts in the field's length domains
+                    let d = match (&f.expr, &f.member) {
+                        (E::Repeat(r), syn::Member::Named(i)) => {
+                            let l = self
+                                .decls
+                                .lens
+                                .get(&i.to_string())
+                                .cloned()
+                                .unwrap_or_else(|| w.clone());
+                            self.ex(&r.len, &l);
+                            self.ex(&r.expr, &w)
+                        }
+                        _ => self.ex(&f.expr, &w),
+                    };
                     if let syn::Member::Named(i) = &f.member {
                         self.store(&i.to_string(), &d);
                     }
@@ -1156,6 +1169,8 @@ impl Pass<'_> {
                             let direct = matches!(
                                 &*i.expr,
                                 syn::Expr::Lit(_)
+                                    | syn::Expr::Repeat(_)
+                                    | syn::Expr::Array(_)
                                     | syn::Expr::If(_)
                                     | syn::Expr::Match(_)
                                     | syn::Expr::Unary(_)
