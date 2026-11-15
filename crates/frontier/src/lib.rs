@@ -119,10 +119,14 @@ impl Plan {
         let code = |p: &uorc::Planned| match p {
             uorc::Planned::Done { archive, .. } => archive.clone(),
             uorc::Planned::Code { bytes, pieces } => {
+                let plan = |frame: &[u8], pieces: &[u64], window: &[&[u8]]| {
+                    let schedule: Vec<_> = self.strategies(frame).into_iter().flatten().collect();
+                    uorc::compress_plan_trial(frame, pieces, window, &schedule)
+                };
                 let trial = |frame: &[u8], pieces: &[u64], window: &[&[u8]]| {
                     uorc::compress_with_strategies(frame, pieces, window, &self.strategies(frame))
                 };
-                uorc::compress_span_by(bytes, pieces, 1, &trial)
+                uorc::compress_span_by(bytes, pieces, 1, &plan, &trial)
                     .expect("a span's frames")
                     .concat()
             }

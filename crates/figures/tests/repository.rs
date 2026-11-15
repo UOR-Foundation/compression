@@ -43,7 +43,7 @@ fn a_planted_figure_is_rejected_in_every_kind_of_source_uc_fig_01() {
         match kind {
             "rs" => figures::scan_source(file, &planted, &mut scan).unwrap(),
             "js" => figures::sources::scan_js(file, &planted, &mut scan),
-            _ => figures::sources::scan_lean(file, "Uorc.Codec.Table", &planted, &mut scan),
+            _ => figures::sources::scan_lean(file, "Uorc.Codec.Table", &planted, &figures::sources::Stated::new(), &mut scan),
         }
         assert!(
             scan.sites.iter().any(|s| s.value == "4093"),

@@ -18,16 +18,20 @@ import os
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 from ir import *
-from ir import K
+from ir import K, RADIX
+import ir
 
 NC = 17               # hashed contexts
-NIN = NC + 7          # mixer inputs: contexts, match probability, match vote, bias, short match (2), repeat (2)
-F_SHORT = 1 << 17     # profile bit: the short match model
-F_REP = 1 << 18       # profile bit: the repeat-distance model (its inputs and context 13)
-F_SEL = 1 << 19       # profile bit: mixer 1 and the first APM selected by the match states too
+# The profile word's layout: each field's unit is the unit of the field before it times that field's
+# range; the ranges are the format's identities.
+F_SHORT = K('shortBit', 1 << NC)                    # profile bit: the short match model (after a bit per context)
+F_REP = K('repBit', ('mul', F_SHORT, RADIX))        # profile bit: the repeat-distance model (its inputs and context 13)
+F_SEL = K('selBit', ('mul', F_REP, RADIX))          # profile bit: mixer 1 and the first APM selected by the match states too
 TBMAX = 24
-TABLE_UNIT = 1 << 20  # the profile word's context table field (6 bits) starts here (ncm::TABLE_SHIFT)
-MATCH_UNIT = 1 << 26  # and its match table field (5 bits) here (ncm::MATCH_SHIFT)
+TABLE_UNIT = K('tableUnit', ('mul', F_SEL, RADIX))  # the profile word's context table field starts here (ncm::TABLE_SHIFT)
+TABLE_FIELD = K('tableField', 64)                    # its range (6 bits)
+MATCH_UNIT = K('matchUnit', ('mul', TABLE_UNIT, TABLE_FIELD))   # and its match table field here (ncm::MATCH_SHIFT)
+MATCH_FIELD = K('matchField', 32)                    # its range (5 bits)
 SQT = [1, 2, 3, 6, 10, 16, 27, 45, 73, 120, 194, 310, 488, 747, 1101, 1546, 2047,
        2549, 2994, 3348, 3607, 3785, 3901, 3975, 4022, 4050, 4068, 4079, 4085, 4089, 4092, 4093, 4094]
 WRANGE = K('weightRange', 1 << 24)        # a stored weight, offset form
@@ -39,9 +43,20 @@ KW = K('weightKey', ('sub', WRANGE, WINIT))
 WINIT0 = WORIGIN
 KW0 = K('weightKeyZero', ('sub', WRANGE, WORIGIN))
 EARNED = K('earnedInputs', ('add', K('contexts', NC), K('matchInputs', 3)))   # inputs that start at WINIT
+NIN = K('mixerInputs', ('add', EARNED, K('slotModelInputs', 4)))   # mixer inputs: contexts, match probability, match vote, bias, short match (2), repeat (2)
+# The domains of the coder's quantities (see domains.py): each declared once by its extent, and the
+# tables and globals that hold it; every literal that is a characteristic quantity of the domain it acts
+# on is then stated as that quantity, derived from the extent.
+import domains
+STRETCH = domains.Domain('stretch', K('stretchRange', 1 << 12), offset=True)   # the logistic domain
+SLOT = domains.Domain('slot', K('slotRange', 1 << 16))            # a probability slot, offset form
+WEIGHT = domains.Domain('weight', WRANGE, WORIGIN, unit=K('weightUnit', 1 << 16))   # a mixer weight, 1.0 = unit
+XW = domains.origins(NIN, STRETCH, WEIGHT)              # a mixer dot product's constant term
+XW1 = domains.origins(K('mixerInputsBut1', ('sub', NIN, 1)), STRETCH, WEIGHT)
 def winit(i): return sel(lt(i, EARNED), WINIT, WINIT0)
 def kw(i): return sel(lt(i, EARNED), KW, KW0)
 M32 = 1 << 32
+ROLL = K('rollMultiplier', 0x2F0B4C27)   # the rolling context hashes' multiplier: an identity of the format
 
 P = Prog()
 for name, w in [('n', 4), ('tb', 1), ('mb', 1), ('pos', 4), ('c4', 4), ('c8', 4), ('wordh', 4), ('word1', 4),
@@ -84,7 +99,7 @@ PA = add(G('hoff'), G('pos'))
 def coded(i): return hist(add(G('hoff'), i))
 
 def has(bit):
-    return eq(mod(div(G('prof'), bit), 2), 1)
+    return eq(mod(div(G('prof'), bit), RADIX), 1)
 
 # Profile bits 0..NC-1 keep context k. A context left out is never looked up or adapted and feeds every mixer
 # the stretch 0 (2048 in offset form), which moves no dot product and trains no weight.
@@ -97,7 +112,7 @@ def match_key2(p, body):
     last = 'mq0'
     for i in range(1, 5):
         nxt = fresh('mq')
-        body.append(('let', nxt, u32(add(add(mul(0x2F0B4C27, V(last)), hist(sub(p, i))), 1))))
+        body.append(('let', nxt, u32(add(add(mul(ROLL, V(last)), hist(sub(p, i))), 1))))
         last = nxt
     hash_('mqh', V(last), body)
     body.append(('let', 'mk2', div(V('mqh'), rom('POW2', 4, sub(32, G('mb'))))))
@@ -108,7 +123,7 @@ def match_key(p, body):
     last = 'mh0'
     for i in range(1, 8):
         nxt = fresh('mh')
-        body.append(('let', nxt, u32(add(add(mul(0x2F0B4C27, V(last)), hist(sub(p, i))), 1))))
+        body.append(('let', nxt, u32(add(add(mul(ROLL, V(last)), hist(sub(p, i))), 1))))
         last = nxt
     hash_('mhh', V(last), body)
     body.append(('let', 'mk', div(V('mhh'), rom('POW2', 4, sub(32, G('mb'))))))
@@ -120,8 +135,8 @@ init = []
 init += [('set', 'tb', 16),
          ('loop', TBMAX - 16, 'k', [('if', lt(rom('POW2', 4, G('tb')), mul(1024, G('n'))), [('set', 'tb', add(G('tb'), 1))], [])]),
          ('set', 'mb', sel(lt(22, G('tb')), 22, sub(G('tb'), 2))),
-         ('if', lt(0, mod(div(G('prof'), TABLE_UNIT), 64)), [('set', 'tb', mod(div(G('prof'), TABLE_UNIT), 64))], []),
-         ('if', lt(0, mod(div(G('prof'), MATCH_UNIT), 32)), [('set', 'mb', mod(div(G('prof'), MATCH_UNIT), 32))], []),
+         ('if', lt(0, mod(div(G('prof'), TABLE_UNIT), TABLE_FIELD)), [('set', 'tb', mod(div(G('prof'), TABLE_UNIT), TABLE_FIELD))], []),
+         ('if', lt(0, mod(div(G('prof'), MATCH_UNIT), MATCH_FIELD)), [('set', 'mb', mod(div(G('prof'), MATCH_UNIT), MATCH_FIELD))], []),
          ('set', 'c0', 1), ('set', 'x2', M32 - 1)]
 # stretch: STR[j] = the least x with squash(x) >= j, else 2047 (offset form)
 sb = []
@@ -217,7 +232,7 @@ P.func('newByte', [], nb)
 pr = []
 bk = [('let', 'nc', sel(eq(G('bit'), 0), 0, add(mod(G('c0'), 16), 16)))]
 bkl = []
-hash_('bh', u32(add(ld('HB', 4, V('k')), mul(0x2F0B4C27, V('nc')))), bkl)
+hash_('bh', u32(add(ld('HB', 4, V('k')), mul(ROLL, V('nc')))), bkl)
 bkl += [('let', 'bm', mod(V('bh'), rom('POW2', 4, G('tb')))), ('let', 'b0', sub(V('bm'), mod(V('bm'), 16))),
         ('let', 'h24', div(V('bh'), 1 << 24)), ('let', 'ck', add(V('h24'), sub(1, mod(V('h24'), 2)))),
         ('let', 'alt', sel(eq(mod(div(V('b0'), 16), 2), 1), monus(V('b0'), 16), add(V('b0'), 16)))]
@@ -280,8 +295,8 @@ pr += [('loop', NIN, 'i', dl)]
 
 def dot(out, accv, swv, body):
     a = fresh('da'); b = fresh('db')
-    body.append(('let', a, add(accv, NIN * 2048 * (1 << 22))))
-    body.append(('let', b, add(mul(1 << 22, G('sso')), mul(2048, swv))))
+    body.append(('let', a, add(accv, XW)))
+    body.append(('let', b, add(mul(WEIGHT.origin, G('sso')), mul(STRETCH.origin, swv))))
     body.append(('let', out, sel(le(V(b), V(a)), add(2048, mn(div(monus(V(a), V(b)), 65536), 2047)),
                                  sub(2048, mn(div(add(monus(V(b), V(a)), 65535), 65536), 2047)))))
 dot('d1', G('acc'), G('sw'), pr)
@@ -295,14 +310,22 @@ pr += [('set', 'pm1', V('q1')), ('set', 'pm2', V('q2')), ('set', 'pm3', V('q3'))
 
 # adaptive probability maps: rows of 33 points over the stretch domain, stored as offsets from their
 # initial values (point j starts at 16 * squash(128 j - 2048)) so that a fresh table holds the start
+APM_STEP = ir.SQUASH_STEP                                                     # the points' spacing
+APM_INTERVALS = K('apmIntervals', ('div', STRETCH.extent, APM_STEP))
+APM_POINTS = K('apmPoints', ('add', APM_INTERVALS, 1))
+SLOT_PER_STRETCH = K('slotPerStretch', ('div', SLOT.extent, STRETCH.extent))  # a 12-bit probability as a slot
+APM_TOP = K('apmTop', ('mul', K('stretchLast', ('sub', STRETCH.extent, 1)), SLOT_PER_STRETCH))
+APM_SCALE = K('apmScale', ('mul', APM_STEP, SLOT_PER_STRETCH))               # an interpolated slot, back to 12 bits
+
 def ainit(j):
     sq = fresh('sq')
-    return sq, [('let', sq, ('squash', mn(mul(128, j), 4095)))], sel(eq(j, 0), 0, sel(eq(j, 32), 4095 * 16, mul(16, V(sq))))
+    return sq, [('let', sq, ('squash', mn(mul(APM_STEP, j), K('stretchLast', ('sub', STRETCH.extent, 1)))))], \
+        sel(eq(j, 0), 0, sel(eq(j, APM_INTERVALS), APM_TOP, mul(SLOT_PER_STRETCH, V(sq))))
 
 def apm_get(table, idx, j, body):
     sq, pre, init = ainit(j)
     body += pre
-    return mod(add(ld(table, 2, idx), init), 65536)
+    return mod(add(ld(table, 2, idx), init), SLOT.extent)
 
 # The probability's scale over 12 bits: 1, or 16 under a frame word's probability field 16 (pz 15; every
 # frame coder's pz is 0): a map refines at 16 bits, the coder splits its range in 65536ths.
@@ -311,16 +334,16 @@ PS = add(G('pz'), 1)
 
 def refine(out, table, cx, gi, gj, body):
     s, l, w = fresh('as'), fresh('al'), fresh('aw')
-    body += [('let', s, ld('STR', 2, V('pa'))), ('let', l, div(V(s), 128)), ('let', w, mod(V(s), 128))]
+    body += [('let', s, ld('STR', 2, V('pa'))), ('let', l, div(V(s), APM_STEP)), ('let', w, mod(V(s), APM_STEP))]
     base = fresh('ab')
-    body += [('let', base, add(mul(33, cx), V(l)))]
+    body += [('let', base, add(mul(APM_POINTS, cx), V(l)))]
     t0 = apm_get(table, V(base), V(l), body)
     t1 = apm_get(table, add(V(base), 1), add(V(l), 1), body)
-    body += [('let', out, div(mul(PS, add(mul(t0, sub(128, V(w))), mul(t1, V(w)))), 2048)),
-             ('set', gi, add(V(base), div(V(w), 64))), ('set', gj, add(V(l), div(V(w), 64)))]
+    body += [('let', out, div(mul(PS, add(mul(t0, sub(APM_STEP, V(w))), mul(t1, V(w)))), APM_SCALE)),
+             ('set', gi, add(V(base), div(V(w), ir.SQUASH_HALF))), ('set', gj, add(V(l), div(V(w), ir.SQUASH_HALF)))]
 
 refine('r1', 'A1', add(G('c0'), mul(256, G('msel'))), 'ai1', 'aj1', pr)
-hash_('ah2', u32(add(mul(0x2F0B4C27, mod(G('c4'), 1 << 24)), G('c0'))), pr)
+hash_('ah2', u32(add(mul(ROLL, mod(G('c4'), 1 << 24)), G('c0'))), pr)
 refine('r2', 'A2', div(V('ah2'), 65536), 'ai2', 'aj2', pr)
 pr += [('set', 'pr', mx(mn(div(add(add(mul(PS, V('pa')), V('r1')), mul(2, V('r2'))), 4), sub(mul(4096, PS), 1)), 1))]
 P.func('predict', [], pr)
@@ -462,14 +485,14 @@ gk = [('let', 'gs1', mul(NIN, add(G('c0'), mul(256, G('msel'))))),
       ('let', 'gs2', mul(NIN, add(mul(8, mod(G('c4'), 256)), G('bit')))),
       ('let', 'gs3', mul(NIN, add(mul(8, mod(div(G('c4'), 256), 256)), G('bit'))))]
 for m, acc, sw in ((1, 'acc', 'sw'), (2, 'acc2', 'sw2'), (3, 'acc3', 'sw3')):
-    dot_of(f'gd{m}', add(G(acc), NIN * 2048 * (1 << 22)), add(mul(1 << 22, G('sso')), mul(2048, G(sw))), gk)
+    dot_of(f'gd{m}', add(G(acc), XW), add(mul(WEIGHT.origin, G('sso')), mul(STRETCH.origin, G(sw))), gk)
 squash_('gq', div(mul(21846, add(add(V('gd1'), V('gd2')), V('gd3'))), 65536), gk)
 gk += [('let', 'gbase', cost(mx(mn(V('gq'), 4095), 1)))]
 gl = [('let', 'gso', ld('ST', 2, V('k')))]
 for m, tab, acc, sw in ((1, 'W1', 'acc', 'sw'), (2, 'W2', 'acc2', 'sw2'), (3, 'W3', 'acc3', 'sw3')):
     gl += [('let', f'gw{m}', mod(add(ld(tab, 3, add(V(f'gs{m}'), V('k'))), winit(V('k'))), 1 << 24))]
-    dot_of(f'ge{m}', add(sub(G(acc), mul(V('gso'), V(f'gw{m}'))), (NIN - 1) * 2048 * (1 << 22)),
-           add(mul(1 << 22, sub(G('sso'), V('gso'))), mul(2048, sub(G(sw), V(f'gw{m}')))), gl)
+    dot_of(f'ge{m}', add(sub(G(acc), mul(V('gso'), V(f'gw{m}'))), XW1),
+           add(mul(WEIGHT.origin, sub(G('sso'), V('gso'))), mul(STRETCH.origin, sub(G(sw), V(f'gw{m}')))), gl)
 squash_('gp', div(mul(21846, add(add(V('ge1'), V('ge2')), V('ge3'))), 65536), gl)
 gl += [('let', 'gv', mod(add(ld('GN', 8, V('k')), GOFF), 1 << 48)),
        ('store', 'GN', 8, V('k'), mod(sub(add(monus(add(V('gv'), cost(mx(mn(V('gp'), 4095), 1))), V('gbase')), 1 << 48), GOFF), 1 << 48))]
@@ -510,6 +533,12 @@ P.func('encodeLearn', ['size', 'limit', 'h', 'pf'], [('set', 'learn', 1), ('loop
                                                     ('call', 'encodeProfile', [V('size'), V('limit'), V('h'), V('pf')]),
                                                     ('set', 'lmask', V('pf')), ('loop', NC, 'k', lm)])
 
+
+DERIVED = domains.derive(
+    P, [STRETCH, SLOT, WEIGHT],
+    tables={'STR': {'stretch'}, 'ST': {'stretch'}, 'A1': {'slot'}, 'A2': {'slot'}, 'T': {'slot'}, 'MS': {'slot'},
+            'M2S': {'slot'}, 'RS': {'slot'}, 'W1': {'weight'}, 'W2': {'weight'}, 'W3': {'weight'}},
+    globals_={'pm1': {'stretch'}, 'pm2': {'stretch'}, 'pm3': {'stretch'}, 'pr': {'stretch'}, 'pi': {'stretch'}})
 
 FULL = (1 << 20) - 1   # every context and every match feature
 V03 = (1 << NC) - 1    # the v0.3 coder: every context, neither match feature
