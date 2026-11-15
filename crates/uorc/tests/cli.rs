@@ -223,7 +223,22 @@ fn directories_round_trip_with_empty_files_binary_and_nesting() {
     let packed = uorc(&["compress", s(&src)]);
     assert_eq!(code(&packed), 0, "{packed:?}");
     let shown = String::from_utf8(uorc(&["inspect", "--json", s(&archive)]).stdout).unwrap();
-    assert!(shown.contains("\"objects\":5"), "{shown}"); // manifest + 4 files
+    // manifest + 4 files: the frames' objects, less one for each frame
+    // boundary that falls inside an object (the input may be cut into frames
+    // when the halves code smaller)
+    let counts: Vec<usize> = shown
+        .split("\"objects\":")
+        .skip(1)
+        .map(|s| {
+            s.split(|c: char| !c.is_ascii_digit())
+                .next()
+                .unwrap()
+                .parse()
+                .unwrap()
+        })
+        .collect();
+    let (objects, frames) = (counts.iter().sum::<usize>(), counts.len());
+    assert!(objects + 1 - frames <= 5 && 5 <= objects, "{shown}");
 
     let out = dir.join("out");
     let unpacked = uorc(&["decompress", s(&archive), "-o", s(&out)]);

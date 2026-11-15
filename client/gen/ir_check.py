@@ -11,8 +11,11 @@
 #   serial-decode    ncm_model.py py_decode      of the native payload, against the input
 #   serial-learn     ncm_model.py py_learn       against ncm::encode_learn (payload and profile)
 #   serial-*-p16     the same at 16-bit probabilities (frame word probability field 16, ncm::encode_bits_below)
+#   delta            client/gen/delta_model.py filter, inverse and magnitude bits against crates/uorc/src/delta.rs
+#   serial-*-cb2     consolidation field 2 (a context slot's count stops at 3, ncm::encode_plan_below), and at 16 bits
 #   streams-encode-k ncm_streams.py py_encode_streams, against ncm::streams::encode (k streams, epoch E)
 #   streams-decode-k ncm_streams.py py_decode_streams of the native payload, against the input
+#   ...-k-p16        the same at 16-bit probabilities (the frame word's probability field 16)
 # The streams cases run only when client/gen/ncm_streams.py and the native ncm::streams API exist.
 # The native side is a throwaway cargo package written under target/ir-check (its own workspace,
 # the workspace's Cargo.lock, the workspace's target directory), so no tracked crate carries it.
@@ -54,6 +57,7 @@ fn main() {
     let out = std::path::Path::new(&a[4]);
     let ks: Vec<usize> = a[5].split(',').filter(|s| !s.is_empty()).map(|s| s.parse().expect("k")).collect();
     let epoch: usize = a[6].parse().expect("epoch");
+    let bits: Vec<u32> = a[7].split(',').map(|s| s.parse().expect("bits")).collect();
     let (history, data) = (&file[..h], &file[h..h + n]);
     let p = ncm::encode_profile(history, data, ncm::FULL).expect("native encode");
     let back = ncm::decode_profile(history, &p, u64::MAX, ncm::FULL).expect("native decode");
@@ -63,29 +67,51 @@ fn main() {
     let back = ncm::decode_canonical_window_bits(&[history], &w, n as u64, ncm::FULL, 16).expect("native 16-bit decode");
     assert_eq!(back, data, "native 16-bit round trip");
     std::fs::write(out.join("encode16.bin"), &w).unwrap();
+    // the delta filter family: each direction, and the magnitude bits (raw and differences)
+    let mut magnitudes = String::new();
+    for (width, channels) in [(1, 1), (2, 2), (4, 3)] {
+        let d = uorc::delta::Delta { width, channels };
+        for (dir, name) in [(false, "filter"), (true, "inverse")] {
+            std::fs::write(out.join(format!("delta-{name}-{width}-{channels}.bin")), uorc::delta::filter(data, dir, d)).unwrap();
+        }
+        for raw in [false, true] {
+            magnitudes.push_str(&format!("{width} {channels} {} {}\n", u8::from(raw), uorc::delta::magnitude_bits(data, d, raw)));
+        }
+    }
+    std::fs::write(out.join("delta-bits.txt"), magnitudes).unwrap();
+    // consolidation: two count bits (a slot stops at count 3), at 12 and 16 bits
+    for (b, name) in [(12, "consolidate.bin"), (16, "consolidate16.bin")] {
+        let plan = ncm::streams::Plan { bits: b, learning: ncm::Learning { count_bits: 2 }, ..ncm::streams::Plan::ONE };
+        let w = ncm::encode_plan_below(history, data, ncm::FULL, plan, usize::MAX).expect("native consolidated encode");
+        let back = ncm::decode_canonical_window_plan(&[history], &w, n as u64, ncm::FULL, plan).expect("native consolidated decode");
+        assert_eq!(back, data, "native consolidated round trip");
+        std::fs::write(out.join(name), &w).unwrap();
+    }
     let (l, mask) = ncm::encode_learn(history, data, ncm::FULL).expect("native learn");
     std::fs::write(out.join("learn.bin"), &l).unwrap();
     std::fs::write(out.join("learn.mask"), mask.to_string()).unwrap();
-    streams(history, data, &ks, epoch, out);
+    streams(history, data, &ks, epoch, &bits, out);
 }
 '''
 
 MAIN_NO_STREAMS = '''
-fn streams(_: &[u8], _: &[u8], ks: &[usize], _: usize, _: &std::path::Path) {
+fn streams(_: &[u8], _: &[u8], ks: &[usize], _: usize, _: &[u32], _: &std::path::Path) {
     assert!(ks.is_empty(), "no native streams API");
 }
 '''
 
 MAIN_STREAMS = '''
-fn streams(history: &[u8], data: &[u8], ks: &[usize], epoch: usize, out: &std::path::Path) {
+fn streams(history: &[u8], data: &[u8], ks: &[usize], epoch: usize, bits: &[u32], out: &std::path::Path) {
     use uorc::ncm::streams;
+    for &b in bits {
     for &k in ks {
-        let plan = streams::Plan::of(k, epoch);
+        let plan = streams::Plan { bits: b, ..streams::Plan::of(k, epoch) };
         let p = streams::encode(history, data, ncm::FULL, plan, 1).expect("native streams encode");
         let back = streams::decode(&[history], &p, u64::MAX, ncm::FULL, plan, 1, true)
             .expect("native streams decode");
         assert_eq!(back, data, "native streams round trip");
-        std::fs::write(out.join(format!("streams-{k}.bin")), &p).unwrap();
+        std::fs::write(out.join(format!("streams-{b}-{k}.bin")), &p).unwrap();
+    }
     }
 }
 '''
@@ -127,14 +153,14 @@ def native(args, ks, work):
     print(f'ir-check: building the native dumper ({"release" if args.release else "dev"})', flush=True)
     subprocess.run(build, check=True)
     exe = os.path.join(ROOT, 'target', 'release' if args.release else 'debug', 'uorc-ir-dump')
-    subprocess.run([exe, args.file, str(args.h), str(args.n), work, ','.join(map(str, ks)), str(args.epoch)],
+    subprocess.run([exe, args.file, str(args.h), str(args.n), work, ','.join(map(str, ks)), str(args.epoch), args.bits],
                    check=True)
     print(f'ir-check: native payloads in {time.time() - t:.1f}s', flush=True)
 
 
 def run_case(job):
     """One case in its own process: (name, native bytes, IR bytes, verdict, seconds)."""
-    name, kind, k, a = job
+    name, kind, (k, bits), a = job
     t = time.time()
     sys.path.insert(0, HERE)
     import ncm_model as nm
@@ -154,6 +180,22 @@ def run_case(job):
         want, got = nat('encode16.bin'), nm.py_encode(data, history, FULL | 16 << 32)
     elif kind == 'serial-decode-p16':
         want, got = data, nm.py_decode(nat('encode16.bin'), history, FULL | 16 << 32)
+    elif kind == 'delta':
+        import delta_model as dm
+        want, got = [], []
+        for width, channels in ((1, 1), (2, 2), (4, 3)):
+            for dirn, way in ((0, 'filter'), (1, 'inverse')):
+                want.append(nat(f'delta-{way}-{width}-{channels}.bin'))
+                got.append(dm.py_filter(data, dirn, width, channels))
+        rows = [l.split() for l in nat('delta-bits.txt').decode().splitlines()]
+        want += [int(r[3]) for r in rows]
+        got += [dm.py_measure(data, int(r[0]), int(r[1]), int(r[2])) for r in rows]
+    elif kind == 'serial-encode-cb2':
+        want, got = nat('consolidate.bin'), nm.py_encode(data, history, FULL | 2 << 53)
+    elif kind == 'serial-decode-cb2':
+        want, got = data, nm.py_decode(nat('consolidate.bin'), history, FULL | 2 << 53)
+    elif kind == 'serial-encode-cb2-p16':
+        want, got = nat('consolidate16.bin'), nm.py_encode(data, history, FULL | 16 << 32 | 2 << 53)
     elif kind == 'serial-learn':
         want, mask = nat('learn.bin'), int(nat('learn.mask'))
         got, gmask = nm.py_learn(data, history, FULL)
@@ -163,9 +205,9 @@ def run_case(job):
     else:
         import ncm_streams as ns
         if kind == 'streams-encode':
-            want, got = nat(f'streams-{k}.bin'), ns.py_encode_streams(data, history, FULL, k, a['epoch'])
+            want, got = nat(f'streams-{bits}-{k}.bin'), ns.py_encode_streams(data, history, FULL, k, a['epoch'], bits)
         else:
-            want, got = data, ns.py_decode_streams(nat(f'streams-{k}.bin'), history, FULL, k, a['epoch'])
+            want, got = data, ns.py_decode_streams(nat(f'streams-{bits}-{k}.bin'), history, FULL, k, a['epoch'], bits)
     if want == got:
         verdict = 'identical'
     else:
@@ -183,6 +225,7 @@ def main():
     ap.add_argument('--h', type=int, default=0, help='history bytes before them')
     ap.add_argument('--file', default=os.path.join(ROOT, 'LICENSE-APACHE'))
     ap.add_argument('--epoch', type=int, default=64, help='streams epoch (a power of two)')
+    ap.add_argument('--bits', default='12,16', help='probability bits of the streams cases (12, 16)')
     ap.add_argument('--jobs', type=int, default=4, help='cases run at once')
     ap.add_argument('--no-serial', action='store_true', help='skip the serial cases')
     ap.add_argument('--release', action='store_true', help='build the native dumper in release')
@@ -207,9 +250,14 @@ def main():
     a = {'file': args.file, 'h': args.h, 'n': args.n, 'epoch': args.epoch, 'work': work}
     jobs = []
     if not args.no_serial:
-        jobs += [(c, c, 0, a) for c in ('serial-encode', 'serial-decode', 'serial-learn', 'serial-encode-p16', 'serial-decode-p16')]
-    for k in ks:
-        jobs += [(f'streams-encode-{k}', 'streams-encode', k, a), (f'streams-decode-{k}', 'streams-decode', k, a)]
+        jobs += [(c, c, (0, 12), a) for c in ('serial-encode', 'serial-decode', 'serial-learn', 'serial-encode-p16',
+                                               'serial-decode-p16', 'serial-encode-cb2', 'serial-decode-cb2',
+                                               'serial-encode-cb2-p16', 'delta')]
+    for b in [int(x) for x in args.bits.split(',')]:
+        for k in ks:
+            tag = f'{k}' if b == 12 else f'{k}-p{b}'
+            jobs += [(f'streams-encode-{tag}', 'streams-encode', (k, b), a),
+                     (f'streams-decode-{tag}', 'streams-decode', (k, b), a)]
     if not jobs:
         sys.exit('ir-check: no cases to run')
     print(f'ir-check: {len(jobs)} cases, {args.jobs} at a time; input {os.path.relpath(args.file, ROOT)} '

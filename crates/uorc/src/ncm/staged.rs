@@ -11,7 +11,8 @@
 //! encoder. The payload is the same bytes whichever path codes it.
 
 use super::{
-    adapt_slot, bucket_in, h, prefetch, tick, Bucket, Coder, Kernel, Model, Table, Tables, NC,
+    adapt_slot, bucket_in, h, prefetch, tick, Bucket, Coder, Kernel, Model, Rates, Table, Tables,
+    NC,
 };
 use std::cell::RefCell;
 use std::sync::atomic::AtomicBool;
@@ -382,7 +383,7 @@ fn sites<K: Kernel, const W: usize>(
 ) -> Stretch {
     let (mut inputs, mut m) = m.split();
     let mut sl = std::mem::replace(&mut inputs.sl, Table::new(0, Bucket([0; 16])));
-    let (na, mask, t) = (m.na, m.mask, m.t);
+    let (na, mask, t, rates) = (m.na, m.mask, m.t, m.slots);
     let cut = Cut::of(mask, ranges);
     let stop = AtomicBool::new(false);
     let (inputs, pos) = std::thread::scope(|scope| {
@@ -399,8 +400,20 @@ fn sites<K: Kernel, const W: usize>(
             from_sites.push(srx);
             let lo = (a * 32) as u32;
             let r = r as u16;
-            scope
-                .spawn(move || walk_sites(part, r, lo, mask, na, t, &data[at..], batch, &rx, &stx));
+            scope.spawn(move || {
+                walk_sites(
+                    part,
+                    r,
+                    lo,
+                    mask,
+                    na,
+                    (t, &rates),
+                    &data[at..],
+                    batch,
+                    &rx,
+                    &stx,
+                )
+            });
         }
         let (full, filled) = mpsc::sync_channel::<Arc<Bytes>>(1);
         let stop = &stop;
@@ -546,7 +559,7 @@ fn walk_sites(
     lo: u32,
     mask: u32,
     na: usize,
-    t: &Tables,
+    (t, rates): (&Tables, &Rates),
     data: &[u8],
     batch: usize,
     from: &mpsc::Receiver<Arc<Bytes>>,
@@ -606,7 +619,7 @@ fn walk_sites(
                 let y = (byte >> (7 - bit)) & 1 == 1;
                 for &b in &bb[..owned] {
                     let i = b + part - lo;
-                    adapt_slot(&mut sl[i as usize >> 4].0[i as usize & 15], y, &t.rate);
+                    adapt_slot(&mut sl[i as usize >> 4].0[i as usize & 15], y, rates);
                 }
                 c0 = (c0 << 1) | u32::from(y);
             }

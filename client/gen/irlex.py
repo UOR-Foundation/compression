@@ -36,8 +36,10 @@ class Lex:
         self.input = input_field
         self.defs = []
         self.D = definer(self.defs, module)
+        self.cells()
         self.n = 0
         self.done = set()
+        self.knames = set()
         self.helpers()
         emitted = set()
         def post(name):
@@ -50,6 +52,51 @@ class Lex:
             self.function(name)
         for e in entry_names:
             post(e)
+
+    def cells(self):
+        """Every table's entry width named once (cellT, or cellTw where a table is read at several
+        widths), as the globals' widths are: the width is the table's, each access reads it."""
+        seen = {}
+        def walk_e(e):
+            if isinstance(e, tuple):
+                if e[0] == 'ld':
+                    seen.setdefault(e[1], set()).add(int(e[2]))
+                for a in e[1:]:
+                    walk_e(a)
+        def walk(ss):
+            for st in ss:
+                if st[0] == 'store':
+                    seen.setdefault(st[1], set()).add(int(st[2]))
+                if st[0] == 'call':
+                    for a in st[2]:
+                        walk_e(a)
+                    continue
+                for a in st[1:]:
+                    walk(a) if isinstance(a, list) else walk_e(a)
+        for params, body in self.p.funcs.values():
+            walk(body)
+        def cell(t, w):
+            if isinstance(w, ir.K) or w <= 1:
+                return w
+            n = 'cell' + re.sub(r'[^A-Za-z0-9]', 'X', t) + ('' if len(seen[t]) == 1 else str(w))
+            return ir.K(n, int(w))
+        def re_e(e):
+            if not isinstance(e, tuple):
+                return e
+            if e[0] == 'ld':
+                return ('ld', e[1], cell(e[1], e[2]), re_e(e[3]))
+            return (e[0],) + tuple(re_e(a) for a in e[1:])
+        def re_s(ss):
+            out = []
+            for st in ss:
+                if st[0] == 'store':
+                    out.append(('store', st[1], cell(st[1], st[2]), re_e(st[3]), re_e(st[4])))
+                elif st[0] == 'call':
+                    out.append(('call', st[1], [re_e(a) for a in st[2]]))
+                else:
+                    out.append((st[0],) + tuple(re_s(a) if isinstance(a, list) else re_e(a) for a in st[1:]))
+            return out
+        self.p.funcs = {f: (params, re_s(body)) for f, (params, body) in self.p.funcs.items()}
 
     def writer(self, t):
         return 'put' + t[0].upper() + t[1:]
@@ -80,6 +127,13 @@ class Lex:
 
     def helpers(self):
         D = self.D
+        # the program's named quantities, each after the ones its definition reads
+        named = {}
+        for params, body in self.p.funcs.values():
+            ir.kdeps(body, named)
+        ir.kdeps([self.base(t) for t in self.p.tables], named)
+        for k in named.values():
+            self.need(k)
         # The globals' layout: each global's width is the one figure of its place; its address is
         # derived, the address of the global before it plus that global's width.
         prev = None
@@ -106,6 +160,18 @@ class Lex:
         for t in self.tables:
             D(self.writer(t), [f's : {self.St}', 'w : Nat', 'k : Nat', 'v : Nat'], self.St,
               self.L.upd('s', **{t: f"(putAt w {self.L.P('s', t)} k v)"}))
+        lanes = getattr(self.p, 'lane_globals', 0)
+        if lanes and self.p.lane_table in self.tables:
+            # the lane's bytes: the address of the first global past them, or the end of the last
+            gs = list(self.p.globals)
+            self.lane_bytes = self.gat(gs[lanes]) if lanes < len(gs) else f"({self.gat(gs[-1])} + {self.gwidth(gs[-1])})"
+            lt = self.p.lane_table
+            for d, src, dst in (('Save', 'glob', lt), ('Load', lt, 'glob')):
+                at_src = 'i' if src == 'glob' else '(base + i)'
+                at_dst = '(base + i)' if dst == lt else 'i'
+                D(f'gcopy{d}', ['fuel : Nat', 'i : Nat', f's : {self.St}', 'base : Nat'], self.St,
+                  f"(match fuel\n    | Nat.zero => s\n    | Nat.succ m => (let v : Nat := (getAt 1 {self.L.P('s', src)} {at_src}); "
+                  f"(gcopy{d} m (i + 1) ({self.writer(dst)} s 1 {at_dst} v) base)))", 'fuel')
 
     # ---- expressions: (text, type) ----
     def nat(self, r):
@@ -117,18 +183,51 @@ class Lex:
         return t if ty == 'Bool' else f'(0 <? {t})'
 
     def addr(self, table, w, idx):
-        base = self.p.tables[table]
+        base = self.lit(self.base(table))
         if table in self.big:
-            return idx if w == 1 else f'(prim multiply {w} {idx} : Nat)'
+            return idx if w == 1 else f'(prim multiply {self.lit(w)} {idx} : Nat)'
         if w == 1:
             return f'({base} + {idx})'
-        return f'({base} + (prim multiply {w} {idx} : Nat))'
+        return f'({base} + (prim multiply {self.lit(w)} {idx} : Nat))'
+
+    def base(self, table):
+        """A table's base key, named (baseT) as the globals' addresses are."""
+        b = self.p.tables[table]
+        return b if isinstance(b, ir.K) or b <= 1 else ir.K('base' + re.sub(r'[^A-Za-z0-9]', 'X', table), b)
+
+    def need(self, x):
+        """A named quantity's numeral or name, defining it (after those its body reads) on first use:
+        a numeral, or arithmetic of names, with no axiom (as atX, widthX, Archive.planField)."""
+        if isinstance(x, ir.K):
+            for k in ir.kdeps(x, {}).values():
+                if k.name not in self.knames:
+                    self.knames.add(k.name)
+                    self.D(k.name, [], 'Nat', self.kbody(k.body), ax=[])
+            return f"({x.name})"
+        return str(x)
+
+    def lit(self, x):
+        """A number of the program: a named quantity by its name (defined on its first use), any other
+        by its numeral."""
+        if isinstance(x, ir.K) and x.name not in self.knames:
+            self.need(x)
+        return f"({x.name})" if isinstance(x, ir.K) else str(x)
+
+    def kbody(self, b):
+        if isinstance(b, ir.K):
+            return self.lit(b)
+        if isinstance(b, int):
+            return str(b)
+        a, c = self.kbody(b[1]), self.kbody(b[2])
+        return {'add': f"({a} + {c})", 'sub': f"(prim subtract {a} {c} : Nat)",
+                'mul': f"(prim multiply {a} {c} : Nat)", 'div': f"(prim quotient {a} {c} 0 : Nat)",
+                'mod': f"(prim remainder {a} {c} 0 : Nat)"}[b[0]]
 
     def ex(self, e, env, s):
         if isinstance(e, bool):
             return ('true' if e else 'false', 'Bool')
         if isinstance(e, int):
-            return (str(e), 'Nat')
+            return (self.lit(e), 'Nat')
         k = e[0]
         if k == 'v':
             return env[e[1]]
@@ -136,14 +235,15 @@ class Lex:
             return (self.gread(s, e[1]), 'Nat')
         if k == 'ld':
             t = e[1] if e[1] in self.big else 'mem'
-            return (f"(getAt {e[2]} {self.L.P(s, t)} {self.addr(e[1], e[2], self.nat(self.ex(e[3], env, s)))})", 'Nat')
+            return (f"(getAt {self.lit(e[2])} {self.L.P(s, t)} {self.addr(e[1], e[2], self.nat(self.ex(e[3], env, s)))})", 'Nat')
         if k == 'rom':
             assert e[1] == 'POW2'
             return (f"(pow2 {self.nat(self.ex(e[3], env, s))})", 'Nat')
         if k == 'in':
             i = self.nat(self.ex(e[1], env, s))
             inp = self.L.P(s, self.input)
-            return (f"(if ({i} <? (prim length {inp} : Nat)) then ({TB}::readByte {inp} {i}) else 255)", 'Nat')
+            past = self.lit(ir.K('pastEnd', ('sub', ir.K('byteBase', 256), 1)))   # every byte past the input
+            return (f"(if ({i} <? (prim length {inp} : Nat)) then ({TB}::readByte {inp} {i}) else {past})", 'Nat')
         if k == 'hash':
             return (f"(hash {self.nat(self.ex(e[1], env, s))})", 'Nat')
         if k == 'squash':
@@ -219,7 +319,7 @@ class Lex:
             key = self.addr(st[1], st[2], self.nat(self.ex(st[3], env, s)))
             val = self.nat(self.ex(st[4], env, s))
             kv, vv, s2 = self.fresh('k'), self.fresh('t'), self.fresh('s')
-            upd = f"({self.writer(tab)} {s} {st[2]} {kv} {vv})"
+            upd = f"({self.writer(tab)} {s} {self.lit(st[2])} {kv} {vv})"
             return f"(let {kv} : Nat := {key}; (let {vv} : Nat := {val}; (let {s2} : {self.St} := {upd}; {self.stmts(rest, env, s2, name)})))"
         if k == 'if':
             c = self.boo(self.ex(st[1], env, s))
@@ -243,6 +343,11 @@ class Lex:
             s2 = self.fresh('s')
             args = ' '.join(env[x][0] for x in caps)
             return f"(let {s2} : {self.St} := ({fn} {count} 0 {s} {args}); {self.stmts(rest, env, s2, name)})"
+        if k == 'gcopy':
+            # a lane's globals (glob's first lane_bytes bytes) saved to, or loaded from, the lane table at a byte
+            at = self.nat(self.ex(st[2], env, s))
+            s2 = self.fresh('s')
+            return f"(let {s2} : {self.St} := (gcopy{st[1].capitalize()} ({self.lane_bytes} + (prim multiply 0 (getAt 1 {self.L.P(s, 'glob')} 0) : Nat)) 0 {s} {at}); {self.stmts(rest, env, s2, name)})"
         if k == 'call':
             args = ' '.join(self.nat(self.ex(a, env, s)) for a in st[2])
             s2 = self.fresh('s')

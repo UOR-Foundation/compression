@@ -106,6 +106,18 @@ impl Host {
             <= self.memory
     }
 
+    /// Whether this host holds the decoder of a frame cut into `streams`
+    /// streams: [`Host::footprint`] and one set of working tables for each
+    /// thread the streams run on ([`crate::ncm::table_bytes`]).
+    pub fn holds_streams(self, n: u64, history: u64, profile: u32, streams: u64) -> bool {
+        let working = crate::ncm::table_bytes(n, history, false, profile)
+            .saturating_mul(streams.min(self.threads).max(1));
+        self.footprint(n, history, false, profile)
+            .saturating_add(working)
+            .saturating_mul(self.workers.max(1))
+            <= self.memory
+    }
+
     /// Whether this host holds a frame of `n` bytes read after `history`
     /// bytes of earlier frames under every profile the portfolio may choose
     /// for it at its default tables ([`crate::ncm::FULL`], the largest
@@ -169,12 +181,24 @@ pub fn declare_host(memory: u64) {
     DECLARED.store(memory, std::sync::atomic::Ordering::Relaxed);
 }
 
+static DECLARED_THREADS: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+
+/// Declare that the archives this process writes are for a decode host whose
+/// frame decoder runs on `threads` threads (the CLI's `--host-threads`). The
+/// archive is a function of the input and the declared host only, never of
+/// the machine that compresses or of the threads it compresses on.
+pub fn declare_threads(threads: u64) {
+    DECLARED_THREADS.store(threads, std::sync::atomic::Ordering::Relaxed);
+}
+
 /// The decode host archives are written for: [`PAGE_WORKER`] unless the
-/// process declared a native decoder of some bytes ([`declare_host`]).
-/// Its frame decoder runs on one thread: a frame is one stream
-/// (the frame word's streams and epoch fields are reserved).
+/// process declared a native decoder of some bytes ([`declare_host`]) or
+/// of some threads ([`declare_threads`]).
 pub fn declared_host() -> Host {
-    let threads = PAGE_WORKER.threads;
+    let threads = match DECLARED_THREADS.load(std::sync::atomic::Ordering::Relaxed) {
+        0 => PAGE_WORKER.threads,
+        t => t,
+    };
     match DECLARED.load(std::sync::atomic::Ordering::Relaxed) {
         0 => Host {
             threads,

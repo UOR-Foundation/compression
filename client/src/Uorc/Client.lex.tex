@@ -11,6 +11,7 @@
 \importmodule{Uorc.Search.SharingJob}
 \importmodule{Uorc.Search.VerifyRope}
 \importmodule{Uorc.Wire.FrameParse}
+\importmodule{Uorc.Codec.Delta}
 \importmodule{Uorc.Codec.Archive}
 \importmodule{Uorc.Codec.LzDecode}
 \importmodule{Uorc.Codec.LzEncode}
@@ -121,10 +122,42 @@ definition{
 }
 
 definition{
+  name: pointState,
+  parameters: [point : Nat],
+  result: Nat,
+  body: (prim quotient point (Uorc.Codec.Archive::profileBase) 0 : Nat),
+  axioms: []
+}
+
+definition{
+  name: pointX86,
+  parameters: [point : Nat],
+  result: Nat,
+  body: (prim remainder (prim quotient point (Uorc.Codec.Archive::wideBase) 0 : Nat) (Uorc.Codec.Delta::radix) 0 : Nat),
+  axioms: []
+}
+
+definition{
+  name: pointProfile,
+  parameters: [point : Nat],
+  result: Nat,
+  body: (prim remainder point (Uorc.Codec.Archive::wideBase) 0 : Nat),
+  axioms: []
+}
+
+definition{
+  name: textFrame,
+  parameters: [input : Bytes],
+  result: Bool,
+  body: (let n : Nat := (prim length input : Nat); ((prim multiply 9 n : Nat) <=? (prim multiply 10 (printableFrom n input 0 0) : Nat))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
   name: family,
   parameters: [input : Bytes],
   result: Nat,
-  body: (let n : Nat := (prim length input : Nat); (if (Uorc.Codec.Archive::x86Dense input) then 2 else (if (n <? 4096) then 0 else (if (n <? 65536) then 1 else (if ((prim multiply 9 n : Nat) <=? (prim multiply 10 (printableFrom n input 0 0) : Nat)) then 3 else 4))))),
+  body: (let n : Nat := (prim length input : Nat); (if (Uorc.Codec.Archive::x86Dense input) then 2 else (if (n <? 4096) then 0 else (if (n <? 65536) then 1 else (if (textFrame input) then 3 else 4))))),
   axioms: [Quot.sound, propext]
 }
 
@@ -330,10 +363,19 @@ definition{
 }
 
 definition{
+  name: tableBytes,
+  parameters: [tb : Nat, mb : Nat, profile : Nat],
+  result: Nat,
+  body: (let short : Nat := (prim remainder (prim quotient profile 131072 0 : Nat) 2 0 : Nat); ((prim multiply 4 (Uorc.Codec.NcmEncode::pow2 tb) : Nat) + (prim multiply (1 + short) (prim multiply 4 (Uorc.Codec.NcmEncode::pow2 mb) : Nat) : Nat))),
+  executable: true,
+  axioms: []
+}
+
+definition{
   name: pageBytes,
   parameters: [n : Nat, held : Nat, modelled : Nat, profile : Nat, tb : Nat],
   result: Nat,
-  body: (let mb : Nat := (Uorc.Codec.NcmEncode::mbOf modelled profile); (let short : Nat := (prim remainder (prim quotient profile 131072 0 : Nat) 2 0 : Nat); (let tables : Nat := ((prim multiply 4 (Uorc.Codec.NcmEncode::pow2 tb) : Nat) + (prim multiply (1 + short) (prim multiply 4 (Uorc.Codec.NcmEncode::pow2 mb) : Nat) : Nat)); ((prim multiply 2 tables : Nat) + ((prim multiply 2 n : Nat) + held))))),
+  body: (let mb : Nat := (Uorc.Codec.NcmEncode::mbOf modelled profile); (let tables : Nat := (tableBytes tb mb profile); ((prim multiply 2 tables : Nat) + ((prim multiply 2 n : Nat) + held)))),
   axioms: []
 }
 
@@ -341,7 +383,7 @@ definition{
   name: tableCandidate,
   parameters: [states : (List Bytes), point : Nat, tb : Nat, window : (List Bytes), input : Bytes],
   result: (Option Bytes),
-  body: (let x : Nat := (prim remainder (prim quotient point 2147483648 0 : Nat) 2 0 : Nat); (let word : Nat := (prim remainder point 2147483648 0 : Nat); (let profile : Nat := ((prim subtract word (prim multiply 1048576 (prim remainder (prim quotient word 1048576 0 : Nat) 64 0 : Nat) : Nat) : Nat) + (prim multiply 1048576 tb : Nat)); (let st : Nat := (prim quotient point 4294967296 0 : Nat); (if (st =? 0) then (Uorc.Codec.Archive::profileCandidate (x + 1) profile window input) else (match (stateAt states (prim subtract st 1 : Nat))
+  body: (let x : Nat := (pointX86 point); (let word : Nat := (pointProfile point); (let profile : Nat := ((prim subtract word (prim multiply 1048576 (prim remainder (prim quotient word 1048576 0 : Nat) 64 0 : Nat) : Nat) : Nat) + (prim multiply 1048576 tb : Nat)); (let st : Nat := (pointState point); (if (st =? 0) then (Uorc.Codec.Archive::profileCandidate (x + 1) profile window input) else (match (stateAt states (prim subtract st 1 : Nat))
     | Option.none => (ctor Option.none [Bytes])
     | Option.some state => (Uorc.Codec.Archive::stateCandidate x profile state input))))))),
   axioms: [Quot.sound, propext]
@@ -372,21 +414,141 @@ definition{
   name: stepTable,
   parameters: [states : (List Bytes), point : Nat, window : (List Bytes), input : Bytes, chosen : Bytes],
   result: (Bytes * Nat),
-  body: (let st : Nat := (prim quotient point 4294967296 0 : Nat); (let held : Nat := (if (st =? 0) then (prim length (Uorc.Codec.Archive::windowHistory window) : Nat) else (match (stateAt states (prim subtract st 1 : Nat))
+  body: (let st : Nat := (pointState point); (let held : Nat := (if (st =? 0) then (prim length (Uorc.Codec.Archive::windowHistory window) : Nat) else (match (stateAt states (prim subtract st 1 : Nat))
     | Option.none => 0
     | Option.some state => (prim length state : Nat))); (let modelled : Nat := (if (st =? 0) then (prim length input : Nat) else ((prim length input : Nat) + held)); (stepLoop 32 states point (Uorc.Codec.NcmEncode::tbOf modelled point) held modelled window input chosen point)))),
   axioms: [Quot.sound, propext]
 }
 
 definition{
-  name: stepProbability,
-  parameters: [point : Nat, window : (List Bytes), input : Bytes, chosen : Bytes],
+  name: deltaSaved,
+  parameters: [field : Nat, input : Bytes],
+  result: Nat,
+  body: (let w : Nat := (Uorc.Codec.Archive::deltaWidth field); (prim subtract (Uorc.Codec.Delta::bits w 1 1 input) (Uorc.Codec.Delta::bits w ((prim quotient field (Uorc.Codec.Archive::widthBase) 0 : Nat) + 1) 0 input) : Nat)),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: candidateLoop,
+  parameters: [fuel : Nat, i : Nat, input : Bytes, best : Nat, saved : Nat],
+  result: Nat,
+  body: (match fuel
+    | Nat.zero => best
+    | Nat.succ m => (if ((prim multiply (prim subtract (Uorc.Codec.Archive::widthBase) 1 : Nat) (Uorc.Codec.Archive::deltaChannels) : Nat) <=? i) then best else (let field : Nat := ((1 + (prim quotient i (Uorc.Codec.Archive::deltaChannels) 0 : Nat)) + (prim multiply (Uorc.Codec.Archive::widthBase) (prim remainder i (Uorc.Codec.Archive::deltaChannels) 0 : Nat) : Nat)); (let s : Nat := (deltaSaved field input); (if (saved <? s) then (candidateLoop m (i + 1) input field s) else (candidateLoop m (i + 1) input best saved)))))),
+  axioms: [Quot.sound, propext],
+  recursive_argument: fuel
+}
+
+definition{
+  name: deltaCandidate,
+  parameters: [input : Bytes],
+  result: Nat,
+  body: (candidateLoop (prim length input : Nat) 0 input 0 0),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: shorter,
+  parameters: [attempt : (Option Bytes), best : Bytes],
   result: Bytes,
-  body: (let st : Nat := (prim quotient point 4294967296 0 : Nat); (let x : Nat := (prim remainder (prim quotient point 2147483648 0 : Nat) 2 0 : Nat); (let profile : Nat := (prim remainder point 2147483648 0 : Nat); (if ((0 <? st) || ((profile =? 131071) && ((Uorc.Codec.Archive::windowCount window) <=? 2))) then chosen else (let history : Bytes := (Uorc.Codec.Archive::windowHistory window); (let past : Bytes := (if (x =? 0) then history else (Uorc.Codec.X86::run 0 0 history)); (let data : Bytes := (if (x =? 0) then input else (Uorc.Codec.X86::run 0 (prim length history : Nat) input)); (let wide : Nat := (profile + 68719476736); (let payload : Bytes := (Uorc.Codec.NcmEncode::runProfile past data wide); (if ((prim length payload : Nat) =? 0) then chosen else (match (Uorc.Codec.Archive::profiledIdentity window)
-    | Option.none => chosen
-    | Option.some identity => (match (Uorc.Codec.Archive::profiledArchive x (Uorc.Codec.Archive::windowCount window) identity (prim length input : Nat) wide payload)
-      | Option.none => chosen
-      | Option.some a => (if ((prim length a : Nat) <? (prim length chosen : Nat)) then a else chosen))))))))))))),
+  body: (match attempt
+    | Option.none => best
+    | Option.some a => (if ((prim length a : Nat) <? (prim length best : Nat)) then a else best)),
+  axioms: []
+}
+
+definition{
+  name: keepShorter,
+  parameters: [found : (Option Bytes), chosen : Bytes, w : Nat, word : Nat],
+  result: (Bytes * Nat),
+  body: (match found
+    | Option.none => (chosen, word)
+    | Option.some a => (if ((prim length a : Nat) <? (prim length chosen : Nat)) then (a, w) else (chosen, word))),
+  axioms: []
+}
+
+definition{
+  name: deltaTrial,
+  parameters: [w : Nat, word : Nat, window : (List Bytes), input : Bytes, chosen : Bytes],
+  result: (Bytes * Nat),
+  body: (keepShorter (Uorc.Codec.Archive::profileCandidate 1 w window input) chosen w word),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: deltaStep,
+  parameters: [d : Nat, word : Nat, window : (List Bytes), input : Bytes, chosen : Bytes],
+  result: (Bytes * Nat),
+  body: (if (d =? 0) then (chosen, word) else (deltaTrial (word + (prim multiply d (prim multiply (Uorc.Codec.Archive::profileBase) (Uorc.Codec.Archive::deltaBase) : Nat) : Nat)) word window input chosen)),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: stepDelta,
+  parameters: [point : Nat, word : Nat, window : (List Bytes), input : Bytes, chosen : Bytes],
+  result: (Bytes * Nat),
+  body: (if ((0 <? (pointState point)) || ((0 <? (pointX86 point)) || ((0 <? (Uorc.Codec.Archive::streamsOf word)) || ((Uorc.Codec.Archive::v03Entry (pointProfile point) window) || ((Uorc.Codec.Archive::x86Dense input) || (textFrame input)))))) then (chosen, word) else (deltaStep (deltaCandidate input) word window input chosen)),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: stateCandidateOf,
+  parameters: [held : (Option Bytes), x : Nat, w : Nat, input : Bytes],
+  result: (Option Bytes),
+  body: (match held
+    | Option.none => (ctor Option.none [Bytes])
+    | Option.some state => (Uorc.Codec.Archive::stateCandidate x w state input)),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: consolidationCandidate,
+  parameters: [held : (Option Bytes), point : Nat, word : Nat, cb : Nat, window : (List Bytes), input : Bytes],
+  result: (Option Bytes),
+  body: (if ((pointState point) =? 0) then (Uorc.Codec.Archive::profileCandidate ((pointX86 point) + 1) (word + (prim multiply cb (Uorc.Codec.Archive::learningBase) : Nat)) window input) else (stateCandidateOf held (pointX86 point) (word + (prim multiply cb (Uorc.Codec.Archive::learningBase) : Nat)) input)),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: consolidateNext,
+  parameters: [held : (Option Bytes), point : Nat, word : Nat, cb : Nat, window : (List Bytes), input : Bytes, best : Bytes],
+  result: Bytes,
+  body: (if (cb <=? 1) then best else (shorter (consolidationCandidate held point word (prim subtract cb 1 : Nat) window input) best)),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: consolidateLoop,
+  parameters: [fuel : Nat, held : (Option Bytes), point : Nat, word : Nat, cb : Nat, window : (List Bytes), input : Bytes, best : Bytes, a : Bytes],
+  result: (Bytes * Nat),
+  body: (match fuel
+    | Nat.zero => (best, cb)
+    | Nat.succ m => (if ((prim length a : Nat) <? (prim length best : Nat)) then (consolidateLoop m held point word (prim subtract cb 1 : Nat) window input a (consolidateNext held point word (prim subtract cb 1 : Nat) window input a)) else (best, cb))),
+  axioms: [Quot.sound, propext],
+  recursive_argument: fuel
+}
+
+definition{
+  name: consolidationPick,
+  parameters: [down : (Bytes * Nat), held : (Option Bytes), point : Nat, word : Nat, window : (List Bytes), input : Bytes, chosen : Bytes],
+  result: Bytes,
+  body: (if ((second down) <? (Uorc.Codec.Archive::countBitsStandard)) then (first down) else (if ((Uorc.Codec.Archive::countBitsStandard) <? (Uorc.Codec.Archive::countBitsMax)) then (shorter (consolidationCandidate held point word ((Uorc.Codec.Archive::countBitsStandard) + 1) window input) chosen) else chosen)),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: consolidationFrom,
+  parameters: [held : (Option Bytes), point : Nat, word : Nat, window : (List Bytes), input : Bytes, chosen : Bytes],
+  result: Bytes,
+  body: (consolidationPick (consolidateLoop (prim length input : Nat) held point word (Uorc.Codec.Archive::countBitsStandard) window input chosen (consolidateNext held point word (Uorc.Codec.Archive::countBitsStandard) window input chosen)) held point word window input chosen),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: stepConsolidation,
+  parameters: [states : (List Bytes), point : Nat, word : Nat, window : (List Bytes), input : Bytes, chosen : Bytes],
+  result: Bytes,
+  body: (if ((((pointState point) =? 0) && (Uorc.Codec.Archive::v03Entry (pointProfile point) window)) || (0 <? (Uorc.Codec.Archive::streamsOf word))) then chosen else (consolidationFrom (stateAt states (prim subtract (pointState point) 1 : Nat)) point word window input chosen)),
   axioms: [Quot.sound, propext]
 }
 
@@ -460,7 +622,7 @@ definition{
   name: stepWindow,
   parameters: [point : Nat, window : (List Bytes), input : Bytes, chosen : Bytes],
   result: (Bytes * (Nat * (List Bytes))),
-  body: (let k0 : Nat := (Uorc.Codec.Archive::windowCount (recentWindow window)); (let st : Nat := (prim quotient point 4294967296 0 : Nat); (let x : Nat := (prim remainder (prim quotient point 2147483648 0 : Nat) 2 0 : Nat); (let word : Nat := (prim remainder point 2147483648 0 : Nat); (if (0 <? st) then (chosen, (point, (recentWindow window))) else (let d : (Bytes * Nat) := (depthLoop (Uorc.Codec.Archive::windowCount window) x word k0 window input chosen); (let m : (Bytes * Nat) := (matchLoop 32 x word (Uorc.Codec.NcmEncode::mbOf (prim length input : Nat) word) (second d) window input (first d)); ((first m), (((second m) + (prim multiply 2147483648 x : Nat)), (lastFrames (second d) window)))))))))),
+  body: (let k0 : Nat := (Uorc.Codec.Archive::windowCount (recentWindow window)); (let st : Nat := (pointState point); (let x : Nat := (pointX86 point); (let word : Nat := (pointProfile point); (if (0 <? st) then (chosen, (point, (recentWindow window))) else (let d : (Bytes * Nat) := (depthLoop (Uorc.Codec.Archive::windowCount window) x word k0 window input chosen); (let m : (Bytes * Nat) := (matchLoop 32 x word (Uorc.Codec.NcmEncode::mbOf (prim length input : Nat) word) (second d) window input (first d)); ((first m), (((second m) + (prim multiply 2147483648 x : Nat)), (lastFrames (second d) window)))))))))),
   axioms: [Quot.sound, propext]
 }
 
@@ -473,6 +635,131 @@ definition{
 }
 
 definition{
+  name: streamTables,
+  parameters: [n : Nat, profile : Nat],
+  result: Nat,
+  body: (tableBytes (Uorc.Codec.NcmEncode::tbOf n profile) (Uorc.Codec.NcmEncode::mbOf n profile) profile),
+  axioms: []
+}
+
+definition{
+  name: holdsStreams,
+  parameters: [n : Nat, held : Nat, profile : Nat, k : Nat],
+  result: Bool,
+  body: (((pageBytes n held n profile (Uorc.Codec.NcmEncode::tbOf n profile)) + (prim multiply (streamTables n profile) (if (k <? (hostThreads)) then k else (hostThreads)) : Nat)) <=? (hostMemory)),
+  axioms: []
+}
+
+definition{
+  name: streamWord,
+  parameters: [profile : Nat, p : Nat, k : Nat, e : Nat],
+  result: Nat,
+  body: ((profile + (prim multiply (Uorc.Codec.NcmEncode::profileBase) p : Nat)) + ((prim multiply (Uorc.Codec.NcmEncode::streamsBase) (prim subtract k 1 : Nat) : Nat) + (prim multiply (Uorc.Codec.NcmEncode::epochBase) e : Nat))),
+  axioms: []
+}
+
+definition{
+  name: epochLoop,
+  parameters: [fuel : Nat, past : Bytes, data : Bytes, profile : Nat, p : Nat, k : Nat, e : Nat, best : (Bytes * Nat)],
+  result: (Bytes * (Nat * Nat)),
+  body: (match fuel
+    | Nat.zero => ((first best), ((second best), e))
+    | Nat.succ m => (if (e =? 0) then ((first best), ((second best), e)) else (let t : (Bytes * Nat) := (Uorc.Codec.NcmEncode::countStreams past data (streamWord profile p k (prim subtract e 1 : Nat))); (if (((prim length (first t) : Nat) =? 0) || ((prim length (first best) : Nat) <=? (prim length (first t) : Nat))) then ((first best), ((second best), e)) else (epochLoop m past data profile p k (prim subtract e 1 : Nat) t))))),
+  axioms: [Quot.sound, propext],
+  recursive_argument: fuel
+}
+
+definition{
+  name: streamEpochs,
+  parameters: [past : Bytes, data : Bytes, profile : Nat, p : Nat, k : Nat],
+  result: (Option (Bytes * (Nat * Nat))),
+  body: (let e : Nat := (Uorc.Codec.NcmEncode::depthFor (Uorc.Codec.NcmEncode::wordBits) (Uorc.Codec.NcmEncode::strideOf (prim length data : Nat) k) 0); (let t : (Bytes * Nat) := (Uorc.Codec.NcmEncode::countStreams past data (streamWord profile p k e)); (if ((prim length (first t) : Nat) =? 0) then (ctor Option.none [(Bytes * (Nat * Nat))]) else (ctor Option.some [(Bytes * (Nat * Nat))] (epochLoop e past data profile p k e t))))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: streamsLimit,
+  parameters: [],
+  result: Nat,
+  body: (Uorc.Codec.NcmEncode::streamsRange),
+  axioms: []
+}
+
+definition{
+  name: deriveLoop,
+  parameters: [fuel : Nat, past : Bytes, data : Bytes, held : Nat, profile : Nat, p : Nat, coding : Nat, before : Nat, steps : Nat, over : Nat, best : (Option (Bytes * Nat))],
+  result: (Option (Bytes * Nat)),
+  body: (match fuel
+    | Nat.zero => best
+    | Nat.succ m => (let k : Nat := (before + 1); (let n : Nat := (prim length data : Nat); (let o : Nat := (if (k <? (hostThreads)) then k else (hostThreads)); (let word : Nat := (streamWord profile p k 0); (if ((((streamsLimit) <? k) || (n <=? (prim multiply (Uorc.Codec.NcmEncode::strideOf n k) (prim subtract k 1 : Nat) : Nat))) || (not (holdsStreams n held profile k))) then best else (match (streamEpochs past data profile p k)
+      | Option.none => (ctor Option.none [(Bytes * Nat)])
+      | Option.some tried => (let s : Nat := (coding + (first (second tried))); (let size : Nat := (prim length (first tried) : Nat); (let keep : Bool := (if (o =? over) then (match best
+        | Option.none => true
+        | Option.some b => ((size <? (prim length (first b) : Nat)) || ((size =? (prim length (first b) : Nat)) && (s <? steps)))) else ((prim multiply s over : Nat) <? (prim multiply steps o : Nat))); (if keep then (deriveLoop m past data held profile p coding k s o (ctor Option.some [(Bytes * Nat)] ((first tried), (word + (prim multiply (Uorc.Codec.NcmEncode::epochBase) (second (second tried)) : Nat))))) else best))))))))))),
+  axioms: [Quot.sound, propext],
+  recursive_argument: fuel
+}
+
+definition{
+  name: shorterOf,
+  parameters: [chosen : Bytes, found : (Option Bytes), p : Nat],
+  result: (Bytes * Nat),
+  body: (match found
+    | Option.none => (chosen, 0)
+    | Option.some a => (if ((prim length a : Nat) <? (prim length chosen : Nat)) then (a, p) else (chosen, 0))),
+  axioms: []
+}
+
+definition{
+  name: orChosen,
+  parameters: [chosen : Bytes, found : (Option Bytes)],
+  result: Bytes,
+  body: (match found
+    | Option.none => chosen
+    | Option.some a => a),
+  axioms: []
+}
+
+definition{
+  name: keptWord,
+  parameters: [best : (Bytes * Nat), profile : Nat, wide : Nat],
+  result: (Bytes * Nat),
+  body: (if ((second best) =? 0) then ((first best), profile) else ((first best), wide)),
+  axioms: []
+}
+
+definition{
+  name: orChosenWord,
+  parameters: [kept : (Bytes * Nat), w : Nat, found : (Option Bytes)],
+  result: (Bytes * Nat),
+  body: (match found
+    | Option.none => kept
+    | Option.some a => (a, w)),
+  axioms: []
+}
+
+definition{
+  name: wideBits,
+  parameters: [],
+  result: Nat,
+  body: ((Uorc.Codec.NcmEncode::wideShift) + 1),
+  executable: true,
+  axioms: []
+}
+
+definition{
+  name: stepStreams,
+  parameters: [point : Nat, window : (List Bytes), input : Bytes, chosen : Bytes],
+  result: (Bytes * Nat),
+  body: (let st : Nat := (pointState point); (let x : Nat := (pointX86 point); (let profile : Nat := (pointProfile point); (if ((0 <? st) || (Uorc.Codec.Archive::v03Entry profile window)) then (chosen, profile) else (let history : Bytes := (Uorc.Codec.Archive::windowHistory window); (let past : Bytes := (if (x =? 0) then history else (Uorc.Codec.X86::run 0 0 history)); (let data : Bytes := (if (x =? 0) then input else (Uorc.Codec.X86::run 0 (prim length history : Nat) input)); (let k : Nat := (Uorc.Codec.Archive::windowCount window); (let n : Nat := (prim length input : Nat); (match (Uorc.Codec.Archive::profiledIdentity window)
+    | Option.none => (chosen, profile)
+    | Option.some identity => (let wide : Nat := (streamWord profile (wideBits) 1 0); (let t : (Bytes * Nat) := ((Uorc.Codec.NcmEncode::runProfile past data wide), 0); (let best : (Bytes * Nat) := (if ((prim length (first t) : Nat) =? 0) then (chosen, 0) else (shorterOf chosen (Uorc.Codec.Archive::profiledArchive x k identity n wide (first t)) (wideBits))); (if ((hostThreads) <=? 1) then (keptWord best profile wide) else (match (deriveLoop (prim length data : Nat) past data (prim length history : Nat) profile (second best) (trialSteps profile n) 1 (trialSteps profile n) 1 (ctor Option.none [(Bytes * Nat)]))
+        | Option.none => (keptWord best profile wide)
+        | Option.some d => (orChosenWord (keptWord best profile wide) (second d) (Uorc.Codec.Archive::profiledArchive x k identity n (second d) (first d)))))))))))))))))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
   name: compress,
   parameters: [strategies : Bytes, weights : Bytes, states : (List Bytes), input : Bytes, window : (List Bytes), steps : Nat],
   result: (Option Bytes),
@@ -480,7 +767,7 @@ definition{
     | Option.none => strategies
     | Option.some whole => whole) (v04Pair fam)); (let coded : (List Nat) := (planned table count (schedule strategies weights fam)); (let linked : (Option (Bytes * (Nat * Nat))) := (portfolio table states (count + 2) coded (recentWindow window) input); (let quick : (Option Bytes) := (match linked
     | Option.none => (Uorc.Codec.Archive::rawArchive input)
-    | Option.some kernel => (if ((prim length (first kernel) : Nat) <? (rawLength (prim length input : Nat))) then (let stepped : (Bytes * (Nat * (List Bytes))) := (stepWindow (second (second kernel)) window input (first kernel)); (let tabled : (Bytes * Nat) := (stepTable states (first (second stepped)) (second (second stepped)) input (first stepped)); (ctor Option.some [Bytes] (stepProbability (second tabled) (second (second stepped)) input (first tabled))))) else (Uorc.Codec.Archive::rawArchive input))); (if (steps =? 0) then quick else (smaller quick (search input steps))))))))),
+    | Option.some kernel => (if ((prim length (first kernel) : Nat) <? (rawLength (prim length input : Nat))) then (let stepped : (Bytes * (Nat * (List Bytes))) := (stepWindow (second (second kernel)) window input (first kernel)); (let tabled : (Bytes * Nat) := (stepTable states (first (second stepped)) (second (second stepped)) input (first stepped)); (let wide : (Bytes * Nat) := (stepStreams (second tabled) (second (second stepped)) input (first tabled)); (let filtered : (Bytes * Nat) := (stepDelta (second tabled) (second wide) (second (second stepped)) input (first wide)); (ctor Option.some [Bytes] (stepConsolidation states (second tabled) (second filtered) (second (second stepped)) input (first filtered))))))) else (Uorc.Codec.Archive::rawArchive input))); (if (steps =? 0) then quick else (smaller quick (search input steps))))))))),
   axioms: [Quot.sound, propext]
 }
 

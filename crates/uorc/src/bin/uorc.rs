@@ -7,8 +7,8 @@ use std::process::ExitCode;
 use std::time::Instant;
 
 const USAGE: &str = "usage:
-  uorc compress   [--steps N] [--threads N] [--host-memory B] [--force] [--stats] <input|-> [-o <output|->]
-  uorc compress   [--steps N] [--threads N] [--host-memory B] [--force] [--stats] <file|dir>... -o <archive>
+  uorc compress   [--steps N] [--threads N] [--host-memory B] [--host-threads N] [--force] [--stats] <input|-> [-o <output|->]
+  uorc compress   [--steps N] [--threads N] [--host-memory B] [--host-threads N] [--force] [--stats] <file|dir>... -o <archive>
   uorc decompress [--work N]  [--threads N] [--force|--resume] [--stats] <input|-> [-o <output|->]
   uorc inspect    [--json] <archive|->
   uorc verify     [--work N]  [--threads N] [--json] <archive|-> [original|-]
@@ -36,7 +36,9 @@ the second reading the first, while the halves are smaller. The frames of a
 span form an epoch, and a frame steps how many earlier frames of its epoch it
 reads while that makes it smaller; epochs decompress on separate cores. Archives are
 written for a decode host that runs a frame on one thread (one of the page's
-workers).
+workers); --host-threads N writes them for a host that runs a frame on N threads, cutting
+each frame into as many streams as shorten its longest chain of decode steps
+there (any host decodes them).
 The archive depends on the input and the declared host, never on --threads.
 Content repeated anywhere in the input (64 KiB or more,
 found by content-defined anchors) is stored once, as a reference to its
@@ -162,6 +164,17 @@ fn parse(mut args: impl Iterator<Item = String>) -> Result<Options, Failure> {
                     .filter(|&m| m > 0)
                     .ok_or_else(|| usage(format!("--host-memory: not a byte count: {value}")))?;
                 uorc::performance::declare_host(memory);
+            }
+            "--host-threads" => {
+                let value = args
+                    .next()
+                    .ok_or_else(|| usage("--host-threads needs a number"))?;
+                let threads = value
+                    .parse::<u64>()
+                    .ok()
+                    .filter(|&t| t > 0)
+                    .ok_or_else(|| usage(format!("--host-threads: not a count: {value}")))?;
+                uorc::performance::declare_threads(threads);
             }
             "--stats" => options.stats = true,
             "--best" => {}
