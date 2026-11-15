@@ -105,6 +105,39 @@ impl Host {
             .saturating_mul(self.workers.max(1))
             <= self.memory
     }
+
+    /// Whether this host holds a frame of `n` bytes read after `history`
+    /// bytes of earlier frames under every profile the portfolio may choose
+    /// for it at its default tables ([`crate::ncm::FULL`], the largest
+    /// decoder): the rule an epoch keeps to (`Uorc.Performance::epochHolds`).
+    pub fn reads(self, n: u64, history: u64) -> bool {
+        n.checked_add(history)
+            .is_some_and(|all| all <= crate::ncm::POSITIONS)
+            && self.holds(n, history, false, crate::ncm::FULL)
+    }
+
+    /// Input bytes of one frame of a stream written for this host
+    /// (`Uorc.Performance::frameBytes`): the longest frame it [`Host::reads`]
+    /// with no history, and at most the positions the coder addresses
+    /// ([`crate::ncm::POSITIONS`]). A frame boundary restarts the context
+    /// model, so a stream is cut no finer than its decode host requires; at
+    /// least one byte, so every stream is cut.
+    pub fn frame_bytes(self) -> u64 {
+        // footprint grows with n, so the longest frame is found by bisection
+        let (mut lo, mut hi) = (1u64, crate::ncm::POSITIONS);
+        if self.reads(hi, 0) || !self.reads(lo, 0) {
+            return if self.reads(hi, 0) { hi } else { lo };
+        }
+        while lo + 1 < hi {
+            let mid = lo + ((hi - lo) >> 1);
+            if self.reads(mid, 0) {
+                lo = mid;
+            } else {
+                hi = mid;
+            }
+        }
+        lo
+    }
 }
 
 /// Page workers per GiB of device memory: the page's host rule
@@ -339,6 +372,30 @@ mod tests {
             .find(|c: char| !c.is_ascii_digit())
             .unwrap_or(value.len());
         value[..end].parse().expect("a natural")
+    }
+
+    /// The frame a host's streams are cut at is the longest frame it reads
+    /// with no history: one byte more and its decoder no longer fits.
+    #[test]
+    fn a_frame_is_the_longest_the_host_reads() {
+        for host in [
+            PAGE_WORKER,
+            Host {
+                memory: PAGE_WORKER.memory << 3,
+                keeps_tables: false,
+                workers: 1,
+                threads: 1,
+            },
+        ] {
+            let f = host.frame_bytes();
+            assert!(host.reads(f, 0) && !host.reads(f + 1, 0), "{f}");
+        }
+        // a host too small for any frame still cuts streams, a byte a frame
+        let tiny = Host {
+            memory: 1,
+            ..PAGE_WORKER
+        };
+        assert_eq!(tiny.frame_bytes(), 1);
     }
 
     #[test]

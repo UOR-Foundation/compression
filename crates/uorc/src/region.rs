@@ -80,7 +80,8 @@ impl Host {
         static MEASURED: OnceLock<Host> = OnceLock::new();
         MEASURED.get_or_init(|| {
             let mut h = Host::current().clone();
-            let table = crate::ncm::table_bytes(crate::FRAME as u64, 0, false, crate::ncm::FULL);
+            let table =
+                crate::ncm::table_bytes(crate::frame_bytes() as u64, 0, false, crate::ncm::FULL);
             let line = h.line.max(1);
             let lines = (table / line).max(1);
             crate::ncm::contraction_probe(lines);
