@@ -39,6 +39,13 @@ function rejection() {
 }
 test('only a completed kernel rejection at the exact owning theorem counts',()=>{
   const f=rejection();expectedFailure(f.result,f.row,f.generated);
+  // An evaluation proof is refused by the kernel, naming its owner; another
+  // declaration's mismatch does not count.
+  const kernel=rejection();
+  kernel.value.diagnostics[0].message=`Lean rejected \`Uorc.Uorc.Claims\` (error): (kernel) declaration type mismatch, 'Uorc.Uorc.Claims.${kernel.row.owner}' has type`;
+  expectedFailure({...kernel.result,stdout:JSON.stringify(kernel.value)},kernel.row,kernel.generated);
+  kernel.value.diagnostics[0].message="Lean rejected `Uorc.Uorc.Claims` (error): (kernel) declaration type mismatch, 'Uorc.Uorc.Claims.other' has type";
+  assert.throws(()=>expectedFailure({...kernel.result,stdout:JSON.stringify(kernel.value)},kernel.row,kernel.generated));
   for(const patch of [{status:0},{status:null},{error:new Error('missing SDK')},{signal:'SIGTERM'},{stdout:'not JSON'}]) {
     assert.throws(()=>expectedFailure({...f.result,...patch},f.row,f.generated));
   }

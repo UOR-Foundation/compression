@@ -54,14 +54,14 @@ export function compare(left, right) {
   if (canonical(left) !== canonical(right)) fail('URP003', 'canonical artifact inventory or bytes differ');
 }
 // Every `lexlean` this script runs, directly or through just in a copied root,
-// is the pinned one (lexlean.pin.json), never the SDK's own: LEXLEAN names the
-// binary so a copied root's Justfile reuses it instead of building it again.
+// is the pinned one (lexlean.pin.json), never the SDK's own. It is named, not
+// put on PATH (the SDK refuses a PATH that shadows its tools), and LEXLEAN
+// carries it so a copied root's recipes reuse it instead of building it again.
 function pinLexlean() {
   process.env.LEXLEAN = lexleanBinary();
-  process.env.PATH = `${path.dirname(process.env.LEXLEAN)}:${process.env.PATH}`;
 }
 function run(root, command, args, options = {}) {
-  const result = spawnSync(command, args, { cwd: root, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024,
+  const result = spawnSync(command === 'lexlean' ? lexleanBinary() : command, args, { cwd: root, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024,
     env: { ...process.env, ...options.env }, timeout: 110 * 60 * 1000 });
   if (options.log) {
     fs.mkdirSync(path.dirname(options.log), { recursive: true });
@@ -264,8 +264,15 @@ function setup(root, acquisition) {
   fs.mkdirSync(env.HOME, { recursive: true }); fs.mkdirSync(env.XDG_CACHE_HOME, { recursive: true });
   run(root, 'cargo', ['fetch', '--locked'], { env, log: path.join(acquisition, 'fetch.log') });
   run(root, 'cargo', ['deny', '--locked', '--all-features', 'fetch'], { env, log: path.join(acquisition, 'deny-fetch.log') });
-  // The pinned LexLean (lexlean.pin.json) is a tool, sealed with the cache.
-  run(root, 'node', ['scripts/lexlean-pin.mjs', 'install'], { env: { ...env, LEXLEAN_TOOL_ROOT: path.join(cache, 'lexlean') }, log: path.join(acquisition, 'lexlean-install.log') });
+  // The pinned LexLean (lexlean.pin.json) is a tool, sealed with the cache as
+  // its installed binary alone: it is fetched and built under a cargo home of
+  // its own, removed afterwards, so the cache holds no git checkout of it
+  // (whose symlinks the sealed inventory refuses) and no crate the project
+  // does not lock.
+  const toolHome = path.join(acquisition, 'lexlean-cargo-home');
+  try {
+    run(root, 'node', ['scripts/lexlean-pin.mjs', 'install'], { env: { ...env, CARGO_HOME: toolHome, LEXLEAN_TOOL_ROOT: path.join(cache, 'lexlean') }, log: path.join(acquisition, 'lexlean-install.log') });
+  } finally { fs.rmSync(toolHome, { recursive: true, force: true }); }
   // Acquisition never compiles, generates, or verifies UORC outputs.
   cleanOutputs(root);
   writeJson(path.join(acquisition, 'setup.json'), { schema: 'uorc/dependency-setup/1', sdk_image: lock.sdk_image,

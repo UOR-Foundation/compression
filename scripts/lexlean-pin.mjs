@@ -6,6 +6,10 @@
 //
 //   node scripts/lexlean-pin.mjs dir      prints the pinned tool's bin directory
 //   node scripts/lexlean-pin.mjs install  builds it there once, then prints it
+//   node scripts/lexlean-pin.mjs exec ARGS runs it (building it once) with ARGS
+//
+// The pin is named, never put on PATH: the SDK refuses a PATH that shadows the
+// tools it declares (PP5401), so recipes run `lexlean` through `exec`.
 //
 // Set LEXLEAN to an already built binary of the same revision to skip the build,
 // or LEXLEAN_TOOL_ROOT to the directory it is installed under (the offline
@@ -49,5 +53,8 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
   const command = process.argv[2];
   if (command === 'dir') console.log(lexleanDir());
   else if (command === 'install') console.log(path.dirname(lexleanBinary()));
-  else { console.error('usage: lexlean-pin.mjs dir|install'); process.exit(64); }
+  else if (command === 'exec') {
+    const r = spawnSync(lexleanBinary(), process.argv.slice(3), {cwd: process.cwd(), stdio: 'inherit'});
+    process.exit(r.error ? 70 : r.status ?? 70);
+  } else { console.error('usage: lexlean-pin.mjs dir|install|exec ARGS'); process.exit(64); }
 }
