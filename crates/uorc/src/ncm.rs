@@ -633,7 +633,9 @@ const PROB_BITS: u32 = u16::BITS;
 /// ([`crate::performance::Host::warmed_room`]), so a later frame continuing
 /// the same state replays nothing and decodes the same bytes.
 /// Decoders keep them; an encoder reads them and keeps none.
-type Warmed = Vec<(Box<[u8]>, u32, (u32, u32), u64, Model)>;
+/// Each is keyed by its state, profile, dimensions and the coordinates it
+/// learned at ([`crate::coordinates::current`]).
+type Warmed = Vec<(Box<[u8]>, u32, (u32, u32), Box<[i64]>, u64, Model)>;
 static WARMED: std::sync::Mutex<Warmed> = std::sync::Mutex::new(Vec::new());
 
 /// Bytes a warmed model kept for reuse holds: the tables sized for the state
@@ -923,15 +925,15 @@ impl Model {
         // the model's dimensions, table mask and match table bits: two
         // frames share a warmed model only when both are the same
         let dims = Model::dims(total, profile);
+        let at: Box<[i64]> = crate::coordinates::current().collect();
         let mut cache = WARMED
             .lock()
             .unwrap_or_else(std::sync::PoisonError::into_inner);
-        if let Some(i) = cache
-            .iter()
-            .position(|(s, p, k, _, _)| *p == profile && *k == dims && s[..] == *state)
-        {
+        if let Some(i) = cache.iter().position(|(s, p, k, c, _, _)| {
+            *p == profile && *k == dims && *c == at && s[..] == *state
+        }) {
             let hit = cache.remove(i);
-            let m = hit.4.clone();
+            let m = hit.5.clone();
             cache.push(hit);
             return Some(m);
         }
@@ -949,7 +951,7 @@ impl Model {
             let mut held = each.min(room);
             let mut kept = cache.len();
             while kept > 0 {
-                match held.checked_add(cache[kept - 1].3) {
+                match held.checked_add(cache[kept - 1].4) {
                     Some(b) if b <= room => {
                         held = b;
                         kept -= 1;
@@ -983,7 +985,7 @@ impl Model {
             }
         };
         if keep && each <= room {
-            cache.push((state.into(), profile, dims, each, m.clone()));
+            cache.push((state.into(), profile, dims, at, each, m.clone()));
         }
         Some(m)
     }
