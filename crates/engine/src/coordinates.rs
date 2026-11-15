@@ -13,10 +13,10 @@
 //!
 //! A finished search decides the coordinate:
 //!
-//! - **decided**: every family of the corpus codes smallest at the value the
-//!   whole corpus does. That value is the coordinate's decided figure, with
-//!   the claims as its evidence.
-//! - **per-input**: some family codes smallest at another value. No single
+//! - **decided**: every family of the corpus codes as small at the value the
+//!   whole corpus codes smallest at as at any value measured. That value is
+//!   the coordinate's decided figure, with the claims as its evidence.
+//! - **per-input**: some family codes smaller at another value. No single
 //!   figure is right, so the coordinate must become a frame-word facet,
 //!   stepped per frame by outcome. Its distance is the bytes the best
 //!   single value loses against each family's own best.
@@ -231,9 +231,10 @@ pub fn search(
         family_best.insert((*name).to_owned(), fv);
         distance += best_m.family[f].0 - fm;
     }
+    // a family that codes as small at `best` as at its own best agrees
     let status = if !complete {
         "searching"
-    } else if family_best.values().all(|&v| v == best) {
+    } else if distance == 0 {
         "decided"
     } else {
         "per-input"
