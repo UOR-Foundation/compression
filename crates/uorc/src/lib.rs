@@ -542,6 +542,19 @@ fn portfolio_trials(
     plan: &[portfolio::Strategy],
     cores: usize,
 ) -> Vec<Option<(Vec<u8>, u64)>> {
+    scheduled_trials(frame, lengths, window, plan, cores, true)
+}
+
+/// [`portfolio_trials`], each strategy without a state learning its context
+/// mask only with `learn` (otherwise coded with its profile as given).
+fn scheduled_trials(
+    frame: &[u8],
+    lengths: &[u64],
+    window: &[&[u8]],
+    plan: &[portfolio::Strategy],
+    cores: usize,
+    learn: bool,
+) -> Vec<Option<(Vec<u8>, u64)>> {
     let history = window.concat();
     let identity = (!window.is_empty()).then(|| archive::window_identity(window));
     // The strategy portfolio (`Client.portfolio`): code the frame by the
@@ -695,7 +708,7 @@ fn portfolio_trials(
     // the least archive so far (an archive of as many bytes may still have
     // fewer steps). Either way the kept archive is the model's right fold of
     // `pick` (`Client.portfolio`, `performance::chosen`).
-    let learns = |k: usize| plan[k].state == 0;
+    let learns = |k: usize| learn && plan[k].state == 0;
     // Each strategy codes with the first later unpaired twin of the plan in
     // one pass (`mate`), side by side or one group after the other.
     let mut mate: Vec<Option<usize>> = vec![None; plan.len()];
@@ -704,7 +717,9 @@ fn portfolio_trials(
         if paired[k] {
             continue;
         }
-        if let Some(j) = (k + 1..plan.len()).find(|&j| !paired[j] && twins(plan[k], plan[j])) {
+        if let Some(j) =
+            (k + 1..plan.len()).find(|&j| learn && !paired[j] && twins(plan[k], plan[j]))
+        {
             mate[k] = Some(j);
             paired[k] = true;
             paired[j] = true;
@@ -1660,15 +1675,20 @@ pub fn split_pieces(pieces: &[u64], at: u64) -> (Vec<u64>, Vec<u64>) {
 /// longest frame the declared host holds) after the frames `window` of its
 /// epoch: a part that repeats an earlier frame of the span is that frame's
 /// reference, and a second half that repeats its first is the first's
-/// reference (the first one frame, unless the part's own coding is
-/// shorter); otherwise the span is one frame, unless coding it as its two
-/// halves (the second reading the first as history, while the host holds
-/// them) is strictly shorter; then each half is cut the same way, the second
-/// coded after the first's frames. A frame boundary restarts the context model and
-/// lets each part choose its own coding and tables, so whether one pays is
-/// decided by the bytes alone, and the frames depend on the input and the
-/// declared host only. The three trials of a cut run on up to `threads`
-/// cores.
+/// reference (the first one frame, unless the part's own planning trial is
+/// shorter); otherwise the span is one frame, unless its two halves (the
+/// second reading the first as history, while the host holds them) are
+/// strictly shorter by their planning trials ([`compress_plan_trial`]) than
+/// the span's; then each half is cut the same way, the second after the
+/// first's frames. A frame boundary restarts the context model and lets each
+/// part choose its own coding and tables, so whether one pays is decided by
+/// the bytes alone, and the frames depend on the input and the declared host
+/// only. Each frame the cut leaves is then coded once, as the model codes it
+/// ([`compress_pieces_on`]: the portfolio and its steps, over the frames it
+/// reads), and a span cut by planning trials alone (no reference among its
+/// frames) is coded whole beside them, the frames kept only when strictly
+/// shorter; the codings run side by side on up to
+/// `threads` cores, and the cut's trials run on them too.
 pub fn compress_span(
     span: &[u8],
     pieces: &[u64],
@@ -1677,14 +1697,17 @@ pub fn compress_span(
     threads: usize,
 ) -> Result<Vec<Vec<u8>>, Error> {
     let host = performance::declared_host();
+    let plan = |frame: &[u8], pieces: &[u64], window: &[&[u8]]| {
+        compress_plan_trial(frame, pieces, window, &portfolio::plan(frame))
+    };
     let trial = |frame: &[u8], pieces: &[u64], window: &[&[u8]], cores: usize| {
         compress_pieces_on(frame, pieces, window, steps, cores, host)
     };
-    cut_span(span, pieces, window, None, threads, host, &trial)
+    cut_span(span, pieces, window, threads, host, &plan, &trial)
 }
 
-/// One frame of `pieces` coded over `window` as one archive, uncut: a trial
-/// of [`compress_span`], for a client that runs a span's trials on its own
+/// One frame of `pieces` coded over `window` as one archive, uncut: a frame
+/// of [`compress_span`], for a client that codes a span's frames on its own
 /// workers and cuts as [`compress_span`] does (the page's pool).
 pub fn compress_trial(
     frame: &[u8],
@@ -1696,19 +1719,49 @@ pub fn compress_trial(
     compress_pieces_on(frame, pieces, window, steps, default_threads(), host)
 }
 
-/// [`compress_span`] with each frame coded by `trial` (its bytes, pieces and
-/// window) instead of the shipped portfolio: the same cuts, decided by the
-/// bytes `trial` writes (the frontier's plans code spans this way).
+/// The planning trial of a part of a span ([`compress_span`]): the part
+/// coded once by the first of `strategies` (its schedule) that reads all the
+/// part is given (a strategy that continues a κ-named state reads no window,
+/// so where the part has one the first without a state; a filtered strategy
+/// only where the filter rewrites the part), with its profile as given and
+/// none of the steps; the raw archive where that coding is not shorter. A
+/// cut compares these lengths, and the frames it keeps are coded in full.
+pub fn compress_plan_trial(
+    frame: &[u8],
+    pieces: &[u64],
+    window: &[&[u8]],
+    strategies: &[portfolio::Strategy],
+) -> Vec<u8> {
+    let window = &window[window.len().saturating_sub(archive::WINDOW)..];
+    let reads = |s: &&portfolio::Strategy| {
+        (window.is_empty() || s.state == 0) && (!s.x86 || x86::filter(frame, false, 0).1 > 0)
+    };
+    let coded = strategies.iter().find(reads).and_then(|s| {
+        scheduled_trials(frame, pieces, window, &[*s], 1, false)
+            .pop()
+            .flatten()
+    });
+    match coded {
+        Some((linked, _)) if (linked.len() as u64) < archive::raw_length(pieces) => linked,
+        _ => archive::raw_objects(frame, pieces),
+    }
+}
+
+/// [`compress_span`] with each part planned by `plan` and each frame coded by
+/// `trial` (its bytes, pieces and window) instead of the shipped portfolio:
+/// the same cuts, decided by the lengths `plan` writes (the frontier's plans,
+/// and the page's pool, code spans this way).
 pub fn compress_span_by(
     span: &[u8],
     pieces: &[u64],
     threads: usize,
+    plan: &FrameTrial<'_>,
     trial: &FrameTrial<'_>,
 ) -> Result<Vec<Vec<u8>>, Error> {
     let host = performance::declared_host();
     let trial =
         |frame: &[u8], pieces: &[u64], window: &[&[u8]], _: usize| Ok(trial(frame, pieces, window));
-    cut_span(span, pieces, &[], None, threads, host, &trial)
+    cut_span(span, pieces, &[], threads, host, plan, &trial)
 }
 
 /// A frame's coding as [`compress_span_by`] takes it: bytes, pieces, window.
@@ -1724,10 +1777,30 @@ enum Part {
     Second,
 }
 
-/// What every node of a span's cut shares: the declared host and the trial.
+/// The frames a part of a span reads: the frames of its epoch before the
+/// span (or none), then frames of the span (byte ranges of it).
+#[derive(Clone)]
+struct Reads {
+    epoch: bool,
+    frames: Vec<std::ops::Range<usize>>,
+}
+
+/// One frame of a span's cut: its byte range and pieces, the frames it reads,
+/// and its archive when the cut wrote it (a reference).
+struct Leaf {
+    at: std::ops::Range<usize>,
+    pieces: Vec<u64>,
+    reads: Reads,
+    done: Option<Vec<u8>>,
+}
+
+/// What every node of a span's cut shares: the span, its epoch's window
+/// before it, the declared host and the planning trial.
 struct Cutter<'t> {
+    span: &'t [u8],
+    window: &'t [&'t [u8]],
     host: performance::Host,
-    trial: &'t SpanTrial<'t>,
+    plan: &'t FrameTrial<'t>,
 }
 
 /// A span equal to an earlier frame of its span (`earlier`, their κ-labels)
@@ -1743,153 +1816,209 @@ pub fn repeat_of(bytes: &[u8], pieces: &[u64], earlier: &[[u8; archive::SEAL]]) 
         .then(|| archive::reference_archive(&label, pieces))
 }
 
-/// The frames of `span` the archives `firsts` code, in order.
-fn frames_of<'a>(span: &'a [u8], firsts: &[Vec<u8>]) -> Result<Vec<&'a [u8]>, Error> {
-    let mut parts = Vec::new();
-    let mut at = 0usize;
-    for archive in firsts {
-        let len = object_lengths(archive)?.iter().sum::<u64>() as usize;
-        parts.push(&span[at..at + len]);
-        at += len;
-    }
-    Ok(parts)
-}
-
 fn cut_span(
     span: &[u8],
     pieces: &[u64],
     window: &[&[u8]],
-    whole: Option<Vec<u8>>,
     threads: usize,
     host: performance::Host,
+    plan: &FrameTrial<'_>,
     trial: &SpanTrial<'_>,
 ) -> Result<Vec<Vec<u8>>, Error> {
-    let cutter = Cutter { host, trial };
-    cutter.cut(span, pieces, window, &[], whole, threads)
+    let cutter = Cutter {
+        span,
+        window,
+        host,
+        plan,
+    };
+    let reads = Reads {
+        epoch: true,
+        frames: Vec::new(),
+    };
+    let mut leaves = cutter.cut(0..span.len(), pieces, &reads, &[], None, threads);
+    // the frames the cut leaves, each coded once, side by side; a span the
+    // planning trials alone cut into frames is coded whole beside them, and
+    // the frames are kept only when strictly shorter (planning trials are
+    // not the full codings they stand for; a part that repeats an earlier
+    // frame stays its reference, as the framer stores every repeat). Each
+    // coding holds an equal share of the cores.
+    let cut = leaves.len() > 1 && leaves.iter().all(|l| l.done.is_none());
+    if cut {
+        leaves.push(Leaf {
+            at: 0..span.len(),
+            pieces: pieces.to_vec(),
+            reads,
+            done: None,
+        });
+    }
+    let coded = leaves.iter().filter(|l| l.done.is_none()).count();
+    let cores = (threads / coded.max(1)).max(1);
+    let mut archives = parallel(&leaves, threads, |leaf| match &leaf.done {
+        Some(archive) => Ok(archive.clone()),
+        None => trial(
+            &span[leaf.at.clone()],
+            &leaf.pieces,
+            &cutter.slices(&leaf.reads),
+            cores,
+        ),
+    })
+    .into_iter()
+    .collect::<Result<Vec<_>, Error>>()?;
+    if cut {
+        let whole = archives.pop().unwrap_or_default();
+        if whole.len() <= archives.iter().map(Vec::len).sum() {
+            return Ok(vec![whole]);
+        }
+    }
+    Ok(archives)
 }
 
 impl Cutter<'_> {
-    /// The frames of `span` after the frames `window` reads and the frames
-    /// `earlier` names (every frame before it in its span), `whole` its
-    /// coding when the caller has it.
+    /// The bytes of the frames `reads` names.
+    fn slices(&self, reads: &Reads) -> Vec<&[u8]> {
+        let epoch = if reads.epoch { self.window } else { &[] };
+        epoch
+            .iter()
+            .copied()
+            .chain(reads.frames.iter().map(|r| &self.span[r.clone()]))
+            .collect()
+    }
+
+    /// The planning trial's length for the part `at` reading `reads`.
+    fn planned(&self, at: &std::ops::Range<usize>, pieces: &[u64], reads: &Reads) -> usize {
+        (self.plan)(&self.span[at.clone()], pieces, &self.slices(reads)).len()
+    }
+
+    /// The frames of the part `at` of the span after the frames `reads`
+    /// names and the frames `earlier` labels (every frame before it in its
+    /// span), `whole` its planning trial's length when the caller has it.
     fn cut(
         &self,
-        span: &[u8],
+        at: std::ops::Range<usize>,
         pieces: &[u64],
-        window: &[&[u8]],
+        reads: &Reads,
         earlier: &[[u8; archive::SEAL]],
-        whole: Option<Vec<u8>>,
+        whole: Option<usize>,
         threads: usize,
-    ) -> Result<Vec<Vec<u8>>, Error> {
-        let trial = self.trial;
+    ) -> Vec<Leaf> {
+        let leaf = |at: std::ops::Range<usize>, pieces: &[u64], reads: &Reads, done| Leaf {
+            at,
+            pieces: pieces.to_vec(),
+            reads: reads.clone(),
+            done,
+        };
+        let bytes = &self.span[at.clone()];
         if whole.is_none() {
-            if let Some(reference) = repeat_of(span, pieces, earlier) {
-                return Ok(vec![reference]);
+            if let Some(reference) = repeat_of(bytes, pieces, earlier) {
+                return vec![leaf(at, pieces, reads, Some(reference))];
             }
         }
-        let n = span.len();
-        let half = n >> 1;
+        let half = bytes.len() >> 1;
         if half == 0 {
-            return Ok(vec![match whole {
-                Some(w) => w,
-                None => trial(span, pieces, window, threads)?,
-            }]);
+            return vec![leaf(at, pieces, reads, None)];
         }
-        let (a, b) = span.split_at(half);
+        let a = at.start..at.start + half;
+        let b = a.end..at.end;
         let (pa, pb) = split_pieces(pieces, half as u64);
-        let held: u64 = window.iter().map(|f| f.len() as u64).sum();
-        // the second half's window: the epoch so far and the first half's
+        let held: u64 = self.slices(reads).iter().map(|f| f.len() as u64).sum();
+        // the second half's reads: the epoch so far and the first half's
         // frames, while the host holds it after them
         let fits = self.host.reads(b.len() as u64, held + half as u64);
-        fn after<'a>(fits: bool, window: &[&'a [u8]], firsts: Vec<&'a [u8]>) -> Vec<&'a [u8]> {
+        let after = |firsts: &[std::ops::Range<usize>]| -> Reads {
             if fits {
-                window.iter().copied().chain(firsts).collect()
+                Reads {
+                    epoch: reads.epoch,
+                    frames: reads.frames.iter().chain(firsts).cloned().collect(),
+                }
             } else {
-                Vec::new()
+                Reads {
+                    epoch: false,
+                    frames: Vec::new(),
+                }
             }
-        }
-        let with = |frames: &[&[u8]]| -> Vec<[u8; archive::SEAL]> {
+        };
+        let with = |frames: &[std::ops::Range<usize>]| -> Vec<[u8; archive::SEAL]> {
             let mut labels = earlier.to_vec();
-            labels.extend(frames.iter().map(|f| archive::frame_label(f)));
+            labels.extend(
+                frames
+                    .iter()
+                    .map(|f| archive::frame_label(&self.span[f.clone()])),
+            );
             labels
         };
-        let wb = after(fits, window, vec![a]);
-        let over_a = with(&[a]);
+        let wb = after(std::slice::from_ref(&a));
+        let over_a = with(std::slice::from_ref(&a));
+        let second = &self.span[b.clone()];
         // A second half that repeats an earlier frame of the span is cut off
         // as its reference. One that repeats the first half names it whole,
         // so the first half is one frame: the two are its coding and the
-        // reference, unless the span's own coding (when given) is shorter.
-        if let Some(reference) = repeat_of(b, &pb, earlier) {
-            let firsts = self.cut(a, &pa, window, earlier, None, threads)?;
-            return Ok(firsts.into_iter().chain([reference]).collect());
+        // reference, unless the part's own planning trial (when given) is
+        // shorter.
+        if let Some(reference) = repeat_of(second, &pb, earlier) {
+            let mut firsts = self.cut(a, &pa, reads, earlier, None, threads);
+            firsts.push(leaf(b, &pb, &wb, Some(reference)));
+            return firsts;
         }
-        if let Some(reference) = repeat_of(b, &pb, &over_a[earlier.len()..]) {
-            let first = trial(a, &pa, window, threads)?;
-            return Ok(match whole {
-                Some(w) if w.len() <= first.len() + reference.len() => vec![w],
-                _ => vec![first, reference],
-            });
+        if let Some(reference) = repeat_of(second, &pb, &over_a[earlier.len()..]) {
+            return match whole {
+                Some(w) if w <= self.planned(&a, &pa, reads) + reference.len() => {
+                    vec![leaf(at, pieces, reads, None)]
+                }
+                _ => vec![
+                    leaf(a, &pa, reads, None),
+                    leaf(b, &pb, &wb, Some(reference)),
+                ],
+            };
         }
         let have = whole.is_some();
-        // the trials still to run: the whole span (unless the caller coded it)
-        // and each half
+        // the planning trials still to run: the whole part (unless the caller
+        // ran it) and each half
         let jobs: Vec<Part> = [Part::Whole, Part::First, Part::Second]
             .into_iter()
             .filter(|p| !(have && *p == Part::Whole))
             .collect();
-        // each trial holds an equal share of the cores
-        let spare = (threads / jobs.len()).max(1);
         let mut done = parallel(&jobs, threads, |j| match j {
-            Part::Whole => trial(span, pieces, window, spare),
-            Part::First => trial(a, &pa, window, spare),
-            Part::Second => trial(b, &pb, &wb, spare),
+            Part::Whole => self.planned(&at, pieces, reads),
+            Part::First => self.planned(&a, &pa, reads),
+            Part::Second => self.planned(&b, &pb, &wb),
         })
         .into_iter();
-        let whole = match whole {
-            Some(w) => w,
-            None => done.next().expect("the whole span")?,
-        };
-        let (ca, cb) = (
-            done.next().expect("the first half")?,
-            done.next().expect("the second half")?,
-        );
-        if ca.len() + cb.len() >= whole.len() {
-            return Ok(vec![whole]);
+        let mut next = || done.next().unwrap_or_default();
+        let whole = whole.unwrap_or_else(&mut next);
+        let (ca, cb) = (next(), next());
+        if ca + cb >= whole {
+            return vec![leaf(at, pieces, reads, None)];
         }
-        // With a core for each half, both are cut at once, the second over the
-        // first half whole (cut again below when the first is cut further);
-        // otherwise the first, then the second.
+        // With a core for each half, both are cut at once, the second after
+        // the first half whole (cut again below when the first is cut
+        // further); otherwise the first, then the second.
         let halves = [Part::First, Part::Second];
         let (firsts, over_whole) = if threads >= halves.len() {
             let share = threads / halves.len();
             let mut cut = parallel(&halves, threads, |h| match h {
-                Part::First => self.cut(a, &pa, window, earlier, Some(ca.clone()), share),
-                _ => self.cut(b, &pb, &wb, &over_a, Some(cb.clone()), share),
+                Part::First => self.cut(a.clone(), &pa, reads, earlier, Some(ca), share),
+                _ => self.cut(b.clone(), &pb, &wb, &over_a, Some(cb), share),
             })
             .into_iter();
-            let firsts = cut.next().expect("the first half")?;
+            let firsts = cut.next().unwrap_or_default();
             (firsts, cut.next())
         } else {
-            (self.cut(a, &pa, window, earlier, Some(ca), threads)?, None)
+            (
+                self.cut(a.clone(), &pa, reads, earlier, Some(ca), threads),
+                None,
+            )
         };
         let seconds = if firsts.len() == 1 {
             match over_whole {
-                Some(cut) => cut?,
-                None => self.cut(b, &pb, &wb, &over_a, Some(cb), threads)?,
+                Some(cut) => cut,
+                None => self.cut(b, &pb, &wb, &over_a, Some(cb), threads),
             }
         } else {
             // the second half reads the first half's frames as they were cut
-            let parts = frames_of(a, &firsts)?;
-            self.cut(
-                b,
-                &pb,
-                &after(fits, window, parts.clone()),
-                &with(&parts),
-                None,
-                threads,
-            )?
+            let parts: Vec<std::ops::Range<usize>> = firsts.iter().map(|l| l.at.clone()).collect();
+            self.cut(b, &pb, &after(&parts), &with(&parts), None, threads)
         };
-        Ok(firsts.into_iter().chain(seconds).collect())
+        firsts.into_iter().chain(seconds).collect()
     }
 }
 
