@@ -31,6 +31,11 @@
 //!   module is one of the wire modules (`Uorc.Wire.*`, `Uorc.Codec.*`),
 //!   defines that parameterless `Nat`, and the constant's value equals it.
 //!   The value is what old archives depend on; the model is where it is said.
+//!   In the model, a parameterless numeral of a wire module (`Uorc.Wire.*`)
+//!   is such a statement. A coder module (`Uorc.Codec.*`) is written by a
+//!   generator, so a numeral it names is an identity only where a wire module
+//!   states the same name and value (`Uorc.Wire.Coder`); any other is a fixed
+//!   figure the generator named, counted once at its definition.
 //! - a *fixed figure*: every other literal. Its site is listed in the register
 //!   (`model/figures.toml`). A constant whose documentation names
 //!   `Facet: <name>` attributes its sites to that facet record of
@@ -642,6 +647,21 @@ pub(crate) fn field<'a>(decl: &'a str, key: &str) -> Option<&'a str> {
     Some(rest[..end].trim())
 }
 
+/// The wire modules of the model (`src/Uorc/Wire/*.lex.tex`), as (module, path).
+pub fn wire_modules(root: &Path) -> Result<Vec<(String, String)>, Error> {
+    let dir = root.join("src/Uorc/Wire");
+    let mut out = Vec::new();
+    for e in std::fs::read_dir(&dir).map_err(|e| format!("{}: {e}", dir.display()))? {
+        let e = e.map_err(|e| e.to_string())?;
+        let f = e.file_name().to_string_lossy().to_string();
+        if let Some(stem) = f.strip_suffix(".lex.tex") {
+            out.push((format!("Uorc.Wire.{stem}"), format!("src/Uorc/Wire/{f}")));
+        }
+    }
+    out.sort();
+    Ok(out)
+}
+
 /// The value a wire module gives a parameterless `Nat` definition.
 pub fn wire_value(root: &Path, target: &str) -> Result<u128, Error> {
     let (module, name) = target
@@ -799,9 +819,11 @@ pub fn check(root: &Path, register: Option<&Register>) -> Result<Outcome, Error>
         let text = read(root, &f)?;
         sources::scan_js(&f, &text, &mut scan);
     }
-    for (module, path) in sources::model_modules(root, &reach)? {
-        let text = read(root, &path)?;
-        sources::scan_lean(&path, &module, &text, &mut scan);
+    let modules = sources::model_modules(root, &reach)?;
+    let stated = sources::stated(&wire_modules(root)?, |p| read(root, p))?;
+    for (module, path) in &modules {
+        let text = read(root, path)?;
+        sources::scan_lean(path, module, &text, &stated, &mut scan);
     }
     let mut out = Outcome {
         entries: entries(&scan),
