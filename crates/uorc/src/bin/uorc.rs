@@ -32,7 +32,10 @@ Input of any size streams through frames as long as the declared host's
 decoder holds (160 MiB on a page worker; with --host-memory B, B less the
 coder's tables), compressed --threads N at a time (default: every core) and
 written back to back. Each span is cut into frames by outcome: in halves,
-the second reading the first, while the halves are smaller. The frames of a
+the second reading the first, while one coding pass of the halves is
+smaller than one of the whole; each frame is then coded in full, and the
+frames are kept only when smaller than the span coded whole (a part that
+repeats an earlier frame stays its reference). The frames of a
 span form an epoch, and a frame steps how many earlier frames of its epoch it
 reads while that makes it smaller; epochs decompress on separate cores. Archives are
 written for a decode host that runs a frame on one thread (one of the page's
