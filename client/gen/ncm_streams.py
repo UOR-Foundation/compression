@@ -92,9 +92,6 @@ for name, w in [('seen', 4), ('lane', 2), ('sk', 3), ('ep', 4), ('sr', 4), ('sta
                 ('bkey', 8), ('flen', 8), ('lc', 8)]:
     P.glob(name, w)
 P.glob('obase', 8)
-# the bytes the base model learned before the frame: a model state's (the warmed model coded them
-# first), none after a window; a stream's clock (seen) counts on from them
-P.glob('learned', 4)
 LANE_G += ['seen', 'iend', 'obase']
 LGSPAN = len(LANE_G)   # saved scalars per stream
 for t in MERGED:
@@ -597,7 +594,7 @@ plan = [s for s in nm.word_fields(V('pf')) if s[1] != 'cb'] + [('set', 'sk', add
 
 def lanes_start(decoding):
     """Every stream's scalars from the base's, its private tables, its first byte's model (streams after the first)."""
-    b = [('set', 'seen', G('learned'))]
+    b = [('set', 'seen', G('coded'))]
     b += spaces() + [('set', 'osp', add(mul(RADIX, G('sr')), SLACK))]
     b += [('set', 'ofin', add(mul(LENGTH, G('sk')), mul(G('sk'), G('osp'))))]
     b += [('loop', G('sk'), 'j', [('call', 'laneSave', [V('j')]), ('call', 'laneInit', [V('j')])])]
@@ -633,7 +630,7 @@ def epochs(byte_call):
            ('call', 'laneCommit', []), ('call', 'laneSave', [V('j')]),
            ('set', 'coded', add(G('coded'), sub(V('phi'), V('plo'))))]
     ep = [('loop', G('sk'), 'j', run), ('call', 'merge', []),
-          ('loop', G('sk'), 'j', [('call', 'laneLoad', [V('j')]), ('set', 'seen', add(G('learned'), G('coded'))), ('call', 'laneSave', [V('j')])]),
+          ('loop', G('sk'), 'j', [('call', 'laneLoad', [V('j')]), ('set', 'seen', G('coded')), ('call', 'laneSave', [V('j')])]),
           ('set', 'at', add(G('at'), G('ep')))]
     return [('set', 'at', 0), ('loop', div(add(G('sr'), sub(G('ep'), 1)), G('ep')), 'e', ep)]
 
@@ -641,11 +638,12 @@ def epochs(byte_call):
 # The base model a frame's streams start from, after the h history bytes H holds (a window, read in place)
 # and the w bytes of a kappa-named model state after them (a state frame: no history), which the whole model
 # codes first as the serial coder does (decodeWarm; stamp 0 logs nothing), with the tables sized for w + n
-# bytes; a stream's clock counts on from them. A window frame has w = 0, a state frame h = 0.
+# bytes; coded counts the bytes the shared state learned (the state's, then each epoch's), the streams'
+# clock. A window frame has w = 0, a state frame h = 0.
 def base_model():
     return [('set', 'hoff', V('h')), ('set', 'before', add(V('h'), V('w'))), ('let', 'nn', G('n')),
             ('set', 'n', add(V('nn'), V('w'))), ('call', 'setup', []), ('set', 'n', V('nn')),
-            ('set', 'stamp', 0), ('call', 'warmState', [V('w')]), ('set', 'stamp', 1), ('set', 'learned', V('w'))]
+            ('set', 'stamp', 0), ('call', 'warmState', [V('w')]), ('set', 'stamp', 1), ('set', 'coded', V('w'))]
 
 
 # decodeStreams h w pf: the frame after the h + w bytes H holds, from a streams payload, under frame word pf

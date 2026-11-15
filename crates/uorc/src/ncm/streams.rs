@@ -736,10 +736,9 @@ struct Frame {
     plan: Plan,
     before: usize,
     n: usize,
-    /// bytes the base model learned before the frame (a model state's,
-    /// which the warmed model coded first; none after a window)
-    learned: u32,
-    /// bytes of every stream merged so far
+    /// bytes the shared state learned: the base model's before the frame (a
+    /// model state's, which the warmed model coded first; none after a
+    /// window), then every stream's merged so far
     coded: usize,
     /// one set of working tables per thread
     own: Vec<Own>,
@@ -805,7 +804,7 @@ impl Frame {
             }
             lanes.push(m);
         }
-        let learned = base.seen;
+        let coded = base.seen as usize;
         Some(Frame {
             base,
             shared,
@@ -813,8 +812,7 @@ impl Frame {
             plan,
             before,
             n,
-            learned,
-            coded: 0,
+            coded,
             own: vec![own],
             steps: 0,
             sites: None,
@@ -1076,7 +1074,7 @@ impl Frame {
             }
         }
         for m in lanes.iter_mut() {
-            m.seen = self.learned + self.coded as u32;
+            m.seen = self.coded as u32;
             let l = m.lane.as_mut().expect("a stream");
             l.delta.clear();
             l.mtd.clear();
