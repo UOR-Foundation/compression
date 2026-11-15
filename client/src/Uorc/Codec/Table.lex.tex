@@ -90,11 +90,12 @@ definition{
   name: zeros,
   parameters: [width : Nat],
   result: Bytes,
-  body: (match (prim slice 0x00000000 0 width : (Option Bytes))
-    | Option.none => 0x
-    | Option.some z => z),
+  body: (match width
+    | Nat.zero => 0x
+    | Nat.succ k => (prim append (zeros k) 0x00 : Bytes)),
   executable: true,
-  axioms: []
+  axioms: [],
+  recursive_argument: width
 }
 
 definition{

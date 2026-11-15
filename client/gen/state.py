@@ -99,8 +99,8 @@ _AXF = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'axioms.json')
 _AX = json.load(open(_AXF)) if os.path.exists(_AXF) else {}
 
 def definer(defs, module=None):
-    def D(name, params, result, body, rec=None):
-        ax = _AX.get(f"{module}.{name}", ['Quot.sound', 'propext'])
+    def D(name, params, result, body, rec=None, ax=None):
+        ax = _AX.get(f"{module}.{name}", ['Quot.sound', 'propext'] if ax is None else ax)
         AX = "  executable: true,\n  axioms: [%s]" % ", ".join(ax)
         s = "definition{\n  name: %s,\n  parameters: [%s],\n  result: %s,\n  body: %s,\n%s" % (name, ", ".join(params), result, body, AX)
         if rec:

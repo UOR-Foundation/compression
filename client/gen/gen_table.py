@@ -18,7 +18,8 @@ D('get', ['width : Nat', 't : Bytes', 'key : Nat'], 'Nat', "(getLoop width t (wi
 D('setLoop', ['fuel : Nat', 't : Bytes', 'at : Nat', 'v : Nat'], 'Bytes', "(match fuel\n    | Nat.zero => t\n    | Nat.succ k => (setLoop k (writeByte t at (prim remainder v 256 0 : Nat)) (prim subtract at 1 : Nat) (prim quotient v 256 0 : Nat)))", 'fuel')
 D('set', ['width : Nat', 't : Bytes', 'key : Nat', 'v : Nat'], 'Bytes', "(setLoop width t (prim subtract ((width * key) + width) 1 : Nat) v)")
 D('double', ['fuel : Nat', 'b : Bytes'], 'Bytes', "(match fuel\n    | Nat.zero => b\n    | Nat.succ k => (double k (prim append b b : Bytes)))", 'fuel')
-D('zeros', ['width : Nat'], 'Bytes', "(match (prim slice 0x00000000 0 width : (Option Bytes))\n    | Option.none => 0x\n    | Option.some z => z)")
+# a cell of `width` zero bytes, for any width (the streams regions' cells are 8 bytes wide)
+D('zeros', ['width : Nat'], 'Bytes', "(match width\n    | Nat.zero => 0x\n    | Nat.succ k => (prim append (zeros k) 0x00 : Bytes))", 'width')
 D('fill', ['width : Nat', 'depth : Nat', 'value : Nat'], 'Bytes', "(double depth (set width (zeros width) 0 value))")
 src = "\\begin{lexlean}{Uorc.Codec.Table}\n\\title{Parameters}\n\\begin{semanticmodule}\n" + "\n".join(defs) + "\\end{semanticmodule}\n\\end{lexlean}\n"
 open(os.path.join(HERE, '..', 'src', 'Uorc', 'Codec', 'Table.lex.tex'), 'w').write(src)

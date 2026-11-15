@@ -83,7 +83,14 @@ fn strategy_frame(frame: &[u8], strategy: portfolio::Strategy) -> Option<Vec<u8>
         let id = uorc::states::identity(strategy.state)?;
         let payload = ncm::encode_warm(state, frame, strategy.profile)?;
         let lengths = [frame.len() as u64];
-        return archive::state_archive(false, strategy.profile, &id, &lengths, &payload);
+        return archive::state_archive(
+            false,
+            strategy.profile,
+            uorc::ncm::Learning::STANDARD,
+            &id,
+            &lengths,
+            &payload,
+        );
     }
     let data = if strategy.x86 {
         x86::filter(frame, false, 0).0
@@ -98,7 +105,7 @@ fn strategy_frame(frame: &[u8], strategy: portfolio::Strategy) -> Option<Vec<u8>
     let payload = ncm::encode_profile(&[], &data, strategy.profile)?;
     archive::linked_archive_profile(
         codec,
-        u64::from(strategy.profile),
+        uorc::ncm::streams::Word::from(strategy.profile),
         &[frame.len() as u64],
         &payload,
     )
