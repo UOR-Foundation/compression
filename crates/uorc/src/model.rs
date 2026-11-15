@@ -6,6 +6,10 @@
 #[rustfmt::skip]
 pub mod archive;
 #[rustfmt::skip]
+pub mod frame;
+#[rustfmt::skip]
+pub mod framing;
+#[rustfmt::skip]
 pub mod ncm;
 #[rustfmt::skip]
 pub mod neuromorphic;

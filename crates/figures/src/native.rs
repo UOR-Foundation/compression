@@ -21,7 +21,15 @@ use std::fmt::Write as _;
 use std::path::Path;
 
 /// The generated native modules: (output, model source).
-pub const GENERATED: [(&str, &str); 4] = [
+pub const GENERATED: [(&str, &str); 6] = [
+    (
+        "crates/uorc/src/model/framing.rs",
+        "src/Uorc/Search/FramingOrder.lex.tex",
+    ),
+    (
+        "crates/uorc/src/model/frame.rs",
+        "src/Uorc/Wire/Frame.lex.tex",
+    ),
     (
         "crates/uorc/src/model/neuromorphic.rs",
         "src/Uorc/Neuromorphic.lex.tex",

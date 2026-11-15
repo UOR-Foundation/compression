@@ -226,6 +226,24 @@ impl Decls {
             .collect();
         self.order.insert(name.to_string(), names);
         for t in tags(attrs) {
+            if let Some(l) = t.strip_prefix("len:") {
+                let ds = split(l);
+                self.note(&ds);
+                self.lens
+                    .entry(format!("fn {name}"))
+                    .or_default()
+                    .extend(ds);
+                continue;
+            }
+            if let Some(l) = t.strip_prefix("body:") {
+                let ds = split(l);
+                self.note(&ds);
+                self.lens
+                    .entry(format!("body {name}"))
+                    .or_default()
+                    .extend(ds);
+                continue;
+            }
             match t.split_once(':') {
                 Some((p, d)) => {
                     let ds = split(d);
@@ -362,6 +380,11 @@ struct Pass<'a> {
     tests: bool,
     /// Whether the literal being read multiplies or divides (a scale).
     scaling: bool,
+    /// The array-length domains the function being read declares.
+    lens_now: Ds,
+    /// The domains every literal of the function being read acts in
+    /// (`Domain: body: <d>`: a layout function's offsets).
+    body_now: Ds,
 }
 
 /// Whether a quantity is a scale: a unit, a scale or a rescale, which only
@@ -435,6 +458,9 @@ impl Pass<'_> {
         let Ok(v) = lit.base10_parse::<u128>() else {
             return;
         };
+        let mut scope = scope.clone();
+        scope.extend(self.body_now.iter().cloned());
+        let scope = &scope;
         let r = lit.span().byte_range();
         let at = (r.start, r.end, lit.span().start().line);
         if !self.place_value(v, at, lit.suffix(), scope, shift) {
@@ -1068,7 +1094,7 @@ impl Pass<'_> {
             syn::Type::Slice(s) => self.ty(&s.elem, ds),
             syn::Type::Tuple(t) => {
                 for e in &t.elems {
-                    self.ty(e, &Ds::new());
+                    self.ty(e, ds);
                 }
             }
             syn::Type::Path(p) => {
@@ -1098,7 +1124,8 @@ impl Pass<'_> {
             match s {
                 syn::Stmt::Local(l) => {
                     if let syn::Pat::Type(t) = &l.pat {
-                        self.ty(&t.ty, &Ds::new());
+                        let lens = self.lens_now.clone();
+                        self.ty(&t.ty, &lens);
                     }
                     let used = match &l.pat {
                         syn::Pat::Ident(p) => self
@@ -1154,8 +1181,18 @@ impl Pass<'_> {
         let saved = self.func.replace(name.to_string());
         self.env.push(BTreeMap::new());
         let result = self.decls.results.get(name).cloned().unwrap_or_default();
+        // the signature's array lengths: its `len:` declaration, else the result's domains
+        let lens = self.decls.lens.get(&format!("fn {name}")).cloned();
+        let saved_lens = std::mem::replace(&mut self.lens_now, lens.clone().unwrap_or_default());
+        let body_ds = self
+            .decls
+            .lens
+            .get(&format!("body {name}"))
+            .cloned()
+            .unwrap_or_default();
+        let saved_body = std::mem::replace(&mut self.body_now, body_ds);
         if let syn::ReturnType::Type(_, t) = &sig.output {
-            self.ty(t, &result);
+            self.ty(t, lens.as_ref().unwrap_or(&result));
         }
         for i in &sig.inputs {
             if let syn::FnArg::Typed(t) = i {
@@ -1168,7 +1205,9 @@ impl Pass<'_> {
                         .unwrap_or_default(),
                     _ => Ds::new(),
                 };
-                self.ty(&t.ty, &pd);
+                let mut l = lens.clone().unwrap_or_default();
+                l.extend(pd.iter().cloned());
+                self.ty(&t.ty, &l);
                 if let syn::Pat::Ident(p) = &*t.pat {
                     let n = p.ident.to_string();
                     let d = self
@@ -1185,6 +1224,8 @@ impl Pass<'_> {
         self.block(body, &want);
         self.env.pop();
         self.func = saved;
+        self.lens_now = saved_lens;
+        self.body_now = saved_body;
     }
 
     fn item(&mut self, it: &syn::Item) {
@@ -1301,6 +1342,8 @@ pub fn pass(model: &Model, text: &str, others: &[String]) -> Result<Outcome, cra
         out: Outcome::default(),
         tests: false,
         scaling: false,
+        lens_now: Ds::new(),
+        body_now: Ds::new(),
     };
     for _ in 0..32 {
         p.next = BTreeMap::new();
@@ -1635,7 +1678,8 @@ pub fn rewrite(
             }
         }
         let mut retyped_now: Vec<usize> = Vec::new();
-        if !stray.is_empty() {
+        // errors a site explains come first: the rest may follow from them
+        if !stray.is_empty() && !hit.iter().any(|h| *h) {
             // an error no site explains at its span: a site bound earlier (a local the
             // error reads) whose view the error names takes the other view it names;
             // else every site on the error's lines stays a numeral
@@ -1684,7 +1728,9 @@ pub fn rewrite(
                 }
             }
             if !fixed {
-                restore();
+                if std::env::var_os("FIGURES_DERIVE_KEEP").is_none() {
+                    restore();
+                }
                 return Err(format!(
                     "cargo check: {} errors no rewritten site explains, first: {:?}",
                     stray.len(),
