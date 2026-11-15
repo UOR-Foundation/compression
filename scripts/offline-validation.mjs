@@ -5,6 +5,7 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+import { lexleanBinary } from './lexlean-pin.mjs';
 
 const SCRIPT = fileURLToPath(import.meta.url);
 const SDK = '/usr/local/bin/prismpm';
@@ -51,6 +52,13 @@ export function cleanOutputs(root) {
 }
 export function compare(left, right) {
   if (canonical(left) !== canonical(right)) fail('URP003', 'canonical artifact inventory or bytes differ');
+}
+// Every `lexlean` this script runs, directly or through just in a copied root,
+// is the pinned one (lexlean.pin.json), never the SDK's own: LEXLEAN names the
+// binary so a copied root's Justfile reuses it instead of building it again.
+function pinLexlean() {
+  process.env.LEXLEAN = lexleanBinary();
+  process.env.PATH = `${path.dirname(process.env.LEXLEAN)}:${process.env.PATH}`;
 }
 function run(root, command, args, options = {}) {
   const result = spawnSync(command, args, { cwd: root, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024,
@@ -211,6 +219,7 @@ export function negativeSdk(root, temporary) {
 }
 function reproduce(root) {
   sdk(root);
+  pinLexlean();
   // Two clean roots each hold a full cargo target and LexLean build: they live
   // on the checkout's disk (source-excluded `.tmp`), never the SDK's small /tmp.
   fs.mkdirSync(path.join(root, '.tmp'), { recursive: true });
@@ -280,6 +289,7 @@ function offline(root, acquisition) {
   const env = { ...cacheEnvironment(cache), LEXLEAN_TOOL_ROOT: path.join(cache, 'lexlean'), CARGO_NET_OFFLINE: 'true', CARGO_INCREMENTAL: '0', CARGO_TARGET_DIR: path.join(root, 'target'),
     SOURCE_DATE_EPOCH: '0', TZ: 'UTC', LC_ALL: 'C.UTF-8' };
   Object.assign(process.env, env);
+  pinLexlean();
   // Current-build verification is always executed, never accepted from a cache receipt.
   // Every other recipe of `just vv` runs once in its own acceptance leg; this
   // root proves the formal construction itself needs no network.
