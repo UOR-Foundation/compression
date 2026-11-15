@@ -4112,7 +4112,7 @@ definition{
   result: Nat,
   body: (match k
     | Nat.zero => 1
-    | Nat.succ m => (prim multiply 2 (pow2 m) : Nat)),
+    | Nat.succ m => (prim multiply (radix) (pow2 m) : Nat)),
   executable: true,
   axioms: [],
   recursive_argument: k
@@ -4137,6 +4137,33 @@ definition{
 }
 
 definition{
+  name: squashStep,
+  parameters: [],
+  result: Nat,
+  body: 128,
+  executable: true,
+  axioms: []
+}
+
+definition{
+  name: squashHalfStep,
+  parameters: [],
+  result: Nat,
+  body: (prim quotient (squashStep) (radix) 0 : Nat),
+  executable: true,
+  axioms: []
+}
+
+definition{
+  name: sqtCell,
+  parameters: [],
+  result: Nat,
+  body: 2,
+  executable: true,
+  axioms: []
+}
+
+definition{
   name: sqt,
   parameters: [],
   result: Bytes,
@@ -4149,16 +4176,79 @@ definition{
   name: squash,
   parameters: [d : Nat],
   result: Nat,
-  body: (let i : Nat := (prim quotient d 128 0 : Nat); (let w : Nat := (prim remainder d 128 0 : Nat); (prim quotient ((prim multiply (getAt 2 (sqt) (prim multiply 2 i : Nat)) (prim subtract 128 w : Nat) : Nat) + ((prim multiply (getAt 2 (sqt) (prim multiply 2 (i + 1) : Nat)) w : Nat) + 64)) 128 0 : Nat))),
+  body: (let i : Nat := (prim quotient d (squashStep) 0 : Nat); (let w : Nat := (prim remainder d (squashStep) 0 : Nat); (prim quotient ((prim multiply (getAt (sqtCell) (sqt) (prim multiply (sqtCell) i : Nat)) (prim subtract (squashStep) w : Nat) : Nat) + ((prim multiply (getAt (sqtCell) (sqt) (prim multiply (sqtCell) (i + 1) : Nat)) w : Nat) + (squashHalfStep))) (squashStep) 0 : Nat))),
   executable: true,
   axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: hashWord,
+  parameters: [],
+  result: Nat,
+  body: 4294967296,
+  executable: true,
+  axioms: []
+}
+
+definition{
+  name: hashMultiplier0,
+  parameters: [],
+  result: Nat,
+  body: 2654435761,
+  executable: true,
+  axioms: []
+}
+
+definition{
+  name: hashFold0,
+  parameters: [],
+  result: Nat,
+  body: 32768,
+  executable: true,
+  axioms: []
+}
+
+definition{
+  name: hashMultiplier1,
+  parameters: [],
+  result: Nat,
+  body: 739982445,
+  executable: true,
+  axioms: []
+}
+
+definition{
+  name: hashFold1,
+  parameters: [],
+  result: Nat,
+  body: 4096,
+  executable: true,
+  axioms: []
+}
+
+definition{
+  name: hashMultiplier2,
+  parameters: [],
+  result: Nat,
+  body: 695872825,
+  executable: true,
+  axioms: []
+}
+
+definition{
+  name: hashFold2,
+  parameters: [],
+  result: Nat,
+  body: 32768,
+  executable: true,
+  axioms: []
 }
 
 definition{
   name: hash,
   parameters: [a : Nat],
   result: Nat,
-  body: (let m0 : Nat := (prim remainder (prim multiply 2654435761 a : Nat) 4294967296 0 : Nat); (let a0 : Nat := (prim remainder (m0 + (prim quotient m0 32768 0 : Nat)) 4294967296 0 : Nat); (let m1 : Nat := (prim remainder (prim multiply 739982445 a0 : Nat) 4294967296 0 : Nat); (let a1 : Nat := (prim remainder (m1 + (prim quotient m1 4096 0 : Nat)) 4294967296 0 : Nat); (let m2 : Nat := (prim remainder (prim multiply 695872825 a1 : Nat) 4294967296 0 : Nat); (let a2 : Nat := (prim remainder (m2 + (prim quotient m2 32768 0 : Nat)) 4294967296 0 : Nat); a2)))))),
+  body: (let m0 : Nat := (prim remainder (prim multiply (hashMultiplier0) a : Nat) (hashWord) 0 : Nat); (let a0 : Nat := (prim remainder (m0 + (prim quotient m0 (hashFold0) 0 : Nat)) (hashWord) 0 : Nat); (let m1 : Nat := (prim remainder (prim multiply (hashMultiplier1) a0 : Nat) (hashWord) 0 : Nat); (let a1 : Nat := (prim remainder (m1 + (prim quotient m1 (hashFold1) 0 : Nat)) (hashWord) 0 : Nat); (let m2 : Nat := (prim remainder (prim multiply (hashMultiplier2) a1 : Nat) (hashWord) 0 : Nat); (let a2 : Nat := (prim remainder (m2 + (prim quotient m2 (hashFold2) 0 : Nat)) (hashWord) 0 : Nat); a2)))))),
   executable: true,
   axioms: []
 }

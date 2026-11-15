@@ -126,7 +126,7 @@ class Lex:
             self.reach(c, acc)
 
     def helpers(self):
-        D = self.D
+        D, need = self.D, self.need
         # the program's named quantities, each after the ones its definition reads
         named = {}
         for params, body in self.p.funcs.values():
@@ -141,21 +141,30 @@ class Lex:
             D('width' + self.gname(g), [], 'Nat', str(w))
             D('at' + self.gname(g), [], 'Nat', '0' if prev is None else f"({self.gat(prev)} + {self.gwidth(prev)})")
             prev = g
-        D('pow2', ['k : Nat'], 'Nat', "(match k\n    | Nat.zero => 1\n    | Nat.succ m => (prim multiply 2 (pow2 m) : Nat))", 'k')
+        radix = need(ir.RADIX)
+        D('pow2', ['k : Nat'], 'Nat', f"(match k\n    | Nat.zero => 1\n    | Nat.succ m => (prim multiply {radix} (pow2 m) : Nat))", 'k')
         D('getAt', ['w : Nat', 't : Bytes', 'at : Nat'], 'Nat', f"({TB}::getLoop w t at 0)")
         D('putAt', ['w : Nat', 't : Bytes', 'at : Nat', 'v : Nat'], 'Bytes', f"({TB}::setLoop w t (prim subtract (at + w) 1 : Nat) v)")
-        D('sqt', [], 'Bytes', '0x' + b''.join(v.to_bytes(2, 'big') for v in ir.SQT).hex())
-        D('squash', ['d : Nat'], 'Nat',
-          "(let i : Nat := (prim quotient d 128 0 : Nat); (let w : Nat := (prim remainder d 128 0 : Nat); "
-          "(prim quotient ((prim multiply (getAt 2 (sqt) (prim multiply 2 i : Nat)) (prim subtract 128 w : Nat) : Nat) + "
-          "((prim multiply (getAt 2 (sqt) (prim multiply 2 (i + 1) : Nat)) w : Nat) + 64)) 128 0 : Nat)))")
-        body = 'a'
-        steps = []
-        for j, (k, s) in enumerate(zip(ir.HK, ir.HS)):
-            steps.append(f"(let m{j} : Nat := (prim remainder (prim multiply {k} {body} : Nat) 4294967296 0 : Nat); "
-                         f"(let a{j} : Nat := (prim remainder (m{j} + (prim quotient m{j} {1 << s} 0 : Nat)) 4294967296 0 : Nat); ")
-            body = f'a{j}'
-        D('hash', ['a : Nat'], 'Nat', ''.join(steps) + body + ')' * (2 * len(ir.HK)))
+        used = self.uses()
+        if 'squash' in used:
+            # squash interpolates the table sqt (cells of sqtCell bytes) at abscissae squashStep apart
+            step, half, cell = need(ir.SQUASH_STEP), need(ir.SQUASH_HALF), need(ir.SQT_CELL)
+            D('sqt', [], 'Bytes', '0x' + b''.join(v.to_bytes(int(ir.SQT_CELL), 'big') for v in ir.SQT).hex())
+            D('squash', ['d : Nat'], 'Nat',
+              f"(let i : Nat := (prim quotient d {step} 0 : Nat); (let w : Nat := (prim remainder d {step} 0 : Nat); "
+              f"(prim quotient ((prim multiply (getAt {cell} (sqt) (prim multiply {cell} i : Nat)) (prim subtract {step} w : Nat) : Nat) + "
+              f"((prim multiply (getAt {cell} (sqt) (prim multiply {cell} (i + 1) : Nat)) w : Nat) + {half})) {step} 0 : Nat)))")
+        if 'hash' in used:
+            # the context hash: each round multiplies by its multiplier and folds the word down by its fold
+            word = need(ir.HASH_WORD)
+            body = 'a'
+            steps = []
+            for j, (k, f) in enumerate(zip(ir.HK, ir.HF)):
+                k, f = need(k), need(f)
+                steps.append(f"(let m{j} : Nat := (prim remainder (prim multiply {k} {body} : Nat) {word} 0 : Nat); "
+                             f"(let a{j} : Nat := (prim remainder (m{j} + (prim quotient m{j} {f} 0 : Nat)) {word} 0 : Nat); ")
+                body = f'a{j}'
+            D('hash', ['a : Nat'], 'Nat', ''.join(steps) + body + ')' * (2 * len(ir.HK)))
         # one writer per table: moves the table out of the state, writes it in place, rebuilds the state
         for t in self.tables:
             D(self.writer(t), [f's : {self.St}', 'w : Nat', 'k : Nat', 'v : Nat'], self.St,
@@ -194,6 +203,19 @@ class Lex:
         """A table's base key, named (baseT) as the globals' addresses are."""
         b = self.p.tables[table]
         return b if isinstance(b, ir.K) or b <= 1 else ir.K('base' + re.sub(r'[^A-Za-z0-9]', 'X', table), b)
+
+    def uses(self):
+        """The expression kinds the program's functions use."""
+        out = set()
+        def walk(e):
+            if isinstance(e, tuple) and e and isinstance(e[0], str):
+                out.add(e[0])
+            if isinstance(e, (tuple, list)):
+                for a in e:
+                    walk(a)
+        for params, body in self.p.funcs.values():
+            walk(body)
+        return out
 
     def need(self, x):
         """A named quantity's numeral or name, defining it (after those its body reads) on first use:
