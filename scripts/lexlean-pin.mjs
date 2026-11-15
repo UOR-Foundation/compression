@@ -28,6 +28,22 @@ const pin = JSON.parse(fs.readFileSync(path.join(root, 'lexlean.pin.json'), 'utf
 export const LEXLEAN_REPO = pin.repository;
 export const LEXLEAN_REV = pin.revision;
 
+// The Rust model and gates link the LexLean crate (Cargo.toml's workspace
+// `lexlean`), whose source conversions and runtime modules must be those of the
+// compiler that runs: a crate of another revision stages a runtime without the
+// primitives the pinned compiler emits. Wherever the workspace is present, its
+// dependency is this pin.
+export function cargoRevision(text) {
+  const m = /^lexlean = \{ git = "([^"]+)", rev = "([0-9a-f]{40})" \}$/m.exec(text);
+  return m && {repository: m[1], revision: m[2]};
+}
+const manifest = path.join(root, 'Cargo.toml');
+if (fs.existsSync(manifest)) {
+  const cargo = cargoRevision(fs.readFileSync(manifest, 'utf8'));
+  if (!cargo || cargo.repository !== LEXLEAN_REPO || cargo.revision !== LEXLEAN_REV)
+    throw new Error(`Cargo.toml's lexlean dependency ${JSON.stringify(cargo)} is not the pin ${LEXLEAN_REPO}@${LEXLEAN_REV} (lexlean.pin.json)`);
+}
+
 export function lexleanDir() {
   if (process.env.LEXLEAN) return path.dirname(path.resolve(process.env.LEXLEAN));
   return path.join(toolRoot(), 'bin');

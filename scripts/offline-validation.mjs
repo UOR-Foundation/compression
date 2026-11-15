@@ -264,6 +264,11 @@ function setup(root, acquisition) {
   fs.mkdirSync(env.HOME, { recursive: true }); fs.mkdirSync(env.XDG_CACHE_HOME, { recursive: true });
   run(root, 'cargo', ['fetch', '--locked'], { env, log: path.join(acquisition, 'fetch.log') });
   run(root, 'cargo', ['deny', '--locked', '--all-features', 'fetch'], { env, log: path.join(acquisition, 'deny-fetch.log') });
+  // The pinned LexLean crate is a git dependency: its sealed form is cargo's
+  // bare repository (git/db), regular files only. A working checkout
+  // (git/checkouts) is derived from it, holds the repository's symlinks, which
+  // the sealed inventory refuses, and is made again offline from git/db.
+  fs.rmSync(path.join(env.CARGO_HOME, 'git', 'checkouts'), { recursive: true, force: true });
   // The pinned LexLean (lexlean.pin.json) is a tool, sealed with the cache as
   // its installed binary alone: it is fetched and built under a cargo home of
   // its own, removed afterwards, so the cache holds no git checkout of it
