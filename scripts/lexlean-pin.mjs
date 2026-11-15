@@ -34,7 +34,7 @@ export const LEXLEAN_REV = pin.revision;
 // primitives the pinned compiler emits. Wherever the workspace is present, its
 // dependency is this pin.
 export function cargoRevision(text) {
-  const m = /^lexlean = \{ git = "([^"]+)", rev = "([0-9a-f]{40})" \}$/m.exec(text);
+  const m = /^lexlean = \{ version = "=[^"]+", git = "([^"]+)", rev = "([0-9a-f]{40})" \}$/m.exec(text);
   return m && {repository: m[1], revision: m[2]};
 }
 const manifest = path.join(root, 'Cargo.toml');
