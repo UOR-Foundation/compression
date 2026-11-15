@@ -3179,10 +3179,13 @@ mod tests {
     /// repeats the oldest frame of its block is coded over every earlier
     /// frame (its entry names three) and is strictly smaller than the
     /// portfolio's archive over the last two; any frame is the portfolio's
-    /// archive byte for byte or a strictly shorter one. Both decode.
+    /// archive byte for byte or a strictly shorter one. Both decode. The
+    /// repeated frame is letters with no structure a warm state predicts
+    /// (on text a state frame may win, and the window step does not apply to
+    /// it), so the portfolio codes it below raw without a state.
     #[test]
     fn window_step_keeps_only_a_shorter_archive_uc_perf_16() {
-        let a = include_bytes!("../../../README.md").to_vec();
+        let a: Vec<u8> = noise(12_000, 1).iter().map(|&x| b'a' + (x & 15)).collect();
         let (b, c) = (noise(30_000, 2), noise(30_000, 3));
         let window: [&[u8]; 3] = [&a, &b, &c];
         let deep = compress_frame_with(&a, &window, 0).expect("deep");
