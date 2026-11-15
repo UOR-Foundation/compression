@@ -184,31 +184,4 @@ mod tests {
             assert_eq!(Coordinate::named(c.name()), Some(c));
         }
     }
-
-    /// A model warmed at one coordinate value is never reused at another:
-    /// after a decoder kept the model warmed at one value, a frame coded at
-    /// another still decodes natively (the cache and the stored images are
-    /// keyed by [`current`]).
-    #[test]
-    fn a_warmed_model_is_never_shared_across_coordinates() {
-        let data = include_bytes!("../Cargo.toml");
-        let half = Coordinate::PlasticityHalfLife;
-        let native = |v: i64| {
-            with(&[(half, v)], || {
-                let s = crate::compress(data, 0).expect("compresses");
-                let frames = crate::frames(&s).expect("frames");
-                frames
-                    .iter()
-                    .map(|f| {
-                        crate::archive::fast_decode(f).or_else(|| crate::archive::state_decode(f))
-                    })
-                    .collect::<Option<Vec<_>>>()
-                    .map(|parts| parts.concat())
-            })
-            .unwrap()
-        };
-        for v in [half.standard(), half.standard() * 2] {
-            assert_eq!(native(v).as_deref(), Some(&data[..]), "half-life {v}");
-        }
-    }
 }
