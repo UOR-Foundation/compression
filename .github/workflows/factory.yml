@@ -20,22 +20,34 @@
 # passed on it; a head that lacks the default branch is asked, once, to take
 # it in with an ordinary push (the train never pushes to a rider: this token's
 # push holds the request's own checks for approval). After each merge
-# bootstrap is dispatched on the default branch, whose receipts drive the
-# release step.
+# bootstrap is dispatched on the default branch; the release step runs after
+# the train in the same run, so a merged version bump goes to its rehearsal at
+# once (an up-to-date request's receipts already prove its merged tree).
+#
+# A run this token dispatches (a rehearsal, a publish, a bootstrap after a
+# merge, an engine tick's gate) starts no workflow_run when it completes. Every
+# factory run therefore also collects the completed runs the token dispatched
+# that the receipts do not record yet (scripts/factory.mjs unrecorded), and a
+# release run hands itself over by dispatching this workflow with `after`.
 name: factory
 
 on:
   workflow_run:
     workflows: [bootstrap, SDK offline reproducibility, release, pages client]
     types: [completed]
-  # Labelling a request `merge-train` moves the train at once. Only the
-  # merge-train job runs on it, from the default branch; no request code is
-  # checked out.
+  # Labelling a request `merge-train` moves the train at once. It runs from
+  # the default branch; no request code is checked out.
   pull_request_target:
     types: [labeled]
   # Re-decides the release step and moves the merge train by hand (e.g. after
   # fixing a failed rehearsal).
   workflow_dispatch:
+    inputs:
+      after:
+        description: A run of this repository to wait for and record first (the release run that dispatched this one)
+        required: false
+        default: ''
+        type: string
 
 permissions:
   contents: read
@@ -43,7 +55,7 @@ permissions:
 jobs:
   receipts:
     name: record receipts
-    if: github.event.workflow_run.head_repository.full_name == github.repository
+    if: github.event_name != 'workflow_run' || github.event.workflow_run.head_repository.full_name == github.repository
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
@@ -55,6 +67,7 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        if: github.event_name == 'workflow_run'
         with:
           pattern: factory-outcome-*
           path: .tmp/outcomes
@@ -62,16 +75,34 @@ jobs:
           run-id: ${{ github.event.workflow_run.id }}
           github-token: ${{ github.token }}
       - name: Publish the run's receipts and reweigh the schedule
+        if: github.event_name == 'workflow_run'
         env:
           GH_TOKEN: ${{ github.token }}
           FACTORY_RUN_ID: ${{ github.event.workflow_run.id }}
           FACTORY_RUN_ATTEMPT: ${{ github.event.workflow_run.run_attempt }}
         run: node scripts/factory.mjs publish .tmp/outcomes
+      - name: Collect the runs this token dispatched
+        env:
+          GH_TOKEN: ${{ github.token }}
+          AFTER: ${{ inputs.after }}
+        run: |
+          set -euo pipefail
+          if [ -n "$AFTER" ]; then
+            case "$AFTER" in *[!0-9]*) echo "after must be a run id" >&2; exit 1;; esac
+            gh run watch "$AFTER" --repo "$GITHUB_REPOSITORY" >/dev/null || true
+          fi
+          node scripts/factory.mjs unrecorded | while read -r run attempt; do
+            raw=".tmp/collected-raw/$run-$attempt" out=".tmp/collected/$run-$attempt"
+            mkdir -p "$raw" "$out"
+            gh run download "$run" --repo "$GITHUB_REPOSITORY" --pattern 'factory-outcome-*' --dir "$raw" || echo "run $run: no outcome artifacts left"
+            find "$raw" -name '*.outcome' -exec cp {} "$out/" \;
+          done
+          node scripts/factory.mjs collect .tmp/collected
 
   release:
     name: tag the workspace version
-    needs: receipts
-    if: always() && (needs.receipts.result == 'success' || github.event_name == 'workflow_dispatch')
+    needs: [receipts, merge-train]
+    if: always() && needs.receipts.result == 'success'
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     concurrency:
