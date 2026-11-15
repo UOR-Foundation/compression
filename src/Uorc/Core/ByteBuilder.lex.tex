@@ -157,7 +157,7 @@ definition{
       | Uorc.Core.Bytes::WorkEvent.sequenceDone completedRope => (ctor Event.finished completedRope)
       | Uorc.Core.Bytes::WorkEvent.byteDone resultByte => (ctor Event.failed (ctor Error.invalidState))
       | Uorc.Core.Bytes::WorkEvent.failed ropeError => (ctor Event.failed (ctor Error.rope ropeError)))),
-  axioms: [Quot.sound, propext]
+  axioms: []
 }
 
 definition{
@@ -171,7 +171,7 @@ definition{
       | Event.appended builder => (ctor Event.appended builder)
       | Event.finished rope => (ctor Event.finished rope)
       | Event.failed error => (ctor Event.failed error))),
-  axioms: [Quot.sound, propext],
+  axioms: [],
   recursive_argument: fuel
 }
 
@@ -205,8 +205,8 @@ theorem{
   name: empty_builder_finishes_without_payload_copy,
   parameters: [],
   statement: ((step (finish (empty))) = (ctor Event.finished (ctor Uorc.Core.Bytes::Rope.empty))),
-  proof: reflexivity{},
-  axioms: [Quot.sound, propext]
+  proof: evaluation{},
+  axioms: []
 }
 
 theorem{
@@ -228,7 +228,7 @@ theorem{
   parameters: [workValue : Work],
   statement: ((runEvents 0 workValue) = (ctor Event.advanced workValue)),
   proof: reflexivity{},
-  axioms: [Quot.sound, propext]
+  axioms: []
 }
 
 theorem{
@@ -298,16 +298,16 @@ theorem{
   name: finishing_bins_preserves_byte_order,
   parameters: [],
   statement: ((runEvents 20 (finish (record Builder {completed := (ctor Uorc.Core.Bytes::Rope.empty), bins := (cons (ctor Option.some [Bytes] 0x33) (cons (ctor Option.some [Bytes] 0x1122) (nil (Option Bytes)))), buffered := 3, capacity := 4096}))) = (ctor Event.finished (ctor Uorc.Core.Bytes::Rope.leaf 0x112233))),
-  proof: reflexivity{},
-  axioms: [Quot.sound, propext]
+  proof: evaluation{},
+  axioms: []
 }
 
 theorem{
   name: full_leaf_coalesces_and_drops_singleton_bins,
   parameters: [],
   statement: ((runEvents 20 (appendByte (record Builder {completed := (ctor Uorc.Core.Bytes::Rope.empty), bins := (cons (ctor Option.some [Bytes] 0x11) (nil (Option Bytes))), buffered := 1, capacity := 2}) (34 : UInt8))) = (ctor Event.appended (record Builder {completed := (ctor Uorc.Core.Bytes::Rope.leaf 0x1122), bins := (nil (Option Bytes)), buffered := 0, capacity := 2}))),
-  proof: reflexivity{},
-  axioms: [Quot.sound, propext]
+  proof: evaluation{},
+  axioms: []
 }
 
 theorem{
@@ -340,7 +340,7 @@ theorem{
   ],
   statement: ((step (ctor Work.tail completed (cons (ctor Option.none [Bytes]) olderBins) tailBytes)) = (ctor Event.advanced (ctor Work.tail completed olderBins tailBytes))),
   proof: reflexivity{},
-  axioms: [Quot.sound, propext]
+  axioms: []
 }
 
 theorem{
@@ -353,7 +353,7 @@ theorem{
   ],
   statement: ((step (ctor Work.rebuilding completed bins 0 count capacity)) = (ctor Event.appended (record Builder {completed := completed, bins := bins, buffered := count, capacity := capacity}))),
   proof: reflexivity{},
-  axioms: [Quot.sound, propext]
+  axioms: []
 }
 
 theorem{
@@ -361,7 +361,7 @@ theorem{
   parameters: [completed : Uorc.Core.Bytes::Rope],
   statement: ((step (ctor Work.tail completed (nil (Option Bytes)) 0x)) = (ctor Event.finished completed)),
   proof: reflexivity{},
-  axioms: [Quot.sound, propext]
+  axioms: []
 }
 
 definition{
@@ -405,7 +405,7 @@ theorem{
   ],
   statement: ((runEvents (fuel + 1) (ctor Work.rebuilding completed binValues (vacancies + 1) count capacity)) = (runEvents fuel (ctor Work.rebuilding completed (cons (ctor Option.none [Bytes]) binValues) vacancies count capacity))),
   proof: reflexivity{},
-  axioms: [Quot.sound, propext]
+  axioms: []
 }
 
 theorem{
@@ -430,7 +430,7 @@ theorem{
     generalizing: [binValues],
     scrutinee: vacancies
   },
-  axioms: [Quot.sound, propext]
+  axioms: [propext]
 }
 \end{semanticmodule}
 \end{lexlean}

@@ -88,7 +88,7 @@ definition{
   body: (match octet
     | Option.none => (ctor Option.none [Bytes])
     | Option.some byte => (Uorc.Core.Types::byteCell byte)),
-  axioms: [Quot.sound, propext]
+  axioms: []
 }
 
 definition{
@@ -123,7 +123,8 @@ definition{
         | Option.none => (ctor Build.invalidDigit)
         | Option.some singleton => (ctor Build.emit tail (prim append output singleton : Bytes))) else (ctor Build.invalidDigit)))
     | Build.done output => (ctor Build.done output)
-    | Build.invalidDigit => (ctor Build.invalidDigit))
+    | Build.invalidDigit => (ctor Build.invalidDigit)),
+  axioms: [Quot.sound, propext]
 }
 
 definition{
@@ -133,6 +134,7 @@ definition{
   body: (match fuel
     | Nat.zero => build
     | Nat.succ restFuel => (runBuild restFuel (buildStep build))),
+  axioms: [Quot.sound, propext],
   recursive_argument: fuel
 }
 
@@ -161,14 +163,16 @@ theorem{
   name: word_materialization_is_unsigned_big_endian,
   parameters: [],
   statement: ((runBuild 20 (beginBuild (record Word {reversedDigits := (cons 255 (cons 128 (cons 0 (nil Nat)))), length := 3}))) = (ctor Build.done 0x0080ff)),
-  proof: reflexivity{}
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
 }
 
 theorem{
   name: bad_digit_is_not_syntax_rejection,
   parameters: [],
   statement: ((buildStep (ctor Build.emit (cons 256 (nil Nat)) 0x)) = (ctor Build.invalidDigit)),
-  proof: reflexivity{}
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
 }
 \end{semanticmodule}
 \end{lexlean}
