@@ -9,7 +9,10 @@
 //
 // Set LEXLEAN to an already built binary of the same revision to skip the build,
 // or LEXLEAN_TOOL_ROOT to the directory it is installed under (the offline
-// construction installs it into its sealed acquisition this way).
+// construction installs it into its sealed acquisition this way). The build
+// itself runs in the workspace, beside the tool, and is removed once the binary
+// is installed: the recipe containers mount a small /tmp, which cargo install's
+// default build directory would fill.
 import fs from 'node:fs';
 import path from 'node:path';
 import {spawnSync} from 'node:child_process';
@@ -34,7 +37,9 @@ export function lexleanBinary() {
   if (process.env.LEXLEAN) return path.resolve(process.env.LEXLEAN);
   const bin = path.join(lexleanDir(), 'lexlean');
   if (!fs.existsSync(bin)) {
-    const r = spawnSync('cargo', ['install', '--locked', '--git', LEXLEAN_REPO, '--rev', LEXLEAN_REV, '--root', toolRoot(), 'lexlean'], {cwd: root, stdio: ['ignore', 2, 2]});
+    const build = path.join(root, '.lexlean/build', LEXLEAN_REV);
+    const r = spawnSync('cargo', ['install', '--locked', '--git', LEXLEAN_REPO, '--rev', LEXLEAN_REV, '--root', toolRoot(), '--target-dir', build, 'lexlean'], {cwd: root, stdio: ['ignore', 2, 2]});
+    fs.rmSync(build, {recursive: true, force: true});
     if (r.error || r.status !== 0) throw new Error(`cargo install lexlean ${LEXLEAN_REV} failed: ${r.error ?? r.status}`);
   }
   return bin;
