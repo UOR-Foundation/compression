@@ -17,6 +17,41 @@
 #              ('not', p), ('sel', c, a, b), ('hash', e) the 32-bit mixer H, ('squash', d) the logistic
 #              of an offset stretch value d in [1, 4095].
 
+class K(int):
+    """A named quantity of the model: an int to every interpreter, and to the LexLean lowering the
+    definition that states it. Its body is a numeral (an identity of the format: a field width, a table's
+    extent) or an expression over other named quantities (what the layout derives from them), so the
+    generated module states each figure once, at its place, and derives the rest."""
+    named = {}
+
+    def __new__(cls, name, body):
+        value = body if isinstance(body, int) else _kval(body)
+        k = int.__new__(cls, value)
+        k.name, k.body = name, body
+        seen = K.named.setdefault(name, k)
+        assert int(seen) == value and seen.body == body, (name, seen.body, body)
+        return seen
+
+
+def _kval(e):
+    if isinstance(e, int):
+        return int(e)
+    a, b = _kval(e[1]), _kval(e[2])
+    return {'add': a + b, 'sub': a - b, 'mul': a * b, 'div': a // b, 'mod': a % b}[e[0]]
+
+
+def kdeps(e, out):
+    """The named quantities an expression or statement list reads, each after those its body reads."""
+    if isinstance(e, K):
+        if e.name not in out:
+            kdeps(e.body, out)
+            out[e.name] = e
+    elif isinstance(e, (tuple, list)):
+        for a in e:
+            kdeps(a, out)
+    return out
+
+
 BIN = {'add', 'sub', 'mul', 'div', 'mod', 'lt', 'le', 'eq', 'ne', 'and', 'or'}
 PRED = {'lt', 'le', 'eq', 'ne', 'and', 'or', 'not'}
 

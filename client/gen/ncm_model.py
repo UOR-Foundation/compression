@@ -18,6 +18,7 @@ import os
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 from ir import *
+from ir import K
 
 NC = 17               # hashed contexts
 NIN = NC + 7          # mixer inputs: contexts, match probability, match vote, bias, short match (2), repeat (2)
@@ -29,13 +30,17 @@ TABLE_UNIT = 1 << 20  # the profile word's context table field (6 bits) starts h
 MATCH_UNIT = 1 << 26  # and its match table field (5 bits) here (ncm::MATCH_SHIFT)
 SQT = [1, 2, 3, 6, 10, 16, 27, 45, 73, 120, 194, 310, 488, 747, 1101, 1546, 2047,
        2549, 2994, 3348, 3607, 3785, 3901, 3975, 4022, 4050, 4068, 4079, 4085, 4089, 4092, 4093, 4094]
-WINIT = (1 << 22) + (1 << 14)
-KW = (1 << 24) - WINIT
+WRANGE = K('weightRange', 1 << 24)        # a stored weight, offset form
+WORIGIN = K('weightOrigin', 1 << 22)      # weight 0
+WTOP = K('weightTop', ('add', WORIGIN, WORIGIN))
+WINIT = K('weightInit', ('add', WORIGIN, K('weightStart', 1 << 14)))
+KW = K('weightKey', ('sub', WRANGE, WINIT))
 # the short match and repeat inputs (NC + 3 ..) start at weight 0 and earn theirs
-WINIT0 = 1 << 22
-KW0 = (1 << 24) - WINIT0
-def winit(i): return sel(lt(i, NC + 3), WINIT, WINIT0)
-def kw(i): return sel(lt(i, NC + 3), KW, KW0)
+WINIT0 = WORIGIN
+KW0 = K('weightKeyZero', ('sub', WRANGE, WORIGIN))
+EARNED = K('earnedInputs', ('add', K('contexts', NC), K('matchInputs', 3)))   # inputs that start at WINIT
+def winit(i): return sel(lt(i, EARNED), WINIT, WINIT0)
+def kw(i): return sel(lt(i, EARNED), KW, KW0)
 M32 = 1 << 32
 
 P = Prog()
@@ -421,9 +426,16 @@ P.func('decode', [], [('call', 'decodeStart', []), ('loop', G('n'), 'i', [('call
 P.func('decodeWith', ['h'], [('set', 'hoff', V('h')), ('call', 'decode', [])])
 # a frame word: the profile in bits 0-31, the probability field in bits 32-36 (0: 12 bits, 16: 16 bits, pz 15),
 # the consolidation field from bit 64 (cb, at most 8: every word the archive accepts, Archive.frameWord)
+PROFILE_BASE = K('profileBase', 1 << 32)                     # the profile, bits 0-31
+PROB_FIELD = K('probBase', 32)                               # the probability field, 5 bits
+STREAMS_BASE = K('streamsBase', ('mul', PROFILE_BASE, PROB_FIELD))
+STREAMS_FIELD = K('streamsRange', 1 << 16)                   # streams - 1, 16 bits
+EPOCH_BASE = K('epochBase', ('mul', STREAMS_BASE, STREAMS_FIELD))
+EPOCH_FIELD = K('epochRange', 32)                            # the epoch's log2, or a one-stream word's count bits
+WIDE_SHIFT = K('wideShift', 15)                              # pz of a 16-bit frame
 def word_fields(pf):
-    return [('set', 'prof', mod(pf, 1 << 32)), ('set', 'pz', sel(eq(mod(div(pf, 1 << 32), 32), 0), 0, 15)),
-            ('set', 'cb', mod(div(pf, 1 << 53), 32))]
+    return [('set', 'prof', mod(pf, PROFILE_BASE)), ('set', 'pz', sel(eq(mod(div(pf, PROFILE_BASE), PROB_FIELD), 0), 0, WIDE_SHIFT)),
+            ('set', 'cb', mod(div(pf, EPOCH_BASE), EPOCH_FIELD))]
 P.func('decodeProfile', ['h', 'pf'], word_fields(V('pf')) + [('call', 'decodeWith', [V('h')])])
 # from a kappa-named model state: H starts holding the state's w bytes, which the whole model codes first as
 # though they were the frame's opening bytes (every context, mixer and map learns them, nothing is emitted), so
