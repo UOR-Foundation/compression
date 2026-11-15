@@ -226,7 +226,11 @@ fn read_entries(bytes: &[u8]) -> Result<Vec<uorc::tree::Entry>, uorc::Error> {
             Ok(head)
         }
         fn word(&mut self) -> Result<usize, uorc::Error> {
-            Ok(u32::from_le_bytes(self.take(4)?.try_into().expect("4 bytes")) as usize)
+            Ok(u32::from_le_bytes(
+                self.take(std::mem::size_of::<u32>())?
+                    .try_into()
+                    .expect("4 bytes"),
+            ) as usize)
         }
     }
     let mut c = Cursor(bytes);
@@ -301,11 +305,17 @@ impl<'a> Fields<'a> {
         Ok(out)
     }
     fn u32(&mut self) -> Result<usize, uorc::Error> {
-        Ok(u32::from_le_bytes(self.take(4)?.try_into().expect("4 bytes")) as usize)
+        Ok(u32::from_le_bytes(
+            self.take(std::mem::size_of::<u32>())?
+                .try_into()
+                .expect("4 bytes"),
+        ) as usize)
     }
     fn u64(&mut self) -> Result<u64, uorc::Error> {
         Ok(u64::from_le_bytes(
-            self.take(8)?.try_into().expect("8 bytes"),
+            self.take(std::mem::size_of::<u64>())?
+                .try_into()
+                .expect("8 bytes"),
         ))
     }
     fn len(&mut self) -> Result<usize, uorc::Error> {
@@ -590,7 +600,11 @@ fn read_listing(bytes: &[u8]) -> Result<Vec<(String, uorc::tree::Kind, u64)>, uo
         let path = std::str::from_utf8(take(len)?)
             .map_err(|_| uorc::Error::Decode)?
             .to_owned();
-        let length = u64::from_le_bytes(take(8)?.try_into().expect("8 bytes"));
+        let length = u64::from_le_bytes(
+            take(std::mem::size_of::<u64>())?
+                .try_into()
+                .expect("8 bytes"),
+        );
         out.push((path, kind, if kind == Kind::Directory { 0 } else { length }));
     }
     if at != bytes.len() {

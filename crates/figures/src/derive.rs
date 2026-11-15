@@ -146,6 +146,9 @@ pub struct Placed {
     pub name: String,
     /// A shift count: the quantity's base-two logarithm.
     pub bits: bool,
+    /// Rendered as this expression instead of a model quantity (the width
+    /// of the integer type the bytes are read into).
+    pub raw: Option<String>,
 }
 
 /// What the pass finds in one file.
@@ -382,6 +385,8 @@ struct Pass<'a> {
     scaling: bool,
     /// The array-length domains the function being read declares.
     lens_now: Ds,
+    /// Literals that are the width of the type their bytes are read into.
+    widths_seen: Vec<Placed>,
     /// The domains every literal of the function being read acts in
     /// (`Domain: body: <d>`: a layout function's offsets).
     body_now: Ds,
@@ -519,6 +524,7 @@ impl Pass<'_> {
                         suffix: suffix.to_string(),
                         name: n,
                         bits: log,
+                        raw: None,
                     });
                     return true;
                 }
@@ -630,6 +636,15 @@ impl Pass<'_> {
                     E::Path(p) => p.path.segments.last().map(|s| s.ident.to_string()),
                     _ => None,
                 };
+                if let (Some(n), E::Path(p)) = (name.as_deref(), &*c.func) {
+                    if (n == "from_le_bytes" || n == "from_be_bytes") && p.path.segments.len() == 2
+                    {
+                        let ty = p.path.segments[0].ident.to_string();
+                        for a in &c.args {
+                            self.widths(a, &ty);
+                        }
+                    }
+                }
                 // a conversion carries its argument's domains
                 if name
                     .as_deref()
@@ -839,12 +854,54 @@ impl Pass<'_> {
             suffix: String::new(),
             name: name.clone(),
             bits: false,
+            raw: None,
         });
         true
     }
 
+    /// The literals of `e` that equal the width of `ty` (the integer the bytes
+    /// are read into by `ty::from_le_bytes` / `from_be_bytes`): they are that
+    /// width, `size_of::<ty>()`.
+    fn widths(&mut self, e: &syn::Expr, ty: &str) {
+        let w: u128 = match ty {
+            "u16" | "i16" => 2,
+            "u32" | "i32" => 4,
+            "u64" | "i64" => 8,
+            "u128" | "i128" => 16,
+            _ => return,
+        };
+        type Lit = (Option<u128>, bool, std::ops::Range<usize>, usize);
+        struct Lits<'v>(&'v mut Vec<Lit>);
+        impl<'ast> Visit<'ast> for Lits<'_> {
+            fn visit_lit_int(&mut self, i: &'ast syn::LitInt) {
+                self.0.push((
+                    i.base10_parse::<u128>().ok(),
+                    i.suffix().is_empty(),
+                    i.span().byte_range(),
+                    i.span().start().line,
+                ));
+            }
+        }
+        let mut lits = Vec::new();
+        Lits(&mut lits).visit_expr(e);
+        for (v, plain, r, line) in lits {
+            if v == Some(w) && plain {
+                self.widths_seen.push(Placed {
+                    range: (r.start, r.end),
+                    line,
+                    value: w.to_string(),
+                    suffix: String::new(),
+                    name: format!("size_of::<{ty}>"),
+                    bits: false,
+                    raw: Some(format!("std::mem::size_of::<{ty}>()")),
+                });
+            }
+        }
+    }
+
     /// The domains of `e` without placing anything.
     fn peek(&mut self, e: &syn::Expr) -> Ds {
+        let widths = self.widths_seen.len();
         let saved = (
             self.out.placed.len(),
             self.out.residue.clone(),
@@ -858,6 +915,7 @@ impl Pass<'_> {
         self.out.residue = saved.1;
         self.next = saved.2;
         self.out.left.truncate(saved.3);
+        self.widths_seen.truncate(widths);
         d
     }
 
@@ -1372,11 +1430,13 @@ pub fn pass(model: &Model, text: &str, others: &[String]) -> Result<Outcome, cra
         scaling: false,
         lens_now: Ds::new(),
         body_now: Ds::new(),
+        widths_seen: Vec::new(),
     };
     for _ in 0..32 {
         p.next = BTreeMap::new();
         p.next_uses = BTreeMap::new();
         p.out = Outcome::default();
+        p.widths_seen.clear();
         for it in &ast.items {
             p.item(it);
         }
@@ -1394,6 +1454,10 @@ pub fn pass(model: &Model, text: &str, others: &[String]) -> Result<Outcome, cra
         let settled = merged == p.inferred && uses == p.uses;
         p.uses = uses;
         if settled {
+            let mut ws = std::mem::take(&mut p.widths_seen);
+            ws.retain(|w| !p.out.placed.iter().any(|x| x.range == w.range));
+            p.out.placed.extend(ws);
+            // a width's site was also counted as residue: drop it there
             p.out.placed.sort_by_key(|x| x.range);
             p.out.placed.dedup_by_key(|x| x.range);
             return Ok(p.out);
@@ -1411,6 +1475,9 @@ pub const VIEWS: [&str; 9] = [
 
 /// Render a placed literal in the view `ty`.
 pub fn site(model: &Model, p: &Placed, ty: &str) -> String {
+    if let Some(r) = &p.raw {
+        return r.clone();
+    }
     if p.bits {
         format!("{}::{ty}::bits::{}", model.path, p.name)
     } else {

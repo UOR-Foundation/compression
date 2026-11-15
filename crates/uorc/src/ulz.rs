@@ -601,7 +601,7 @@ pub fn decode_with(history: &[u8], payload: &[u8], expected: u64) -> Option<Vec<
     if payload.len() < 13 {
         return None;
     }
-    let total = u64::from_le_bytes(payload[..8].try_into().ok()?);
+    let total = u64::from_le_bytes(payload[..std::mem::size_of::<u64>()].try_into().ok()?);
     if total != expected {
         return None;
     }
