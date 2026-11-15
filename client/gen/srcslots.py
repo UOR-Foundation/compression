@@ -128,8 +128,8 @@ def parts_of(node, defs):
     if k and S.tok(k[0]) == JOIN and len(k) == 3:
         a, b = parts_of(k[1], defs), parts_of(k[2], defs)
         return None if a is None or b is None else a + b
-    if len(k) == 1 and S.tok(k[0]) in defs:
-        return [S.tok(k[0])]
+    if k and S.tok(k[0]) in defs and all(isinstance(x, tuple) for x in k):
+        return [S.tok(k[0])]           # a part, called with the block's own values
     return None
 
 
@@ -162,9 +162,6 @@ def main():
                 seq = []
                 for pn in parts:
                     ps, pe, pd, pb = defs.defs[pn]
-                    if 'parameters: [],' not in pd:
-                        seq = None
-                        break
                     pt = S.parse(text[pb:pe], pb)
                     w = instructions(pt.kids[0]) if pt.kids and isinstance(pt.kids[0], S.Node) else None
                     if w is None:
