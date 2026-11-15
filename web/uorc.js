@@ -173,13 +173,16 @@ export async function load(source) {
     // A span is cut as the library cuts it (uorc::compress_span): a part
     // that repeats a frame before it in its span is that frame's reference,
     // a second half that repeats its first is the first's reference (the
-    // first one frame); otherwise it is coded whole and as two halves, the second reading the
-    // first while the declared host holds them, the halves kept only when
-    // shorter, each half cut the same way. Every trial is one frame coded on
-    // a pool worker (code_frame with no strategy), so the bytes are the
-    // library's. Both halves are cut at once, the second over the first
-    // whole, and cut again over the first's frames when the first is cut
-    // further.
+    // first one frame); otherwise it is one frame, unless its two halves
+    // (the second reading the first while the declared host holds them) are
+    // shorter by their planning trials (code_frame with which = strategies)
+    // than the part's, each half cut the same way. Then each frame the cut
+    // keeps is coded once (code_frame with no strategy), the frames side by
+    // side on the pool (and the span whole beside them), so the bytes are
+    // the library's. Both halves are cut
+    // at once, the second after the first whole, and cut again after the
+    // first's frames when the first is cut further.
+    const planning = x.strategies();
     const slice = (r) => blob.slice(r.start, r.start + r.length);
     const reads = (n, history) => x.span_reads(BigInt(n), BigInt(history)) === 1;
     const label = async (r) => call(await bytesOf(slice(r)), () => x.frame_label());
@@ -225,14 +228,17 @@ export async function load(source) {
       m.end();
       return parts;
     };
+    // A frame of the cut: its range, pieces and window, and its archive
+    // when the cut wrote it (a reference).
+    const leaf = (range, pieces, window, archive = null) => ({ ...range, pieces, window, archive });
     const cutParts = async (range, pieces, window, earlier, whole, m) => {
-      const trial = (r, p, w, t) => coder.code({ which: -1, steps, pieces: p, window: w.map(slice), frame: slice(r) }, (share) => t.move(share));
+      const planned = async (r, p, w, t) => (await coder.code({ which: planning, steps, pieces: p, window: w.map(slice), frame: slice(r) }, (share) => t.move(share))).length;
       if (!whole) {
         const reference = await repeat(range, pieces, earlier);
-        if (reference) return [{ ...range, archive: reference }];
+        if (reference) return [leaf(range, pieces, window, reference)];
       }
       const half = range.length >>> 1;
-      if (half === 0) return [{ ...range, archive: whole ?? await trial(range, pieces, window, m) }];
+      if (half === 0) return [leaf(range, pieces, window)];
       const a = { start: range.start, length: half };
       const b = { start: range.start + half, length: range.length - half };
       const [pa, pb] = splitPieces(pieces, BigInt(half));
@@ -241,30 +247,42 @@ export async function load(source) {
       const after = (frames) => (fits ? [...window, ...frames] : []);
       const overA = [...earlier, await label(a)];
       const known = await repeat(b, pb, earlier);
-      if (known) return [...await cut(a, pa, window, earlier, null, m), { ...b, archive: known }];
+      if (known) return [...await cut(a, pa, window, earlier, null, m), leaf(b, pb, after([a]), known)];
       const repeated = await repeat(b, pb, overA.slice(earlier.length));
       if (repeated) {
-        const first = await trial(a, pa, window, m);
-        if (whole && whole.length <= first.length + repeated.length) return [{ ...range, archive: whole }];
-        return [{ ...a, archive: first }, { ...b, archive: repeated }];
+        if (whole && whole <= await planned(a, pa, window, m) + repeated.length) return [leaf(range, pieces, window)];
+        return [leaf(a, pa, window), leaf(b, pb, after([a]), repeated)];
       }
-      // the trials to run (the whole span unless the caller coded it, then
-      // each half), then each half's cut
+      // the planning trials to run (the whole part unless the caller ran
+      // it, then each half), then each half's cut
       const trials = whole ? [a, b] : [range, a, b];
       const meters = m.split([...trials, a, b]);
-      const coded = await Promise.all(trials.map((r, i) => trial(r, r === a ? pa : r === b ? pb : pieces, r === b ? after([a]) : window, meters[i])));
+      const coded = await Promise.all(trials.map((r, i) => planned(r, r === a ? pa : r === b ? pb : pieces, r === b ? after([a]) : window, meters[i])));
       const [w, ca, cb] = whole ? [whole, ...coded] : coded;
-      if (ca.length + cb.length >= w.length) return [{ ...range, archive: w }];
+      if (ca + cb >= w) return [leaf(range, pieces, window)];
       const [ma, mb] = meters.slice(trials.length);
       const [firsts, overWhole] = await Promise.all([cut(a, pa, window, earlier, ca, ma), cutParts(b, pb, after([a]), overA, cb, mb)]);
       if (firsts.length === 1) return [...firsts, ...overWhole];
       mb.again();
       return [...firsts, ...await cut(b, pb, after(firsts), [...earlier, ...await labels(firsts)], null, mb)];
     };
+    // A span's bar is shared by its cut and its frames' coding, by the
+    // bytes each reads (the span's, once each).
     const span = (f) => {
-      const m = meter(f.length, (d) => { shares.set(f.index, (shares.get(f.index) ?? 0) + d); report(); });
-      const frames = cut({ start: f.start, length: f.length }, f.pieces, [], [], null, m);
-      settle(f.index, f.length, frames.then((parts) => new Blob(parts.map((p) => p.archive))));
+      const range = { start: f.start, length: f.length };
+      const [planMeter, codeMeter] = meter(f.length, (d) => { shares.set(f.index, (shares.get(f.index) ?? 0) + d); report(); }).split([range, range]);
+      // a span cut by planning trials alone (no reference among its frames)
+      // is coded whole beside them, the frames kept only when strictly
+      // shorter, as the library keeps them
+      const frames = cut(range, f.pieces, [], [], null, planMeter).then(async (leaves) => {
+        const coding = leaves.length > 1 && leaves.every((l) => !l.archive) ? [...leaves, leaf(range, f.pieces, [])] : leaves;
+        const meters = codeMeter.split(coding);
+        const coded = await Promise.all(coding.map((l, i) => l.archive ?? coder.code({ which: -1, steps, pieces: l.pieces, window: l.window.map(slice), frame: slice(l) }, (share) => meters[i].move(share))));
+        if (coding === leaves) return coded;
+        const whole = coded.pop();
+        return whole.length <= coded.reduce((n, a) => n + a.length, 0) ? [whole] : coded;
+      });
+      settle(f.index, f.length, frames.then((archives) => new Blob(archives)));
     };
     let index = 0;
     let position = 0;
