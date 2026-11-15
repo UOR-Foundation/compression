@@ -1,4 +1,5 @@
 \begin{lexlean}{Uorc.Search.HashRope}
+\importmodule{Uorc.Wire.Domains}
 \importmodule{Uorc.Core.Bytes}
 \importmodule{Uorc.Integrity.BoundedChain}
 \title{Parameters}
@@ -82,7 +83,7 @@ definition{
         | Uorc.Integrity.BoundedChain::UpdateEvent.advanced next => (ctor Step.pending (record Cursor {reader := (project cursor reader), remaining := (project cursor remaining), phase := (ctor Phase.updating next), bytesHashed := (project cursor bytesHashed), completedEvents := ((project cursor completedEvents) + 1)}))
         | Uorc.Integrity.BoundedChain::UpdateEvent.done nextHash => (ctor Step.pending (record Cursor {reader := (project cursor reader), remaining := (project cursor remaining), phase := (ctor Phase.reading nextHash), bytesHashed := (project cursor bytesHashed), completedEvents := ((project cursor completedEvents) + 1)}))))
     | Phase.finalizing hash => (match (Uorc.Integrity.BoundedChain::digest hash)
-      | Result.ok digestBytes => (if ((prim length digestBytes : Nat) =? 32) then (ctor Step.complete digestBytes (project cursor bytesHashed) ((project cursor completedEvents) + 1)) else (ctor Step.failed (ctor Error.digestLength) ((project cursor completedEvents) + 1)))
+      | Result.ok digestBytes => (if ((prim length digestBytes : Nat) =? (Uorc.Wire.Domains::digestBytes)) then (ctor Step.complete digestBytes (project cursor bytesHashed) ((project cursor completedEvents) + 1)) else (ctor Step.failed (ctor Error.digestLength) ((project cursor completedEvents) + 1)))
       | Result.error notReady => (match (Uorc.Integrity.BoundedChain::step hash)
         | Result.error error => (ctor Step.failed (ctor Error.integrity error) ((project cursor completedEvents) + 1))
         | Result.ok nextHash => (ctor Step.pending (record Cursor {reader := (project cursor reader), remaining := (project cursor remaining), phase := (ctor Phase.finalizing nextHash), bytesHashed := (project cursor bytesHashed), completedEvents := ((project cursor completedEvents) + 1)}))))),

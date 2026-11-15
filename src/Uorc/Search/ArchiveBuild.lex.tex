@@ -1,4 +1,5 @@
 \begin{lexlean}{Uorc.Search.ArchiveBuild}
+\importmodule{Uorc.Wire.Domains}
 \importmodule{Uorc.Core.Bytes}
 \importmodule{Uorc.Wire.Frame}
 \importmodule{Uorc.Wire.GraphEmit}
@@ -135,7 +136,7 @@ definition{
         | Uorc.Integrity.BoundedChain::UpdateEvent.advanced next => (ctor Step.pending (record Cursor {phase := (ctor Phase.updating next emitter builder), completedEvents := ((project cursor completedEvents) + 1)}))
         | Uorc.Integrity.BoundedChain::UpdateEvent.done hash => (ctor Step.pending (record Cursor {phase := (ctor Phase.emitting emitter hash builder), completedEvents := ((project cursor completedEvents) + 1)}))))
     | Phase.finalizing hash builder => (match (Uorc.Integrity.BoundedChain::digest hash)
-      | Result.ok digestBytes => (if ((prim length digestBytes : Nat) =? 32) then (ctor Step.pending (record Cursor {phase := (ctor Phase.digestAppending (Uorc.Search.StreamBuilder::appendChunk builder digestBytes) (project builder byteCount)), completedEvents := ((project cursor completedEvents) + 1)})) else (ctor Step.failed (ctor Error.digestLength) ((project cursor completedEvents) + 1)))
+      | Result.ok digestBytes => (if ((prim length digestBytes : Nat) =? (Uorc.Wire.Domains::digestBytes)) then (ctor Step.pending (record Cursor {phase := (ctor Phase.digestAppending (Uorc.Search.StreamBuilder::appendChunk builder digestBytes) (project builder byteCount)), completedEvents := ((project cursor completedEvents) + 1)})) else (ctor Step.failed (ctor Error.digestLength) ((project cursor completedEvents) + 1)))
       | Result.error notReady => (match (Uorc.Integrity.BoundedChain::step hash)
         | Result.error error => (ctor Step.failed (ctor Error.integrity error) ((project cursor completedEvents) + 1))
         | Result.ok nextHash => (ctor Step.pending (record Cursor {phase := (ctor Phase.finalizing nextHash builder), completedEvents := ((project cursor completedEvents) + 1)}))))

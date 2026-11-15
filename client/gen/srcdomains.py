@@ -50,6 +50,7 @@ def declarations():
         ('byteBase', '(%s)' % prev, 256),   # the octet's values: radix to the byteBits
         ('byteLast', '(prim subtract (byteBase) 1 : Nat)', 255),
         ('byteHalf', '(prim quotient (byteBase) (radix) 0 : Nat)', 128),
+        ('byteBitLast', '(prim subtract (byteBits) 1 : Nat)', BYTE_BITS - 1),
         ('wordBytes', str(WORD_BYTES), WORD_BYTES),
         ('wordBits', '(prim multiply (wordBytes) (byteBits) : Nat)', WORD_BYTES * 8),
     ]
@@ -65,11 +66,14 @@ def declarations():
         # a binary tree over the octet alphabet: leaves are the octet values, inner nodes follow them,
         # so a node is named below radix times the alphabet, in one bit more than an octet
         ('nodeBase', '(prim multiply (radix) (byteBase) : Nat)', 512),
+        ('nodeLast', '(prim subtract (nodeBase) 1 : Nat)', 511),
         ('nodeBits', '((byteBits) + 1)', 9),
         # a node is written in whole octets, and an inner node as its radix children
         ('nodeBytes', '(prim quotient (prim subtract ((nodeBits) + (byteBits)) 1 : Nat) (byteBits) 0 : Nat)', 2),
         ('nodeRecordBytes', '(prim multiply (radix) (nodeBytes) : Nat)', 4),
     ]
+    # the seal: an archive is sealed by a SHA-256 digest (UORC-SHA256-CHAIN-v1), of 32 octets
+    out.append(('digestBytes', '32', 32))
     return out
 
 
@@ -81,9 +85,10 @@ DOMAINS = {
     'word': ['wordLast', 'byteBase'] + ['bytePlace%d' % k for k in range(2, WORD_BYTES)],  # a natural of the
     #                                  model is lowered to the declared word: its top and byte places
     'key': ['wordBits', 'nodeBits'],   # a trie keyed by a word (or a tree node) is walked once per key bit
-    'node': ['byteBase', 'nodeBase'],  # a tree node: the first inner node, and past the last
+    'node': ['byteBase', 'nodeBase', 'nodeLast'],  # a tree node: the first inner node, and past the last
     'nodes': ['nodeRecordBytes'],      # a count of inner nodes: the octets each is written in
-    'bits': ['byteBits', 'wordBits'],  # a count of bits: whole bytes and words of it
+    'digest': ['digestBytes'],         # a seal: the octets of its digest
+    'bits': ['byteBits', 'wordBits', 'byteBitLast'],  # a count of bits: whole bytes and words of it
     'byte': ['byteBase', 'byteLast'],  # an octet value
     'place': ['radix', 'byteBase'],    # the base of a place-value digit, in a binary definition
     'digit': ['byteBase'],             # the base a byte digit is taken in
@@ -101,7 +106,8 @@ PARAMS['fitsAddition'] = {0: 'word'}
 FIELDS = {
     'slotVisits': 'key',     # trie levels visited: a slot lookup walks every bit of the slot key
     'nextNode': 'node', 'root': 'node',
-    'bitCount': 'bits', 'filledBits': 'bits', 'encodedBits': 'bits',
+    'bitCount': 'bits', 'filledBits': 'bits', 'encodedBits': 'bits', 'f_filledBits': 'bits',
+    'integrity': 'digest',   # an archive's seal
 }
 
 # Definitions that take or build a natural in binary places (bits of a word, a binary tree's node
@@ -111,9 +117,17 @@ BINARY = {'wordToNatAux', 'wordOfNatAux', 'natToU64Bits', 'powerTwo', 'indexBits
           'Core.ByteBuilder.step'}
 
 # Binders declared to hold a domain, by the definition that binds them.
+DIGESTS = ('digest', 'digestBytes', 'expectedId', 'actualId', 'leftBasisId', 'rightBasisId')
 BINDERS = {
     'Search.HuffmanFit.perform': {n: 'node' for n in ('first', 'second', 'index', 'best', 'node', 'parent')},
+    # the digits of a big-endian octet string
+    'Search.Enumerate.step': {'digit': 'byte'}, 'Search.Enumerate.buildStep': {'digit': 'byte'},
+    'Search.RopeWords.step': {'digit': 'byte'},
+    'Search.InputModels.step': {'nextState': 'byte'},   # a state model's states are named by octets
 }
+for _d in ('Search.ArchiveBuild.step', 'Search.ArchiveTrial.afterBoundaries', 'Search.ArchiveTrial.dispatch',
+           'Search.BasisIdentity.perform', 'Search.HashRope.step', 'Search.Identity.step'):
+    BINDERS[_d] = {n: 'digest' for n in DIGESTS}
 
 COMPARE = {'<?', '<=?', '=?', '<', '<=', '>', '>=', '=', '!=?'}
 ARITH = {'+', '-'}
@@ -135,10 +149,16 @@ def parse(text, base):
     for m in TOKEN.finditer(text):
         t = m.group(0)
         if t in '([{':
+            if t == '{' and cur.kids and tok(cur.kids[-1]) == 'var':
+                cur.kids.pop()                 # var{name: x} is the binder x
+                t = 'var'
             n = Node(t, cur)
             cur.kids.append(n)
             cur = n
         elif t in ')]}':
+            if cur.open == 'var':
+                names = [k for k in cur.kids if isinstance(k, tuple)]
+                cur.kids = names[2:3] if len(names) >= 3 and names[0][0] == 'name' else names
             cur = cur.parent or root
         else:
             cur.kids.append((t, base + m.start(), base + m.end()))
@@ -161,12 +181,6 @@ def domain_of(kids, defn_params):
     if head == 'project' and len(kids) >= 3:
         f = tok(kids[-1])
         return FIELDS.get(f, 'word')
-    if head == 'var' and len(kids) >= 2 and isinstance(kids[1], Node):
-        kids = kids[1].kids
-        head = tok(kids[0]) if kids else None
-    if head == 'name' and len(kids) == 3 and tok(kids[1]) == ':':
-        kids = [kids[2]]
-        head = tok(kids[0])
     if head == 'prim' and len(kids) >= 4 and tok(kids[1]) == 'subtract':
         a = domain_of([kids[2]], defn_params)
         if a == 'node' and tok(kids[3]) is None:
@@ -176,7 +190,9 @@ def domain_of(kids, defn_params):
     if head == 'prim' and len(kids) >= 2:
         op = tok(kids[1])
         if op == 'length':
-            return 'word'
+            return 'digest' if domain_of([kids[2]], defn_params) == 'digest' else 'word'
+        if op == 'remainder' and len(kids) >= 4 and domain_of([kids[2]], defn_params) == 'bits':
+            return 'bits'                  # the bits past whole octets
         if op in ('subtract', 'multiply', 'quotient', 'remainder'):
             return 'word'
         return None
@@ -186,6 +202,10 @@ def domain_of(kids, defn_params):
         t = tok(kids[0])
         if t is not None and re.fullmatch(r'[A-Za-z_][\w\']*', t):
             ty = defn_params.get(t)
+            if ty and ty.startswith('@'):
+                return ty[1:]
+            if t in FIELDS:
+                return FIELDS[t]
             if ty == 'Nat':
                 return 'word'
             if ty and ty.startswith('@'):
@@ -248,7 +268,7 @@ def contexts(node, defn_params, out, binary=False):
                 doms.append(d)
         else:
             if i + 1 < len(kids) and tok(kids[i + 1]) in COMPARE | ARITH and i + 2 < len(kids):
-                d = domain_of(kids[i + 2:i + 4] if tok(kids[i + 2]) == 'var' else [kids[i + 2]], defn_params)
+                d = domain_of([kids[i + 2]], defn_params)
                 compare = tok(kids[i + 1]) in COMPARE
                 if d:
                     doms.append(d)
@@ -267,7 +287,7 @@ def contexts(node, defn_params, out, binary=False):
 
 def params_of(decl):
     m = re.search(r'parameters: \[(.*?)\],\n', decl, re.S)
-    out = {}
+    out = {x: 'Nat' for x in re.findall(r'let (\w+) : Nat :=', decl)}
     if m:
         for p in re.finditer(r'(\w+) : ([\w.:]+)', m.group(1)):
             out[p.group(1)] = p.group(2)

@@ -1,4 +1,5 @@
 \begin{lexlean}{Uorc.Search.Identity}
+\importmodule{Uorc.Wire.Domains}
 \importmodule{Uorc.Core.Bytes}
 \importmodule{Uorc.Wire.Frame}
 \importmodule{Uorc.Core.Resources}
@@ -93,7 +94,7 @@ definition{
         | Uorc.Wire.Frame::Scope.conditional rightBasisId => (ctor Step.different (ctor Field.scope)))
       | Uorc.Wire.Frame::Scope.conditional leftBasisId => (match (project (project cursor right) scope)
         | Uorc.Wire.Frame::Scope.selfContained => (ctor Step.different (ctor Field.scope))
-        | Uorc.Wire.Frame::Scope.conditional rightBasisId => (if (((prim length leftBasisId : Nat) =? 32) && ((prim length rightBasisId : Nat) =? 32)) then (if (prim equal leftBasisId rightBasisId : Bool) then (ctor Step.pending (record Cursor {left := (project cursor left), right := (project cursor right), phase := (ctor Phase.boundaries (Uorc.Search.Boundaries::start (project (project cursor left) objectLengths) (project (project cursor right) objectLengths)))})) else (ctor Step.different (ctor Field.scope))) else (ctor Step.invalidScope)))) else (ctor Step.different (ctor Field.decodeBudget))) else (ctor Step.different (ctor Field.profile)))
+        | Uorc.Wire.Frame::Scope.conditional rightBasisId => (if (((prim length leftBasisId : Nat) =? (Uorc.Wire.Domains::digestBytes)) && ((prim length rightBasisId : Nat) =? (Uorc.Wire.Domains::digestBytes))) then (if (prim equal leftBasisId rightBasisId : Bool) then (ctor Step.pending (record Cursor {left := (project cursor left), right := (project cursor right), phase := (ctor Phase.boundaries (Uorc.Search.Boundaries::start (project (project cursor left) objectLengths) (project (project cursor right) objectLengths)))})) else (ctor Step.different (ctor Field.scope))) else (ctor Step.invalidScope)))) else (ctor Step.different (ctor Field.decodeBudget))) else (ctor Step.different (ctor Field.profile)))
     | Phase.boundaries comparison => (match (Uorc.Search.Boundaries::step comparison)
       | Uorc.Search.Boundaries::Step.pending next => (ctor Step.pending (record Cursor {left := (project cursor left), right := (project cursor right), phase := (ctor Phase.boundaries next)}))
       | Uorc.Search.Boundaries::Step.matched objects => (ctor Step.pending (record Cursor {left := (project cursor left), right := (project cursor right), phase := (ctor Phase.target (Uorc.Search.VerifyRope::start (cons (project (project cursor left) target) (nil Uorc.Core.Bytes::Rope)) (cons (project (project cursor right) target) (nil Uorc.Core.Bytes::Rope))))}))
