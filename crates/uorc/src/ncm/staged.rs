@@ -220,7 +220,8 @@ impl Model {
         if self.bit == 8 {
             self.pos += 1;
             self.seen += 1;
-            self.c4 = (self.c4 << 8) | (self.c0 & 255);
+            self.c4 = (self.c4 << crate::model::ncm::u32::bits::byteBase)
+                | (self.c0 & crate::model::ncm::u32::cell1Last);
             self.c0 = 1;
             self.bit = 0;
         }
@@ -241,7 +242,11 @@ fn mix_bit<K: Kernel, const W: usize>(
     let p = m.mix::<K, W>(ms);
     let c0 = (m.c0 << 1) | u32::from(y);
     if m.bit == 7 {
-        m.prefetch_mixers((m.c4 << 8) | (c0 & 255), 1);
+        m.prefetch_mixers(
+            (m.c4 << crate::model::ncm::u32::bits::byteBase)
+                | (c0 & crate::model::ncm::u32::cell1Last),
+            1,
+        );
     } else {
         m.prefetch_mixers(m.c4, c0);
     }

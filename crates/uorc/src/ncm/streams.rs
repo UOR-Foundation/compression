@@ -52,6 +52,8 @@ pub struct Plan {
     pub epoch: usize,
     /// Bits of the probability each bit is coded at: 12 (the frame's coder,
     /// a word's probability field zero) or 16 (the field 16).
+    ///
+    /// Domain: log2 stretchRange, log2 slotRange
     pub bits: u32,
     /// How the model learns ([`super::Learning`]; the word's learning
     /// fields, [`COUNT_AT`]).
@@ -81,7 +83,7 @@ impl Plan {
         self.streams > 0
             && self.epoch > 0
             && self.streams <= STREAMS_MAX
-            && (self.bits == 12 || self.bits == 16)
+            && (self.bits == crate::model::ncm::u32::bits::stretchRange || self.bits == crate::model::ncm::u32::bits::slotRange)
             && self.learning.valid()
             && self.delta.is_none_or(crate::delta::Delta::valid)
             // streams learn as the standard model, over no delta filter
@@ -92,7 +94,7 @@ impl Plan {
     pub const ONE: Plan = Plan {
         streams: 1,
         epoch: 1,
-        bits: 12,
+        bits: crate::model::ncm::u32::bits::stretchRange,
         learning: super::Learning::STANDARD,
         delta: None,
     };
@@ -103,7 +105,7 @@ impl Plan {
         Plan {
             streams,
             epoch,
-            bits: 12,
+            bits: crate::model::ncm::u32::bits::stretchRange,
             learning: super::Learning::STANDARD,
             delta: None,
         }
@@ -114,14 +116,21 @@ impl Plan {
     /// delta filter.
     #[must_use]
     pub fn serial(&self) -> bool {
-        self.streams == 1 && self.bits == 12 && self.learning.standard() && self.delta.is_none()
+        self.streams == 1
+            && self.bits == crate::model::ncm::u32::bits::stretchRange
+            && self.learning.standard()
+            && self.delta.is_none()
     }
 }
 
 /// Bit of a frame word where the stream count less one starts (16 bits).
-pub const STREAMS_AT: u32 = 37;
+///
+/// Domain: log2 streamsBase
+pub const STREAMS_AT: u32 = crate::model::ncm::u32::bits::streamsBase;
 /// Bit of a frame word where the epoch's base-2 logarithm starts.
-pub const EPOCH_AT: u32 = 53;
+///
+/// Domain: log2 epochBase
+pub const EPOCH_AT: u32 = crate::model::ncm::u32::bits::epochBase;
 /// The epoch's base-2 logarithms the epoch field holds.
 ///
 /// Model: Uorc.Codec.NcmDecode.epochRange
@@ -165,7 +174,7 @@ pub fn word(profile: u32, plan: Plan) -> Option<Word> {
     {
         return None;
     }
-    let p = if plan.bits == 12 {
+    let p = if plan.bits == crate::model::ncm::u32::bits::stretchRange {
         0
     } else {
         Word::from(plan.bits)
@@ -191,8 +200,8 @@ pub fn split(word: Word) -> Option<(u32, Plan)> {
         return None;
     }
     let bits = match (word >> PROB_AT) & 31 {
-        0 => 12,
-        16 => 16,
+        0 => crate::model::ncm::u32::bits::stretchRange,
+        16 => crate::model::ncm::u32::bits::slotRange,
         _ => return None,
     };
     let profile = (word & Word::from(u32::MAX)) as u32;
@@ -570,7 +579,7 @@ impl Lane {
         };
         self.own(b, sl);
         let mut fresh = [SLOT_FRESH; SLOTS];
-        fresh[0] |= ck << 16;
+        fresh[0] |= ck << crate::model::ncm::i32::bits::slotRange;
         sl[b as usize].0 = fresh;
         b << SLOT_BITS
     }
@@ -1300,7 +1309,7 @@ fn merge_bucket(base: &[u32; 16], ls: &[[u32; 16]], groups: &mut Vec<Group>) -> 
             g
         } else {
             let mut origin = [SLOT_FRESH; SLOTS];
-            origin[0] |= tag(l) << 16;
+            origin[0] |= tag(l) << crate::model::ncm::i32::bits::slotRange;
             groups.push(Group {
                 fresh: true,
                 origin,
@@ -1321,7 +1330,10 @@ fn merge_bucket(base: &[u32; 16], ls: &[[u32; 16]], groups: &mut Vec<Group>) -> 
         }
         // the more used context keeps the bucket (by its first slot's count,
         // then the smaller tag), as the replacement rule decides
-        let key = (m[1] >> 16, u32::MAX - tag(&m));
+        let key = (
+            m[1] >> crate::model::ncm::i32::bits::slotRange,
+            u32::MAX - tag(&m),
+        );
         best = match best {
             Some((bk, b)) if bk >= key => Some((bk, b)),
             _ => Some((key, m)),
