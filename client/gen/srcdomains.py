@@ -37,21 +37,24 @@ WORD_BYTES = 8   # the declared word: the export lowers a natural to a word of e
 
 
 def declarations():
-    """The extents (numerals: a format identity each) and every quantity derived from them, in order."""
+    """The model's quantities, each built from the identities 0 and 1 (no other numeral is stated):
+    radix is one plus one, and every extent is a product of radix places."""
     out = [
-        ('radix', '2', 2),             # a bit: the place value of binary
-        ('byteBits', str(BYTE_BITS), BYTE_BITS),          # an octet
+        ('radix', '(1 + 1)', 2),       # a bit: the place value of binary
+        ('bitPlace2', '(prim multiply (radix) (radix) : Nat)', 4),
+        ('bitPlace3', '(prim multiply (bitPlace2) (radix) : Nat)', 8),
+        ('byteBits', '(bitPlace3)', BYTE_BITS),   # an octet: radix cubed bits
     ]
-    prev = 'radix'
-    for k in range(2, BYTE_BITS + 1):            # the octet's bit places; the last is its extent
+    prev = 'bitPlace3'
+    for k in range(4, BYTE_BITS + 1):            # the octet's bit places; the last is its extent
         out.append(('bitPlace%d' % k, '(prim multiply (%s) (radix) : Nat)' % prev, 2 ** k))
         prev = 'bitPlace%d' % k
     out += [
-        ('byteBase', '(%s)' % prev, 256),   # the octet's values: radix to the byteBits
+    ('byteBase', '(%s)' % prev, 256),   # the octet's values: radix to the byteBits
         ('byteLast', '(prim subtract (byteBase) 1 : Nat)', 255),
         ('byteHalf', '(prim quotient (byteBase) (radix) 0 : Nat)', 128),
         ('byteBitLast', '(prim subtract (byteBits) 1 : Nat)', BYTE_BITS - 1),
-        ('wordBytes', str(WORD_BYTES), WORD_BYTES),
+        ('wordBytes', '(bitPlace3)', WORD_BYTES),   # the declared word: radix cubed octets
         ('wordBits', '(prim multiply (wordBytes) (byteBits) : Nat)', WORD_BYTES * 8),
     ]
     prev = 'byteBase'
@@ -72,8 +75,9 @@ def declarations():
         ('nodeBytes', '(prim quotient (prim subtract ((nodeBits) + (byteBits)) 1 : Nat) (byteBits) 0 : Nat)', 2),
         ('nodeRecordBytes', '(prim multiply (radix) (nodeBytes) : Nat)', 4),
     ]
-    # the seal: an archive is sealed by a SHA-256 digest (UORC-SHA256-CHAIN-v1), of 32 octets
-    out.append(('digestBytes', '32', 32))
+    # the seal: an archive is sealed by a SHA-256 digest (UORC-SHA256-CHAIN-v1) of radix to the
+    # octet's bits many bits, in whole octets
+    out.append(('digestBytes', '(prim quotient (bitPlace8) (byteBits) 0 : Nat)', 32))
     return out
 
 
@@ -344,6 +348,8 @@ def module_text():
     out = ['\\begin{lexlean}{%s}' % MODULE, '\\title{Parameters}', '\\begin{semanticmodule}']
     for n, body, _ in DECLARATIONS:
         out.append('definition{\n  name: %s,\n  parameters: [],\n  result: Nat,\n  body: %s,\n  executable: true,\n  axioms: []\n}\n' % (n, body))
+    for n, _, v in DECLARATIONS:     # each quantity is the value the pass placed it for, by evaluation
+        out.append('theorem{\n  name: %s_value,\n  parameters: [],\n  statement: ((%s) = %d),\n  proof: evaluation{},\n  axioms: []\n}\n' % (n, n, v))
     out += ['\\end{semanticmodule}', '\\end{lexlean}', '']
     return '\n'.join(out)
 
