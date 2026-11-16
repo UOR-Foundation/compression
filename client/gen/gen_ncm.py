@@ -22,9 +22,9 @@ def sizing(L):
     # the context table's bits: the ones the profile word records in bits 20-25 (TABLE_SHIFT), else the length's own;
     # the match tables' bits: the ones it records in bits 26-30 (MATCH_SHIFT), else the default context table's
     D('tbOf', ['n : Nat', 'profile : Nat'], 'Nat',
-      f"(let t : Nat := (prim remainder (prim quotient profile {ncm_model.TABLE_UNIT} 0 : Nat) 64 0 : Nat); (if (0 <? t) then t else (tbFor n)))")
+      f"(let t : Nat := (prim remainder (prim quotient profile {need(ncm_model.TABLE_UNIT)} 0 : Nat) {need(ncm_model.TABLE_FIELD)} 0 : Nat); (if (0 <? t) then t else (tbFor n)))")
     D('mbOf', ['n : Nat', 'profile : Nat'], 'Nat',
-      f"(let m : Nat := (prim remainder (prim quotient profile {ncm_model.MATCH_UNIT} 0 : Nat) 32 0 : Nat); (if (0 <? m) then m else (mbFor (tbFor n))))")
+      f"(let m : Nat := (prim remainder (prim quotient profile {need(ncm_model.MATCH_UNIT)} 0 : Nat) {need(ncm_model.MATCH_FIELD)} 0 : Nat); (if (0 <? m) then m else (mbFor (tbFor n))))")
     D('zeros', ['depth : Nat'], 'Bytes', f"({TB}::fill 1 depth 0)")
     # a streams frame word (ncm::streams): streams - 1 in bits 37-52; a frame cut into sk streams of a
     # stride of 64-byte units; the merged tables' entry space

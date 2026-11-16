@@ -532,7 +532,7 @@ pub extern "C" fn step_frame() -> i32 {
         f.end()?;
         // every facet, as compress steps them
         let host = uorc::performance::PAGE_WORKER;
-        Ok(uorc::step_facets(frame, &pieces, &window, chosen, host))
+        Ok(uorc::step_facets(frame, &pieces, &window, chosen, host, 1))
     }))
 }
 

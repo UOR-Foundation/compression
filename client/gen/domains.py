@@ -161,6 +161,10 @@ class Pass:
             _, c = self.ex(e[1], env)
             both, (a, b) = self.operands(e[2:], set(), env, want)
             return both, (k, c, a, b)
+        if k in ('mod', 'div') and type(e[2]) is int and e[2] == int(RADIX):
+            # a quotient or remainder by 2 takes a word's binary digits apart: the radix
+            self.derived[RADIX.name] += 1
+            e = (k, e[1], RADIX)
         arith = k in ('add', 'sub', 'mod', 'mul', 'div')
         both, (a, b) = self.operands(e[1:], set(), env, want if arith else frozenset())
         return (both if arith else set()), (k, a, b)
