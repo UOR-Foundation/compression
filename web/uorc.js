@@ -252,9 +252,10 @@ export async function load(source) {
       m.end();
       return parts;
     };
-    // A frame of the cut: its range, pieces and window, and its archive
-    // when the cut wrote it (a reference).
-    const leaf = (range, pieces, window, archive = null) => ({ ...range, pieces, window, archive });
+    // A frame of the cut: its range, pieces and window, its archive when
+    // the cut wrote it (a reference), and the length the cut counts for it
+    // (that archive's, else its planning trial's).
+    const leaf = (range, pieces, window, archive = null, len = 0) => ({ ...range, pieces, window, archive, len: archive ? archive.length : len });
     const cutParts = async (range, pieces, window, earlier, whole, m) => {
       const planned = async (r, p, w, t) => (await coder.code({ which: planning, steps, pieces: p, window: w.map(slice), frame: slice(r) }, (share) => t.move(share))).length;
       if (!whole) {
@@ -262,7 +263,7 @@ export async function load(source) {
         if (reference) return [leaf(range, pieces, window, reference)];
       }
       const half = range.length >>> 1;
-      if (half === 0) return [leaf(range, pieces, window)];
+      if (half === 0) return [leaf(range, pieces, window, null, whole ?? await planned(range, pieces, window, m))];
       const a = { start: range.start, length: half };
       const b = { start: range.start + half, length: range.length - half };
       const [pa, pb] = splitPieces(pieces, BigInt(half));
@@ -270,12 +271,26 @@ export async function load(source) {
       const fits = reads(b.length, held + half);
       const after = (frames) => (fits ? [...window, ...frames] : []);
       const overA = [...earlier, await label(a)];
+      // a second half that repeats a frame is its reference, the first half
+      // cut by the same rule (the second cut after the first's frames when
+      // it repeats the first and the first is cut); the part stays one frame
+      // when its planning trial is not longer than that cut
       const known = await repeat(b, pb, earlier);
-      if (known) return [...await cut(a, pa, window, earlier, null, m), leaf(b, pb, after([a]), known)];
-      const repeated = await repeat(b, pb, overA.slice(earlier.length));
-      if (repeated) {
-        if (whole && whole <= await planned(a, pa, window, m) + repeated.length) return [leaf(range, pieces, window)];
-        return [leaf(a, pa, window), leaf(b, pb, after([a]), repeated)];
+      const repeated = known ? null : await repeat(b, pb, overA.slice(earlier.length));
+      if (known || repeated) {
+        const [ra, rb, rf, rw] = m.split([a, b, a, range]);
+        const cost = (leaves) => leaves.reduce((n, l) => n + l.len, 0);
+        const reference = known ?? repeated;
+        let parts = await cut(a, pa, window, earlier, null, ra);
+        if (repeated && parts.length > 1) {
+          parts = [...parts, ...await cut(b, pb, after(parts), [...earlier, ...await labels(parts)], null, rb)];
+          const first = await planned(a, pa, window, rf);
+          if (first + reference.length <= cost(parts)) parts = [leaf(a, pa, window, null, first), leaf(b, pb, after([a]), reference)];
+        } else {
+          parts = [...parts, leaf(b, pb, after([a]), reference)];
+        }
+        const own = whole ?? await planned(range, pieces, window, rw);
+        return own <= cost(parts) ? [leaf(range, pieces, window, null, own)] : parts;
       }
       // the planning trials to run (the whole part unless the caller ran
       // it, then each half), then each half's cut
@@ -283,7 +298,7 @@ export async function load(source) {
       const meters = m.split([...trials, a, b]);
       const coded = await Promise.all(trials.map((r, i) => planned(r, r === a ? pa : r === b ? pb : pieces, r === b ? after([a]) : window, meters[i])));
       const [w, ca, cb] = whole ? [whole, ...coded] : coded;
-      if (ca + cb >= w) return [leaf(range, pieces, window)];
+      if (ca + cb >= w) return [leaf(range, pieces, window, null, w)];
       const [ma, mb] = meters.slice(trials.length);
       const [firsts, overWhole] = await Promise.all([cut(a, pa, window, earlier, ca, ma), cutParts(b, pb, after([a]), overA, cb, mb)]);
       if (firsts.length === 1) return [...firsts, ...overWhole];
