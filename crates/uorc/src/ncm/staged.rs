@@ -11,8 +11,8 @@
 //! encoder. The payload is the same bytes whichever path codes it.
 
 use super::{
-    adapt_slot, bucket_in, h, prefetch, tick, Bucket, Coder, Kernel, Model, Rates, Table, Tables,
-    NC,
+    adapt_slot, bucket_in, h, prefetch, stretch_index, tick, Bucket, Coder, Kernel, Model, Rates,
+    Table, Tables, NC,
 };
 use std::cell::RefCell;
 use std::sync::atomic::AtomicBool;
@@ -618,8 +618,7 @@ fn walk_sites(
                 };
                 for &b in &bb[..owned] {
                     let i = b + part - lo;
-                    let p = sl[i as usize >> 4].0[i as usize & 15] & 0xffff;
-                    out.push(t.stretch[(p >> 4) as usize]);
+                    out.push(t.stretch[stretch_index(sl[i as usize >> 4].0[i as usize & 15])]);
                 }
                 let y = (byte >> (7 - bit)) & 1 == 1;
                 for &b in &bb[..owned] {

@@ -518,6 +518,9 @@ impl Pass<'_> {
         if v <= 1 {
             return true;
         }
+        // every quantity in scope the value is; it is placed only when it is
+        // exactly one (two quantities of one value leave the choice open)
+        let mut hits: Vec<(String, bool)> = Vec::new();
         for d in self.ordered(scope) {
             let (name, log) = match d.strip_prefix("log2 ") {
                 Some(x) => (x.to_string(), !shift),
@@ -532,21 +535,24 @@ impl Pass<'_> {
                 } else {
                     q == v
                 };
-                if hit {
-                    self.out.placed.push(Placed {
-                        range: (at.0, at.1),
-                        line: at.2,
-                        value: v.to_string(),
-                        suffix: suffix.to_string(),
-                        name: n,
-                        bits: log,
-                        raw: None,
-                    });
-                    return true;
+                if hit && !hits.contains(&(n.clone(), log)) {
+                    hits.push((n, log));
                 }
             }
         }
-        false
+        let [(name, bits)] = &hits[..] else {
+            return false;
+        };
+        self.out.placed.push(Placed {
+            range: (at.0, at.1),
+            line: at.2,
+            value: v.to_string(),
+            suffix: suffix.to_string(),
+            name: name.clone(),
+            bits: *bits,
+            raw: None,
+        });
+        true
     }
 
     /// The domains of `e`; `want` is the domains of where its value goes.
@@ -951,9 +957,40 @@ impl Pass<'_> {
             syn::Expr::Paren(p) => self.shift_count(&p.expr, scope),
             syn::Expr::Cast(c) => self.shift_count(&c.expr, scope),
             syn::Expr::Binary(b) if matches!(b.op, syn::BinOp::Add(_) | syn::BinOp::Sub(_)) => {
-                // a count less another (`bits - 12`): both are counts
-                self.shift_count(&b.left, scope);
-                self.shift_count(&b.right, scope);
+                // a count less another (`bits - 12`): a literal is a count of
+                // the other side's kind (a logarithm where that side's domain
+                // holds logarithms); beside a count of no declared kind it
+                // stays open
+                let lit = |e: &syn::Expr| {
+                    matches!(
+                        e,
+                        syn::Expr::Lit(syn::ExprLit {
+                            lit: syn::Lit::Int(_),
+                            ..
+                        })
+                    )
+                };
+                match (lit(&b.left), lit(&b.right)) {
+                    (true, false) | (false, true) => {
+                        let (l, other) = if lit(&b.left) {
+                            (&b.left, &b.right)
+                        } else {
+                            (&b.right, &b.left)
+                        };
+                        let kind = self.ex(other, &Ds::new());
+                        if let syn::Expr::Lit(syn::ExprLit {
+                            lit: syn::Lit::Int(i),
+                            ..
+                        }) = &**l
+                        {
+                            self.place(i, &kind, false);
+                        }
+                    }
+                    _ => {
+                        self.shift_count(&b.left, scope);
+                        self.shift_count(&b.right, scope);
+                    }
+                }
             }
             _ => {
                 self.ex(e, &Ds::new());
