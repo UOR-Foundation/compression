@@ -168,3 +168,52 @@ pub mod bits {
     pub const integrityBytes: u32 = super::integrityBytes.trailing_zeros();
     pub const fixedPrefixBytes: u32 = super::fixedPrefixBytes.trailing_zeros();
 }
+
+/// `Uorc.Search.FramingOrder::scopeTag` of each constructor, as the model maps it.
+pub mod scopeTag {
+    /// As a `u8`.
+    pub mod u8 {
+        pub const selfContained: u8 = 0;
+        pub const conditional: u8 = 1;
+    }
+    /// As a `u16`.
+    pub mod u16 {
+        pub const selfContained: u16 = 0;
+        pub const conditional: u16 = 1;
+    }
+    /// As a `u32`.
+    pub mod u32 {
+        pub const selfContained: u32 = 0;
+        pub const conditional: u32 = 1;
+    }
+    /// As a `u64`.
+    pub mod u64 {
+        pub const selfContained: u64 = 0;
+        pub const conditional: u64 = 1;
+    }
+    /// As a `usize`.
+    pub mod usize {
+        pub const selfContained: usize = 0;
+        pub const conditional: usize = 1;
+    }
+    /// As a `i16`.
+    pub mod i16 {
+        pub const selfContained: i16 = 0;
+        pub const conditional: i16 = 1;
+    }
+    /// As a `i32`.
+    pub mod i32 {
+        pub const selfContained: i32 = 0;
+        pub const conditional: i32 = 1;
+    }
+    /// As a `i64`.
+    pub mod i64 {
+        pub const selfContained: i64 = 0;
+        pub const conditional: i64 = 1;
+    }
+    /// As a `i128`.
+    pub mod i128 {
+        pub const selfContained: i128 = 0;
+        pub const conditional: i128 = 1;
+    }
+}

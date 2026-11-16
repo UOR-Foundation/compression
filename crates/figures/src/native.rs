@@ -21,7 +21,7 @@ use std::fmt::Write as _;
 use std::path::Path;
 
 /// The generated native modules: (output, model source).
-pub const GENERATED: [(&str, &str); 6] = [
+pub const GENERATED: [(&str, &str); 7] = [
     (
         "crates/uorc/src/model/framing.rs",
         "src/Uorc/Search/FramingOrder.lex.tex",
@@ -45,6 +45,10 @@ pub const GENERATED: [(&str, &str); 6] = [
     (
         "crates/uorc/src/model/x86.rs",
         "client/src/Uorc/Codec/X86.lex.tex",
+    ),
+    (
+        "crates/uorc/src/model/graph.rs",
+        "src/Uorc/Wire/GraphEmit.lex.tex",
     ),
 ];
 
@@ -372,6 +376,53 @@ pub fn table_cells(tables: &[(String, Vec<u8>)]) -> Vec<(String, usize, Vec<u128
 /// The module's binary radix (the coder makes one decision per step).
 pub const RADIX: &str = "radix";
 
+/// The model's selectors: a one-parameter `Nat` definition whose body is a
+/// `match` from each constructor to a numeral (as `opcode` maps each
+/// instruction to its code). Each is (definition, [(constructor, value)]).
+pub fn selectors(text: &str) -> Vec<(String, Vec<(String, u128)>)> {
+    let mut out = Vec::new();
+    for decl in text.split("definition{").skip(1) {
+        let decl = decl.split("\n}").next().unwrap_or(decl);
+        let (Some(name), Some("Nat")) = (field(decl, "name"), field(decl, "result")) else {
+            continue;
+        };
+        let Some(params) = decl
+            .split("parameters: [")
+            .nth(1)
+            .and_then(|r| r.split(']').next())
+        else {
+            continue;
+        };
+        if params.is_empty() || params.contains(',') {
+            continue;
+        }
+        let Some(arms) = decl.split("body: (match ").nth(1) else {
+            continue;
+        };
+        let mut cases = Vec::new();
+        let mut whole = true;
+        for arm in arms.split("\n    | ").skip(1) {
+            let Some((pat, val)) = arm.split_once(" => ") else {
+                whole = false;
+                break;
+            };
+            let ctor = pat.split_whitespace().next().unwrap_or("");
+            let ctor = ctor.rsplit('.').next().unwrap_or(ctor);
+            match val.trim_end().trim_end_matches(')').parse::<u128>() {
+                Ok(v) if !ctor.is_empty() => cases.push((ctor.to_string(), v)),
+                _ => {
+                    whole = false;
+                    break;
+                }
+            }
+        }
+        if whole && !cases.is_empty() {
+            out.push((name.to_string(), cases));
+        }
+    }
+    out
+}
+
 /// The Rust module generated from a wire module's source.
 pub fn generate(source: &str, text: &str) -> String {
     let module = source
@@ -454,6 +505,22 @@ pub fn generate(source: &str, text: &str) -> String {
         }
     }
     let _ = writeln!(s, "}}");
+    for (name, cases) in selectors(text) {
+        let _ = writeln!(
+            s,
+            "\n/// `{module}::{name}` of each constructor, as the model maps it.\npub mod {name} {{"
+        );
+        for (ty, max) in VIEWS {
+            if cases.iter().all(|(_, v)| *v <= max) {
+                let _ = writeln!(s, "    /// As a `{ty}`.\n    pub mod {ty} {{");
+                for (c, v) in &cases {
+                    let _ = writeln!(s, "        pub const {c}: {ty} = {v};");
+                }
+                let _ = writeln!(s, "    }}");
+            }
+        }
+        let _ = writeln!(s, "}}");
+    }
     s
 }
 

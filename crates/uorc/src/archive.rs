@@ -327,6 +327,21 @@ fn profile_template(k: usize, x86: bool, era: Era) -> Option<Template> {
 /// it, so the history is basis roots 1..k in order; the call to the coder
 /// then reaches the payload and the profile word 3 nodes further back per
 /// frame.
+/// The instructions each frame after the first adds to a window graph: its
+/// index, the basis entry of its coder, and the concatenation onto the frames
+/// before (by the opcodes of `Uorc.Wire.GraphEmit::opcode`).
+const FRAME_INSTRUCTIONS: &[u8] = &[
+    crate::model::graph::opcode::u8::naturalConstant,
+    crate::model::graph::opcode::u8::basisGet,
+    crate::model::graph::opcode::u8::sequenceConcat,
+];
+
+/// The nodes each frame after the first adds; its concatenation reaches the
+/// frames before this far back.
+const fn frame_nodes() -> u64 {
+    FRAME_INSTRUCTIONS.len() as u64
+}
+
 pub(crate) fn window_profile_template(k: usize, x86: bool) -> (Vec<u8>, Vec<u8>) {
     debug_assert!(k >= 1);
     let (p1, t1): (&[u8], &[u8]) = if x86 {
@@ -334,7 +349,7 @@ pub(crate) fn window_profile_template(k: usize, x86: bool) -> (Vec<u8>, Vec<u8>)
     } else {
         (&NCMP1_PREFIX, &NCMP1_TAIL)
     };
-    let more = 3 * (k as u64 - 1);
+    let more = frame_nodes() * (k as u64 - 1);
     // `01 00 03 uleb(nodes) 03`: one block, its node count, its result type
     let mut prefix = p1[..3].to_vec();
     push_uleb(&mut prefix, u64::from(p1[3]) + more);
@@ -342,9 +357,14 @@ pub(crate) fn window_profile_template(k: usize, x86: bool) -> (Vec<u8>, Vec<u8>)
     // `03 00` (the empty history), frame 1 (`00 01 1e 01`), frames 2..k
     let mut tail = t1[..6].to_vec();
     for r in 2..=k as u64 {
-        tail.push(0);
+        let mut instruction = FRAME_INSTRUCTIONS.iter().copied();
+        tail.extend(instruction.next());
         push_uleb(&mut tail, r);
-        tail.extend_from_slice(&[0x1e, 0x01, 0x1b, 0x03, 0x01]);
+        tail.extend(instruction.next());
+        tail.push(0x01);
+        tail.extend(instruction.next());
+        push_uleb(&mut tail, frame_nodes());
+        tail.push(0x01);
     }
     // the coder's call: payload at distance d, history 1, profile d - 1
     let d = if x86 { 8 } else { 5 };
@@ -1166,8 +1186,8 @@ fn deep_window_len(body: &[u8]) -> Option<usize> {
     .into_iter()
     .find_map(|(one, x86)| {
         let more = nodes.checked_sub(one)?;
-        let k = usize::try_from(more / 3 + 1).ok()?;
-        if more % 3 != 0 || k < 3 {
+        let k = usize::try_from(more / frame_nodes() + 1).ok()?;
+        if more % frame_nodes() != 0 || k < 3 {
             return None;
         }
         let (codec, _) = parse_body(body, k, Era::Current)?;
