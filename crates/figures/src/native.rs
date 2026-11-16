@@ -21,7 +21,7 @@ use std::fmt::Write as _;
 use std::path::Path;
 
 /// The generated native modules: (output, model source).
-pub const GENERATED: [(&str, &str); 7] = [
+pub const GENERATED: [(&str, &str); 8] = [
     (
         "crates/uorc/src/model/framing.rs",
         "src/Uorc/Search/FramingOrder.lex.tex",
@@ -49,6 +49,10 @@ pub const GENERATED: [(&str, &str); 7] = [
     (
         "crates/uorc/src/model/graph.rs",
         "src/Uorc/Wire/GraphEmit.lex.tex",
+    ),
+    (
+        "crates/uorc/src/model/lz.rs",
+        "client/src/Uorc/Codec/LzDecode.lex.tex",
     ),
 ];
 
@@ -79,6 +83,8 @@ pub enum Op {
     Div,
     /// `prim remainder a b 0`.
     Rem,
+    /// `pow2 b` (`a` is 1): `a` doubled `b` times.
+    Shl,
 }
 
 /// One definition of a wire module the generator carries.
@@ -181,7 +187,10 @@ fn expr(t: &[String], i: &mut usize) -> Option<Expr> {
         return Some(Expr::Num(n));
     }
     if tok != "(" {
-        return None;
+        // a bare name
+        return (tok.chars().next().is_some_and(|c| c.is_ascii_alphabetic())
+            && tok.chars().all(|c| c.is_ascii_alphanumeric() || c == '_'))
+        .then(|| Expr::Name(tok.clone()));
     }
     let head = t.get(*i)?.clone();
     let e = if head == "prim" {
@@ -208,6 +217,11 @@ fn expr(t: &[String], i: &mut usize) -> Option<Expr> {
         }
         *i += 2;
         Expr::Op(op, Box::new(a), Box::new(b))
+    } else if head == "pow2" && t.get(*i + 1).is_some_and(|x| x != ")") {
+        // the model's `pow2` (two to a power)
+        *i += 1;
+        let b = expr(t, i)?;
+        Expr::Op(Op::Shl, Box::new(Expr::Num(1)), Box::new(b))
     } else if head != "("
         && head.chars().all(|c| c.is_ascii_alphanumeric() || c == '_')
         && t.get(*i + 1).is_some_and(|x| x == ")")
@@ -243,6 +257,10 @@ pub fn value(e: &Expr, known: &BTreeMap<String, u128>) -> Option<u128> {
                 Op::Mul => a.checked_mul(b),
                 Op::Div => a.checked_div(b),
                 Op::Rem => a.checked_rem(b),
+                Op::Shl => u32::try_from(b)
+                    .ok()
+                    .filter(|b| *b < u128::BITS)
+                    .map(|b| a << b),
             }
         }
     }
@@ -259,6 +277,7 @@ fn rust(e: &Expr) -> String {
                 Op::Mul => "*",
                 Op::Div => "/",
                 Op::Rem => "%",
+                Op::Shl => "<<",
             };
             format!("({} {o} {})", rust(a), rust(b))
         }

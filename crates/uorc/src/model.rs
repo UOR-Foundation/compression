@@ -10,6 +10,8 @@ pub mod frame;
 #[rustfmt::skip]
 pub mod graph;
 #[rustfmt::skip]
+pub mod lz;
+#[rustfmt::skip]
 pub mod framing;
 #[rustfmt::skip]
 pub mod ncm;
