@@ -138,8 +138,8 @@ class Lex:
         # derived, the address of the global before it plus that global's width.
         prev = None
         for g, w in self.p.globals.items():
-            D('width' + self.gname(g), [], 'Nat', str(w))
-            D('at' + self.gname(g), [], 'Nat', '0' if prev is None else f"({self.gat(prev)} + {self.gwidth(prev)})")
+            D('width' + self.gname(g), [], 'Nat', str(w), ax=[])
+            D('at' + self.gname(g), [], 'Nat', '0' if prev is None else f"({self.gat(prev)} + {self.gwidth(prev)})", ax=[])
             prev = g
         radix = need(ir.RADIX)
         D('pow2', ['k : Nat'], 'Nat', f"(match k\n    | Nat.zero => 1\n    | Nat.succ m => (prim multiply {radix} (pow2 m) : Nat))", 'k')
