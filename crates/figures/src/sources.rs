@@ -357,7 +357,10 @@ pub fn scan_js(file: &str, text: &str, scan: &mut Scan) {
 pub type Stated = BTreeMap<String, BTreeSet<u128>>;
 
 /// Read the identities the wire modules among `modules` state.
-pub fn stated(modules: &[(String, String)], read: impl Fn(&str) -> Result<String, Error>) -> Result<Stated, Error> {
+pub fn stated(
+    modules: &[(String, String)],
+    read: impl Fn(&str) -> Result<String, Error>,
+) -> Result<Stated, Error> {
     let mut out = Stated::new();
     for (module, path) in modules {
         if !module.starts_with("Uorc.Wire.") {
@@ -366,7 +369,10 @@ pub fn stated(modules: &[(String, String)], read: impl Fn(&str) -> Result<String
         let text = read(path)?;
         for decl in text.split("definition{").skip(1) {
             let decl = decl.split("\n}").next().unwrap_or(decl);
-            let (Some(name), Some(v)) = (crate::field(decl, "name"), crate::field(decl, "body").and_then(|b| b.parse::<u128>().ok())) else {
+            let (Some(name), Some(v)) = (
+                crate::field(decl, "name"),
+                crate::field(decl, "body").and_then(|b| b.parse::<u128>().ok()),
+            ) else {
                 continue;
             };
             if decl.contains("parameters: [],") && crate::field(decl, "result") == Some("Nat") {
@@ -398,7 +404,11 @@ pub fn scan_lean(file: &str, module: &str, text: &str, stated: &Stated, scan: &m
         let named = body.is_some()
             && decl.contains("parameters: [],")
             && crate::field(decl, "result") == Some("Nat");
-        if named && (wire || (coder && body.is_some_and(|v| stated.get(&name).is_some_and(|vs| vs.contains(&v))))) {
+        if named
+            && (wire
+                || (coder
+                    && body.is_some_and(|v| stated.get(&name).is_some_and(|vs| vs.contains(&v)))))
+        {
             continue;
         }
         let b: Vec<char> = decl.chars().collect();
@@ -510,13 +520,24 @@ mod tests {
     #[test]
     fn a_coder_modules_named_numeral_is_an_identity_only_where_the_wire_model_states_it() {
         let src = "definition{name: v, parameters: [], result: Nat, body: 2}\n\ndefinition{name: w, parameters: [], result: Nat, body: 9}\n";
-        let stated: Stated = [("v".to_string(), [2u128].into_iter().collect()), ("w".to_string(), [8u128].into_iter().collect())]
-            .into_iter()
-            .collect();
+        let stated: Stated = [
+            ("v".to_string(), [2u128].into_iter().collect()),
+            ("w".to_string(), [8u128].into_iter().collect()),
+        ]
+        .into_iter()
+        .collect();
         let mut s = Scan::default();
         scan_lean("c.lex.tex", "Uorc.Codec.Ncm", src, &stated, &mut s);
-        let got: Vec<_> = s.sites.iter().map(|s| (s.item.as_str(), s.value.as_str())).collect();
-        assert_eq!(got, [("w", "9")], "w is stated with another value, so it is the generator's figure");
+        let got: Vec<_> = s
+            .sites
+            .iter()
+            .map(|s| (s.item.as_str(), s.value.as_str()))
+            .collect();
+        assert_eq!(
+            got,
+            [("w", "9")],
+            "w is stated with another value, so it is the generator's figure"
+        );
     }
 
     #[test]
