@@ -38,27 +38,24 @@ definition{
   executable: true
 }
 
-definition{name: lineControls, parameters: [], result: Bytes, body: 0x090a0d, axioms: [], executable: true}
+definition{name: horizontalTab, parameters: [], result: Nat, body: 9, axioms: [], executable: true}
+
+definition{name: lineFeed, parameters: [], result: Nat, body: 10, axioms: [], executable: true}
 
 definition{
-  name: within,
-  parameters: [fuel : Nat, members : Bytes, at : Nat, b : Nat],
-  result: Bool,
-  body: (match fuel
-    | Nat.zero => false
-    | Nat.succ m => (match (prim index members at : (Option UInt8))
-      | Option.none => false
-      | Option.some octet => (((prim to_nat octet : Nat) =? b) || (within m members (1 + at) b)))),
-  axioms: [Quot.sound, propext],
-  executable: true,
-  recursive_argument: fuel
+  name: carriageReturn,
+  parameters: [],
+  result: Nat,
+  body: 13,
+  axioms: [],
+  executable: true
 }
 
 definition{
   name: printable,
   parameters: [b : Nat],
   result: Bool,
-  body: ((within (prim length (lineControls) : Nat) (lineControls) 0 b) || (((graphicFirst) <=? b) && (b <? (asciiDelete)))),
+  body: ((((b =? (horizontalTab)) || (b =? (lineFeed))) || (b =? (carriageReturn))) || (((graphicFirst) <=? b) && (b <? (asciiDelete)))),
   axioms: [Quot.sound, propext],
   executable: true
 }

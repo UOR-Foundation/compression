@@ -36,12 +36,6 @@
 //!   generator, so a numeral it names is an identity only where a wire module
 //!   states the same name and value (`Uorc.Wire.Coder`); any other is a fixed
 //!   figure the generator named, counted once at its definition.
-//! - a *declared host*: a property of a host the product declares it runs
-//!   on (the page's worker, what a run is granted). In the model, a
-//!   parameterless numeral of a host declaration module (`Uorc.Host.*`) is
-//!   such a statement: the input a facet is derived from, not a figure the
-//!   implementation fixes. It is reported, by name, apart from the register,
-//!   and every reader takes the host from that one declaration.
 //! - a *fixed figure*: every other literal. Its site is listed in the register
 //!   (`model/figures.toml`). A constant whose documentation names
 //!   `Facet: <name>` attributes its sites to that facet record of
@@ -121,8 +115,6 @@ pub struct Scan {
     pub bindings: Vec<Binding>,
     /// Generated files and the source each names.
     pub generated: Vec<(String, String)>,
-    /// Declared-host statements (`Uorc.Host.*`; not in `sites`).
-    pub declared: Vec<Site>,
     /// Files read.
     pub files: usize,
 }
@@ -964,14 +956,6 @@ pub fn summary(o: &Outcome) -> String {
         "format identities bound to the wire model: {}",
         o.scan.bindings.len()
     );
-    let _ = writeln!(
-        s,
-        "declared host statements (Uorc.Host.*): {}",
-        o.scan.declared.len()
-    );
-    for d in &o.scan.declared {
-        let _ = writeln!(s, "  {} = {}  ({})", d.item, d.value, d.file);
-    }
     s
 }
 

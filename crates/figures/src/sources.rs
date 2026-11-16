@@ -390,14 +390,11 @@ pub fn stated(
 /// (`Uorc.Codec.*`) is written by a generator, so its named numerals are
 /// identities only where the wire model states them ([`stated`]: a wire
 /// module defines the same name with the same value); any other is a fixed
-/// figure the generator named, counted once at its definition. A
-/// parameterless `Nat` numeral of a host declaration module (`Uorc.Host.*`)
-/// is a declared host: listed in `scan.declared`, not counted as a figure.
+/// figure the generator named, counted once at its definition.
 pub fn scan_lean(file: &str, module: &str, text: &str, stated: &Stated, scan: &mut Scan) {
     scan.files += 1;
     let wire = module.starts_with("Uorc.Wire.");
     let coder = module.starts_with("Uorc.Codec.");
-    let host = module.starts_with("Uorc.Host.");
     for decl in text.split("definition{").skip(1) {
         let decl = decl.split("\n}").next().unwrap_or(decl);
         let name = crate::field(decl, "name")
@@ -407,17 +404,6 @@ pub fn scan_lean(file: &str, module: &str, text: &str, stated: &Stated, scan: &m
         let named = body.is_some()
             && decl.contains("parameters: [],")
             && crate::field(decl, "result") == Some("Nat");
-        if named && host {
-            if let Some(v) = body.filter(|v| *v > 1) {
-                scan.declared.push(Site {
-                    file: file.to_string(),
-                    item: name,
-                    value: v.to_string(),
-                    facet: None,
-                });
-            }
-            continue;
-        }
         if named
             && (wire
                 || (coder
@@ -529,12 +515,6 @@ mod tests {
             2,
             "outside a wire module a named numeral is a figure"
         );
-        let mut s = Scan::default();
-        scan_lean("h.lex.tex", "Uorc.Host.Declared", src, &Stated::new(), &mut s);
-        let got: Vec<_> = s.sites.iter().map(|s| s.value.as_str()).collect();
-        assert_eq!(got, ["17"], "a host declaration states its numerals, not its uses");
-        let declared: Vec<_> = s.declared.iter().map(|s| (s.item.as_str(), s.value.as_str())).collect();
-        assert_eq!(declared, [("v", "2")]);
     }
 
     #[test]

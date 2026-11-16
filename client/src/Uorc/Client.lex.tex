@@ -5,7 +5,6 @@
 \importmodule{Uorc.Wire.Word}
 \importmodule{Uorc.Wire.Text}
 \importmodule{Uorc.Wire.Portfolio}
-\importmodule{Uorc.Host.Declared}
 \importmodule{Uorc.Search.Identity}
 \importmodule{Uorc.Search.Schedule}
 \importmodule{Uorc.Search.Effort}
@@ -43,7 +42,7 @@ definition{
   name: query,
   parameters: [input : Bytes],
   result: Uorc.Search.Identity::Snapshot,
-  body: (record Uorc.Search.Identity::Snapshot {archiveFormat := (Uorc.Wire.Frame::formatVersion), machineProfile := (Uorc.Wire.Frame::machineProfile), scope := (ctor Uorc.Wire.Frame::Scope.selfContained), objectLengths := (cons (prim length input : Nat) (nil Nat)), target := (Uorc.Core.Bytes::fromBytes input), basis := (nil Uorc.Core.Bytes::Rope), budget := (record Uorc.Core.Resources::Budget {maxSteps := (Uorc.Host.Declared::runWork), maxLiveCells := (Uorc.Host.Declared::runWork), maxOutputBytes := (Uorc.Host.Declared::runWork), maxFrames := (Uorc.Host.Declared::runFrames)}), objective := (ctor Uorc.Search.Identity::Objective.wireLengthThenUnsignedLex)}),
+  body: (record Uorc.Search.Identity::Snapshot {archiveFormat := (Uorc.Wire.Frame::formatVersion), machineProfile := (Uorc.Wire.Frame::machineProfile), scope := (ctor Uorc.Wire.Frame::Scope.selfContained), objectLengths := (cons (prim length input : Nat) (nil Nat)), target := (Uorc.Core.Bytes::fromBytes input), basis := (nil Uorc.Core.Bytes::Rope), budget := (record Uorc.Core.Resources::Budget {maxSteps := 1099511627776, maxLiveCells := 1099511627776, maxOutputBytes := 1099511627776, maxFrames := 1048576}), objective := (ctor Uorc.Search.Identity::Objective.wireLengthThenUnsignedLex)}),
   axioms: []
 }
 
@@ -59,7 +58,7 @@ definition{
   name: allowances,
   parameters: [steps : Nat],
   result: Uorc.Search.Effort::Allowances,
-  body: (record Uorc.Search.Effort::Allowances {search := steps, rawReserve := (Uorc.Host.Declared::runWork), finalReserve := (Uorc.Host.Declared::runWork), replay := (Uorc.Host.Declared::runWork), certificateProduction := 0, checker := (Uorc.Host.Declared::runWork)}),
+  body: (record Uorc.Search.Effort::Allowances {search := steps, rawReserve := 1099511627776, finalReserve := 1099511627776, replay := 1099511627776, certificateProduction := 0, checker := 1099511627776}),
   axioms: []
 }
 
@@ -358,13 +357,17 @@ definition{
   recursive_argument: scheduled
 }
 
+definition{name: pageWorkersPerGiB, parameters: [], result: Nat, body: 2, axioms: []}
+
 definition{
   name: hostMemory,
   parameters: [],
   result: Nat,
-  body: (Uorc.Host.Declared::pageWorkerMemory),
+  body: (prim quotient (Uorc.Wire.Word::power (Uorc.Wire.Word::power (Uorc.Wire.Word::bitRange) ((Uorc.Wire.Word::bitRange) + (Uorc.Wire.Word::byteBits))) (1 + (Uorc.Wire.Word::bitRange))) (pageWorkersPerGiB) 0 : Nat),
   axioms: []
 }
+
+definition{name: hostKeepsTables, parameters: [], result: Bool, body: true, axioms: []}
 
 definition{
   name: tableBytes,
@@ -379,7 +382,7 @@ definition{
   name: pageBytes,
   parameters: [n : Nat, held : Nat, modelled : Nat, profile : Nat, tb : Nat],
   result: Nat,
-  body: (let mb : Nat := (Uorc.Codec.NcmEncode::mbOf modelled profile); (let tables : Nat := (tableBytes tb mb profile); (tables + ((if (Uorc.Host.Declared::pageKeepsTables) then tables else 0) + (n + (n + held)))))),
+  body: (let mb : Nat := (Uorc.Codec.NcmEncode::mbOf modelled profile); (let tables : Nat := (tableBytes tb mb profile); (tables + ((if (hostKeepsTables) then tables else 0) + (n + (n + held)))))),
   axioms: []
 }
 
@@ -779,7 +782,7 @@ definition{
   name: decodeQuery,
   parameters: [lengths : (List Nat), scope : Uorc.Wire.Frame::Scope, basis : (List Uorc.Core.Bytes::Rope)],
   result: Uorc.Search.Identity::Snapshot,
-  body: (record Uorc.Search.Identity::Snapshot {archiveFormat := (Uorc.Wire.Frame::formatVersion), machineProfile := (Uorc.Wire.Frame::machineProfile), scope := scope, objectLengths := lengths, target := (ctor Uorc.Core.Bytes::Rope.empty), basis := basis, budget := (record Uorc.Core.Resources::Budget {maxSteps := (Uorc.Host.Declared::runWork), maxLiveCells := (Uorc.Host.Declared::runWork), maxOutputBytes := (Uorc.Host.Declared::runWork), maxFrames := (Uorc.Host.Declared::runFrames)}), objective := (ctor Uorc.Search.Identity::Objective.wireLengthThenUnsignedLex)}),
+  body: (record Uorc.Search.Identity::Snapshot {archiveFormat := (Uorc.Wire.Frame::formatVersion), machineProfile := (Uorc.Wire.Frame::machineProfile), scope := scope, objectLengths := lengths, target := (ctor Uorc.Core.Bytes::Rope.empty), basis := basis, budget := (record Uorc.Core.Resources::Budget {maxSteps := 1099511627776, maxLiveCells := 1099511627776, maxOutputBytes := 1099511627776, maxFrames := 1048576}), objective := (ctor Uorc.Search.Identity::Objective.wireLengthThenUnsignedLex)}),
   axioms: []
 }
 
