@@ -17,12 +17,16 @@ defs = []
 D = definer(defs, 'LzDecode')
 RB = lambda data, at: f"({T}::readByte {data} {at})"
 
+D('alphabet', [], 'Bytes', ALPHA)
+D('byteAt', ['data : Bytes', 'at : Nat'], 'Nat', RB('data', 'at'))
+D('singleton', ['value : Nat'], 'Bytes', "(match (prim slice (alphabet) value 1 : (Option Bytes))\n    | Option.none => 0x\n    | Option.some piece => piece)")
+D('pow2', ['k : Nat'], 'Nat', "(match k\n    | Nat.zero => 1\n    | Nat.succ m => (2 * (pow2 m)))", 'k')
 # The decoder's layout, named once. Each probability block follows the one
 # before it (its base is the previous base plus that block's size); the base
 # counts are the format's own (states, context bits, tree depths).
 def K(name, body):
     D(name, [], 'Nat', str(body))
-    return name
+    return f"({name})"  # a reference to a quantity is parenthesised
 STATES = K('states', 12)
 IS_REP = K('isRepBase', STATES)
 IS_REP_G0 = K('isRepG0Base', f"({IS_REP} + {STATES})")
@@ -73,10 +77,6 @@ CODE_BITS = f"({CODE_BYTES} * {BYTE_BITS})"
 TOP = K('rangeTop', f"(pow2 (prim subtract {CODE_BITS} {BYTE_BITS} : Nat))")
 MOVE = K('moveScale', 32)
 
-D('alphabet', [], 'Bytes', ALPHA)
-D('byteAt', ['data : Bytes', 'at : Nat'], 'Nat', RB('data', 'at'))
-D('singleton', ['value : Nat'], 'Bytes', "(match (prim slice (alphabet) value 1 : (Option Bytes))\n    | Option.none => 0x\n    | Option.some piece => piece)")
-D('pow2', ['k : Nat'], 'Nat', "(match k\n    | Nat.zero => 1\n    | Nat.succ m => (2 * (pow2 m)))", 'k')
 D('depthFor', ['fuel : Nat', 'n : Nat', 'depth : Nat'], 'Nat', "(match fuel\n    | Nat.zero => depth\n    | Nat.succ m => (if (n <=? (pow2 depth)) then depth else (depthFor m n (depth + 1))))", 'fuel')
 _n = upd('d', range=f"({P('d','range')} * {BYTE_BASE})", code=f"(({P('d','code')} * {BYTE_BASE}) + {RB(P('d','input'), P('d','pos'))})", pos=f"({P('d','pos')} + 1)")
 D('normalize', ['d : Dec'], 'Dec', f"(if ({P('d','range')} <? {TOP}) then {_n} else d)")
