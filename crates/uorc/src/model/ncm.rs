@@ -6,6 +6,22 @@
 //! logarithm of each power of two.
 #![allow(non_upper_case_globals, dead_code, unused_parens, clippy::all, clippy::pedantic)]
 
+/// `Uorc.Codec.NcmEncode::shortBit`.
+pub const shortBit: u128 = 131072;
+/// `Uorc.Codec.NcmEncode::radix`.
+pub const radix: u128 = 2;
+/// `Uorc.Codec.NcmEncode::repBit`.
+pub const repBit: u128 = (shortBit * radix);
+/// `Uorc.Codec.NcmEncode::selBit`.
+pub const selBit: u128 = (repBit * radix);
+/// `Uorc.Codec.NcmEncode::tableUnit`.
+pub const tableUnit: u128 = (selBit * radix);
+/// `Uorc.Codec.NcmEncode::tableField`.
+pub const tableField: u128 = 64;
+/// `Uorc.Codec.NcmEncode::matchUnit`.
+pub const matchUnit: u128 = (tableUnit * tableField);
+/// `Uorc.Codec.NcmEncode::matchField`.
+pub const matchField: u128 = 32;
 /// `Uorc.Codec.NcmEncode::byteBase`.
 pub const byteBase: u128 = 256;
 /// `Uorc.Codec.NcmEncode::cell2Base`.
@@ -28,10 +44,10 @@ pub const cellMS: u128 = 3;
 pub const cellM2S: u128 = 3;
 /// `Uorc.Codec.NcmEncode::cellRS`.
 pub const cellRS: u128 = 3;
-/// `Uorc.Codec.NcmEncode::radix`.
-pub const radix: u128 = 2;
 /// `Uorc.Codec.NcmEncode::cell3Half`.
 pub const cell3Half: u128 = (cell3Base / radix);
+/// `Uorc.Codec.NcmEncode::rollMultiplier`.
+pub const rollMultiplier: u128 = 789269543;
 /// `Uorc.Codec.NcmEncode::cellMT`.
 pub const cellMT: u128 = 4;
 /// `Uorc.Codec.NcmEncode::cellM2T`.
@@ -158,14 +174,24 @@ pub const weightUnit: u128 = 65536;
 pub const stretchHalfLast: u128 = (stretchHalf - 1);
 /// `Uorc.Codec.NcmEncode::weightUnitLast`.
 pub const weightUnitLast: u128 = (weightUnit - 1);
+/// `Uorc.Codec.NcmEncode::squashStep`.
+pub const squashStep: u128 = 128;
+/// `Uorc.Codec.NcmEncode::apmIntervals`.
+pub const apmIntervals: u128 = (stretchRange / squashStep);
+/// `Uorc.Codec.NcmEncode::apmPoints`.
+pub const apmPoints: u128 = (apmIntervals + 1);
 /// `Uorc.Codec.NcmEncode::cellA1`.
 pub const cellA1: u128 = 2;
-/// `Uorc.Codec.NcmEncode::cellA2`.
-pub const cellA2: u128 = 2;
-/// `Uorc.Codec.NcmEncode::cell1Half`.
-pub const cell1Half: u128 = (byteBase / radix);
 /// `Uorc.Codec.NcmEncode::slotPerStretch`.
 pub const slotPerStretch: u128 = (slotRange / stretchRange);
+/// `Uorc.Codec.NcmEncode::apmTop`.
+pub const apmTop: u128 = (stretchLast * slotPerStretch);
+/// `Uorc.Codec.NcmEncode::apmScale`.
+pub const apmScale: u128 = (squashStep * slotPerStretch);
+/// `Uorc.Codec.NcmEncode::squashHalfStep`.
+pub const squashHalfStep: u128 = (squashStep / radix);
+/// `Uorc.Codec.NcmEncode::cellA2`.
+pub const cellA2: u128 = 2;
 /// `Uorc.Codec.NcmEncode::tidA1`.
 pub const tidA1: u128 = 4;
 /// `Uorc.Codec.NcmEncode::tidA2`.
@@ -194,6 +220,8 @@ pub const tidW1: u128 = 1;
 pub const tidW2: u128 = 2;
 /// `Uorc.Codec.NcmEncode::tidH`.
 pub const tidH: u128 = 11;
+/// `Uorc.Codec.NcmEncode::cell1Half`.
+pub const cell1Half: u128 = (byteBase / radix);
 /// `Uorc.Codec.NcmEncode::laneBlockInLPL`.
 pub const laneBlockInLPL: u128 = (laneBlock / cellLPL);
 /// `Uorc.Codec.NcmEncode::laneEndIXLInLPL`.
@@ -916,6 +944,22 @@ pub const atAnyb: u128 = (atBestg + widthBestg);
 pub const widthIsb: u128 = 1;
 /// `Uorc.Codec.NcmEncode::atIsb`.
 pub const atIsb: u128 = (atAnyb + widthAnyb);
+/// `Uorc.Codec.NcmEncode::sqtCell`.
+pub const sqtCell: u128 = 2;
+/// `Uorc.Codec.NcmEncode::hashWord`.
+pub const hashWord: u128 = 4294967296;
+/// `Uorc.Codec.NcmEncode::hashMultiplier0`.
+pub const hashMultiplier0: u128 = 2654435761;
+/// `Uorc.Codec.NcmEncode::hashFold0`.
+pub const hashFold0: u128 = 32768;
+/// `Uorc.Codec.NcmEncode::hashMultiplier1`.
+pub const hashMultiplier1: u128 = 739982445;
+/// `Uorc.Codec.NcmEncode::hashFold1`.
+pub const hashFold1: u128 = 4096;
+/// `Uorc.Codec.NcmEncode::hashMultiplier2`.
+pub const hashMultiplier2: u128 = 695872825;
+/// `Uorc.Codec.NcmEncode::hashFold2`.
+pub const hashFold2: u128 = 32768;
 /// `Uorc.Codec.NcmEncode::pastEnd`.
 pub const pastEnd: u128 = (byteBase - 1);
 /// `Uorc.Codec.NcmEncode::staticEndW2`.
@@ -946,6 +990,24 @@ pub const repeatDepth: u128 = 7;
 pub const bucketRoom: u128 = (wordBytes * (bucketSlots + 2));
 /// `Uorc.Codec.NcmEncode::frameRange`.
 pub const frameRange: u128 = ((byteBase * byteBase) * (byteBase * byteBase));
+/// `Uorc.Codec.NcmEncode::shortBitLast`.
+pub const shortBitLast: u128 = (shortBit - 1);
+/// `Uorc.Codec.NcmEncode::shortBitHalf`.
+pub const shortBitHalf: u128 = (shortBit / radix);
+/// `Uorc.Codec.NcmEncode::shortBitHalfLast`.
+pub const shortBitHalfLast: u128 = (shortBitHalf - 1);
+/// `Uorc.Codec.NcmEncode::tableFieldLast`.
+pub const tableFieldLast: u128 = (tableField - 1);
+/// `Uorc.Codec.NcmEncode::tableFieldHalf`.
+pub const tableFieldHalf: u128 = (tableField / radix);
+/// `Uorc.Codec.NcmEncode::tableFieldHalfLast`.
+pub const tableFieldHalfLast: u128 = (tableFieldHalf - 1);
+/// `Uorc.Codec.NcmEncode::matchFieldLast`.
+pub const matchFieldLast: u128 = (matchField - 1);
+/// `Uorc.Codec.NcmEncode::matchFieldHalf`.
+pub const matchFieldHalf: u128 = (matchField / radix);
+/// `Uorc.Codec.NcmEncode::matchFieldHalfLast`.
+pub const matchFieldHalfLast: u128 = (matchFieldHalf - 1);
 /// `Uorc.Codec.NcmEncode::byteBaseLast`.
 pub const byteBaseLast: u128 = (byteBase - 1);
 /// `Uorc.Codec.NcmEncode::byteBaseHalf`.
@@ -964,6 +1026,8 @@ pub const cellMSLast: u128 = (cellMS - 1);
 pub const cellM2SLast: u128 = (cellM2S - 1);
 /// `Uorc.Codec.NcmEncode::cellRSLast`.
 pub const cellRSLast: u128 = (cellRS - 1);
+/// `Uorc.Codec.NcmEncode::rollMultiplierLast`.
+pub const rollMultiplierLast: u128 = (rollMultiplier - 1);
 /// `Uorc.Codec.NcmEncode::cellMTLast`.
 pub const cellMTLast: u128 = (cellMT - 1);
 /// `Uorc.Codec.NcmEncode::cellMTHalf`.
@@ -1108,6 +1172,12 @@ pub const cellW3Last: u128 = (cellW3 - 1);
 pub const weightUnitHalf: u128 = (weightUnit / radix);
 /// `Uorc.Codec.NcmEncode::weightUnitHalfLast`.
 pub const weightUnitHalfLast: u128 = (weightUnitHalf - 1);
+/// `Uorc.Codec.NcmEncode::squashStepLast`.
+pub const squashStepLast: u128 = (squashStep - 1);
+/// `Uorc.Codec.NcmEncode::squashStepHalf`.
+pub const squashStepHalf: u128 = (squashStep / radix);
+/// `Uorc.Codec.NcmEncode::squashStepHalfLast`.
+pub const squashStepHalfLast: u128 = (squashStepHalf - 1);
 /// `Uorc.Codec.NcmEncode::tidA1Last`.
 pub const tidA1Last: u128 = (tidA1 - 1);
 /// `Uorc.Codec.NcmEncode::tidA1Half`.
@@ -1950,6 +2020,36 @@ pub const widthBestkLast: u128 = (widthBestk - 1);
 pub const widthBestkHalf: u128 = (widthBestk / radix);
 /// `Uorc.Codec.NcmEncode::widthBestkHalfLast`.
 pub const widthBestkHalfLast: u128 = (widthBestkHalf - 1);
+/// `Uorc.Codec.NcmEncode::hashWordLast`.
+pub const hashWordLast: u128 = (hashWord - 1);
+/// `Uorc.Codec.NcmEncode::hashWordHalf`.
+pub const hashWordHalf: u128 = (hashWord / radix);
+/// `Uorc.Codec.NcmEncode::hashWordHalfLast`.
+pub const hashWordHalfLast: u128 = (hashWordHalf - 1);
+/// `Uorc.Codec.NcmEncode::hashMultiplier0Last`.
+pub const hashMultiplier0Last: u128 = (hashMultiplier0 - 1);
+/// `Uorc.Codec.NcmEncode::hashFold0Last`.
+pub const hashFold0Last: u128 = (hashFold0 - 1);
+/// `Uorc.Codec.NcmEncode::hashFold0Half`.
+pub const hashFold0Half: u128 = (hashFold0 / radix);
+/// `Uorc.Codec.NcmEncode::hashFold0HalfLast`.
+pub const hashFold0HalfLast: u128 = (hashFold0Half - 1);
+/// `Uorc.Codec.NcmEncode::hashMultiplier1Last`.
+pub const hashMultiplier1Last: u128 = (hashMultiplier1 - 1);
+/// `Uorc.Codec.NcmEncode::hashFold1Last`.
+pub const hashFold1Last: u128 = (hashFold1 - 1);
+/// `Uorc.Codec.NcmEncode::hashFold1Half`.
+pub const hashFold1Half: u128 = (hashFold1 / radix);
+/// `Uorc.Codec.NcmEncode::hashFold1HalfLast`.
+pub const hashFold1HalfLast: u128 = (hashFold1Half - 1);
+/// `Uorc.Codec.NcmEncode::hashMultiplier2Last`.
+pub const hashMultiplier2Last: u128 = (hashMultiplier2 - 1);
+/// `Uorc.Codec.NcmEncode::hashFold2Last`.
+pub const hashFold2Last: u128 = (hashFold2 - 1);
+/// `Uorc.Codec.NcmEncode::hashFold2Half`.
+pub const hashFold2Half: u128 = (hashFold2 / radix);
+/// `Uorc.Codec.NcmEncode::hashFold2HalfLast`.
+pub const hashFold2HalfLast: u128 = (hashFold2Half - 1);
 /// `Uorc.Codec.NcmEncode::memDepthLast`.
 pub const memDepthLast: u128 = (memDepth - 1);
 /// `Uorc.Codec.NcmEncode::memDepthHalf`.
@@ -1992,11 +2092,13 @@ pub const sqtCells2: [u128; 33] = cells::<33>(&sqt, 2);
 
 /// The quantities a `u8` holds.
 pub mod u8 {
+    pub const radix: u8 = super::radix as u8;
+    pub const tableField: u8 = super::tableField as u8;
+    pub const matchField: u8 = super::matchField as u8;
     pub const cellSTR: u8 = super::cellSTR as u8;
     pub const cellMS: u8 = super::cellMS as u8;
     pub const cellM2S: u8 = super::cellM2S as u8;
     pub const cellRS: u8 = super::cellRS as u8;
-    pub const radix: u8 = super::radix as u8;
     pub const cellMT: u8 = super::cellMT as u8;
     pub const cellM2T: u8 = super::cellM2T as u8;
     pub const tidMT: u8 = super::tidMT as u8;
@@ -2030,10 +2132,13 @@ pub mod u8 {
     pub const cellW1: u8 = super::cellW1 as u8;
     pub const cellW2: u8 = super::cellW2 as u8;
     pub const cellW3: u8 = super::cellW3 as u8;
+    pub const squashStep: u8 = super::squashStep as u8;
+    pub const apmIntervals: u8 = super::apmIntervals as u8;
+    pub const apmPoints: u8 = super::apmPoints as u8;
     pub const cellA1: u8 = super::cellA1 as u8;
-    pub const cellA2: u8 = super::cellA2 as u8;
-    pub const cell1Half: u8 = super::cell1Half as u8;
     pub const slotPerStretch: u8 = super::slotPerStretch as u8;
+    pub const squashHalfStep: u8 = super::squashHalfStep as u8;
+    pub const cellA2: u8 = super::cellA2 as u8;
     pub const tidA1: u8 = super::tidA1 as u8;
     pub const tidA2: u8 = super::tidA2 as u8;
     pub const tidMS: u8 = super::tidMS as u8;
@@ -2043,6 +2148,7 @@ pub mod u8 {
     pub const tidW1: u8 = super::tidW1 as u8;
     pub const tidW2: u8 = super::tidW2 as u8;
     pub const tidH: u8 = super::tidH as u8;
+    pub const cell1Half: u8 = super::cell1Half as u8;
     pub const laneEndIXLInLPL: u8 = super::laneEndIXLInLPL as u8;
     pub const cell1Last: u8 = super::cell1Last as u8;
     pub const probBase: u8 = super::probBase as u8;
@@ -2293,6 +2399,7 @@ pub mod u8 {
     pub const widthBestg: u8 = super::widthBestg as u8;
     pub const widthAnyb: u8 = super::widthAnyb as u8;
     pub const widthIsb: u8 = super::widthIsb as u8;
+    pub const sqtCell: u8 = super::sqtCell as u8;
     pub const pastEnd: u8 = super::pastEnd as u8;
     pub const wordBits: u8 = super::wordBits as u8;
     pub const memDepth: u8 = super::memDepth as u8;
@@ -2300,6 +2407,12 @@ pub mod u8 {
     pub const shortMatchDepth: u8 = super::shortMatchDepth as u8;
     pub const repeatDepth: u8 = super::repeatDepth as u8;
     pub const bucketRoom: u8 = super::bucketRoom as u8;
+    pub const tableFieldLast: u8 = super::tableFieldLast as u8;
+    pub const tableFieldHalf: u8 = super::tableFieldHalf as u8;
+    pub const tableFieldHalfLast: u8 = super::tableFieldHalfLast as u8;
+    pub const matchFieldLast: u8 = super::matchFieldLast as u8;
+    pub const matchFieldHalf: u8 = super::matchFieldHalf as u8;
+    pub const matchFieldHalfLast: u8 = super::matchFieldHalfLast as u8;
     pub const byteBaseLast: u8 = super::byteBaseLast as u8;
     pub const byteBaseHalf: u8 = super::byteBaseHalf as u8;
     pub const byteBaseHalfLast: u8 = super::byteBaseHalfLast as u8;
@@ -2361,6 +2474,9 @@ pub mod u8 {
     pub const cellW1Last: u8 = super::cellW1Last as u8;
     pub const cellW2Last: u8 = super::cellW2Last as u8;
     pub const cellW3Last: u8 = super::cellW3Last as u8;
+    pub const squashStepLast: u8 = super::squashStepLast as u8;
+    pub const squashStepHalf: u8 = super::squashStepHalf as u8;
+    pub const squashStepHalfLast: u8 = super::squashStepHalfLast as u8;
     pub const tidA1Last: u8 = super::tidA1Last as u8;
     pub const tidA1Half: u8 = super::tidA1Half as u8;
     pub const tidA2Last: u8 = super::tidA2Last as u8;
@@ -2645,13 +2761,20 @@ pub mod u8 {
 
     /// The base-two logarithm of each power-of-two quantity, as a `u8`.
     pub mod bits {
+        pub const shortBit: u8 = super::super::shortBit.trailing_zeros() as u8;
+        pub const radix: u8 = super::super::radix.trailing_zeros() as u8;
+        pub const repBit: u8 = super::super::repBit.trailing_zeros() as u8;
+        pub const selBit: u8 = super::super::selBit.trailing_zeros() as u8;
+        pub const tableUnit: u8 = super::super::tableUnit.trailing_zeros() as u8;
+        pub const tableField: u8 = super::super::tableField.trailing_zeros() as u8;
+        pub const matchUnit: u8 = super::super::matchUnit.trailing_zeros() as u8;
+        pub const matchField: u8 = super::super::matchField.trailing_zeros() as u8;
         pub const byteBase: u8 = super::super::byteBase.trailing_zeros() as u8;
         pub const cell2Base: u8 = super::super::cell2Base.trailing_zeros() as u8;
         pub const cell3Base: u8 = super::super::cell3Base.trailing_zeros() as u8;
         pub const cell4Base: u8 = super::super::cell4Base.trailing_zeros() as u8;
         pub const cellSTR: u8 = super::super::cellSTR.trailing_zeros() as u8;
         pub const stretchRange: u8 = super::super::stretchRange.trailing_zeros() as u8;
-        pub const radix: u8 = super::super::radix.trailing_zeros() as u8;
         pub const cell3Half: u8 = super::super::cell3Half.trailing_zeros() as u8;
         pub const cellMT: u8 = super::super::cellMT.trailing_zeros() as u8;
         pub const cellM2T: u8 = super::super::cellM2T.trailing_zeros() as u8;
@@ -2682,15 +2805,19 @@ pub mod u8 {
         pub const weightStart: u8 = super::super::weightStart.trailing_zeros() as u8;
         pub const weightRange: u8 = super::super::weightRange.trailing_zeros() as u8;
         pub const weightUnit: u8 = super::super::weightUnit.trailing_zeros() as u8;
+        pub const squashStep: u8 = super::super::squashStep.trailing_zeros() as u8;
+        pub const apmIntervals: u8 = super::super::apmIntervals.trailing_zeros() as u8;
         pub const cellA1: u8 = super::super::cellA1.trailing_zeros() as u8;
-        pub const cellA2: u8 = super::super::cellA2.trailing_zeros() as u8;
-        pub const cell1Half: u8 = super::super::cell1Half.trailing_zeros() as u8;
         pub const slotPerStretch: u8 = super::super::slotPerStretch.trailing_zeros() as u8;
+        pub const apmScale: u8 = super::super::apmScale.trailing_zeros() as u8;
+        pub const squashHalfStep: u8 = super::super::squashHalfStep.trailing_zeros() as u8;
+        pub const cellA2: u8 = super::super::cellA2.trailing_zeros() as u8;
         pub const tidA1: u8 = super::super::tidA1.trailing_zeros() as u8;
         pub const tidRS: u8 = super::super::tidRS.trailing_zeros() as u8;
         pub const weightHalf: u8 = super::super::weightHalf.trailing_zeros() as u8;
         pub const tidW1: u8 = super::super::tidW1.trailing_zeros() as u8;
         pub const tidW2: u8 = super::super::tidW2.trailing_zeros() as u8;
+        pub const cell1Half: u8 = super::super::cell1Half.trailing_zeros() as u8;
         pub const inputUnbounded: u8 = super::super::inputUnbounded.trailing_zeros() as u8;
         pub const profileBase: u8 = super::super::profileBase.trailing_zeros() as u8;
         pub const probBase: u8 = super::super::probBase.trailing_zeros() as u8;
@@ -2884,8 +3011,16 @@ pub mod u8 {
         pub const widthBestg: u8 = super::super::widthBestg.trailing_zeros() as u8;
         pub const widthAnyb: u8 = super::super::widthAnyb.trailing_zeros() as u8;
         pub const widthIsb: u8 = super::super::widthIsb.trailing_zeros() as u8;
+        pub const sqtCell: u8 = super::super::sqtCell.trailing_zeros() as u8;
+        pub const hashWord: u8 = super::super::hashWord.trailing_zeros() as u8;
+        pub const hashFold0: u8 = super::super::hashFold0.trailing_zeros() as u8;
+        pub const hashFold1: u8 = super::super::hashFold1.trailing_zeros() as u8;
+        pub const hashFold2: u8 = super::super::hashFold2.trailing_zeros() as u8;
         pub const wordBits: u8 = super::super::wordBits.trailing_zeros() as u8;
         pub const frameRange: u8 = super::super::frameRange.trailing_zeros() as u8;
+        pub const shortBitHalf: u8 = super::super::shortBitHalf.trailing_zeros() as u8;
+        pub const tableFieldHalf: u8 = super::super::tableFieldHalf.trailing_zeros() as u8;
+        pub const matchFieldHalf: u8 = super::super::matchFieldHalf.trailing_zeros() as u8;
         pub const byteBaseHalf: u8 = super::super::byteBaseHalf.trailing_zeros() as u8;
         pub const stretchRangeHalf: u8 = super::super::stretchRangeHalf.trailing_zeros() as u8;
         pub const cellMSLast: u8 = super::super::cellMSLast.trailing_zeros() as u8;
@@ -2922,6 +3057,7 @@ pub mod u8 {
         pub const cellW2Last: u8 = super::super::cellW2Last.trailing_zeros() as u8;
         pub const cellW3Last: u8 = super::super::cellW3Last.trailing_zeros() as u8;
         pub const weightUnitHalf: u8 = super::super::weightUnitHalf.trailing_zeros() as u8;
+        pub const squashStepHalf: u8 = super::super::squashStepHalf.trailing_zeros() as u8;
         pub const tidA1Half: u8 = super::super::tidA1Half.trailing_zeros() as u8;
         pub const tidA2Last: u8 = super::super::tidA2Last.trailing_zeros() as u8;
         pub const tidMSHalfLast: u8 = super::super::tidMSHalfLast.trailing_zeros() as u8;
@@ -3058,12 +3194,19 @@ pub mod u8 {
         pub const widthAdnHalf: u8 = super::super::widthAdnHalf.trailing_zeros() as u8;
         pub const widthAdpHalf: u8 = super::super::widthAdpHalf.trailing_zeros() as u8;
         pub const widthBestkHalf: u8 = super::super::widthBestkHalf.trailing_zeros() as u8;
+        pub const hashWordHalf: u8 = super::super::hashWordHalf.trailing_zeros() as u8;
+        pub const hashFold0Half: u8 = super::super::hashFold0Half.trailing_zeros() as u8;
+        pub const hashFold1Half: u8 = super::super::hashFold1Half.trailing_zeros() as u8;
+        pub const hashFold2Half: u8 = super::super::hashFold2Half.trailing_zeros() as u8;
         pub const shortMatchDepthHalfLast: u8 = super::super::shortMatchDepthHalfLast.trailing_zeros() as u8;
     }
 }
 
 /// The quantities a `u16` holds.
 pub mod u16 {
+    pub const radix: u16 = super::radix as u16;
+    pub const tableField: u16 = super::tableField as u16;
+    pub const matchField: u16 = super::matchField as u16;
     pub const byteBase: u16 = super::byteBase as u16;
     pub const cellSTR: u16 = super::cellSTR as u16;
     pub const stretchRange: u16 = super::stretchRange as u16;
@@ -3071,7 +3214,6 @@ pub mod u16 {
     pub const cellMS: u16 = super::cellMS as u16;
     pub const cellM2S: u16 = super::cellM2S as u16;
     pub const cellRS: u16 = super::cellRS as u16;
-    pub const radix: u16 = super::radix as u16;
     pub const cellMT: u16 = super::cellMT as u16;
     pub const cellM2T: u16 = super::cellM2T as u16;
     pub const tidMT: u16 = super::tidMT as u16;
@@ -3124,10 +3266,15 @@ pub mod u16 {
     pub const mixerInputsStretchOrigin: u16 = super::mixerInputsStretchOrigin as u16;
     pub const stretchHalfLast: u16 = super::stretchHalfLast as u16;
     pub const weightUnitLast: u16 = super::weightUnitLast as u16;
+    pub const squashStep: u16 = super::squashStep as u16;
+    pub const apmIntervals: u16 = super::apmIntervals as u16;
+    pub const apmPoints: u16 = super::apmPoints as u16;
     pub const cellA1: u16 = super::cellA1 as u16;
-    pub const cellA2: u16 = super::cellA2 as u16;
-    pub const cell1Half: u16 = super::cell1Half as u16;
     pub const slotPerStretch: u16 = super::slotPerStretch as u16;
+    pub const apmTop: u16 = super::apmTop as u16;
+    pub const apmScale: u16 = super::apmScale as u16;
+    pub const squashHalfStep: u16 = super::squashHalfStep as u16;
+    pub const cellA2: u16 = super::cellA2 as u16;
     pub const tidA1: u16 = super::tidA1 as u16;
     pub const tidA2: u16 = super::tidA2 as u16;
     pub const slotLast: u16 = super::slotLast as u16;
@@ -3139,6 +3286,7 @@ pub mod u16 {
     pub const tidW1: u16 = super::tidW1 as u16;
     pub const tidW2: u16 = super::tidW2 as u16;
     pub const tidH: u16 = super::tidH as u16;
+    pub const cell1Half: u16 = super::cell1Half as u16;
     pub const laneBlockInLPL: u16 = super::laneBlockInLPL as u16;
     pub const laneEndIXLInLPL: u16 = super::laneEndIXLInLPL as u16;
     pub const laneBlockInLDL: u16 = super::laneBlockInLDL as u16;
@@ -3444,6 +3592,10 @@ pub mod u16 {
     pub const atAnyb: u16 = super::atAnyb as u16;
     pub const widthIsb: u16 = super::widthIsb as u16;
     pub const atIsb: u16 = super::atIsb as u16;
+    pub const sqtCell: u16 = super::sqtCell as u16;
+    pub const hashFold0: u16 = super::hashFold0 as u16;
+    pub const hashFold1: u16 = super::hashFold1 as u16;
+    pub const hashFold2: u16 = super::hashFold2 as u16;
     pub const pastEnd: u16 = super::pastEnd as u16;
     pub const wordBits: u16 = super::wordBits as u16;
     pub const memDepth: u16 = super::memDepth as u16;
@@ -3451,6 +3603,13 @@ pub mod u16 {
     pub const shortMatchDepth: u16 = super::shortMatchDepth as u16;
     pub const repeatDepth: u16 = super::repeatDepth as u16;
     pub const bucketRoom: u16 = super::bucketRoom as u16;
+    pub const shortBitHalfLast: u16 = super::shortBitHalfLast as u16;
+    pub const tableFieldLast: u16 = super::tableFieldLast as u16;
+    pub const tableFieldHalf: u16 = super::tableFieldHalf as u16;
+    pub const tableFieldHalfLast: u16 = super::tableFieldHalfLast as u16;
+    pub const matchFieldLast: u16 = super::matchFieldLast as u16;
+    pub const matchFieldHalf: u16 = super::matchFieldHalf as u16;
+    pub const matchFieldHalfLast: u16 = super::matchFieldHalfLast as u16;
     pub const byteBaseLast: u16 = super::byteBaseLast as u16;
     pub const byteBaseHalf: u16 = super::byteBaseHalf as u16;
     pub const byteBaseHalfLast: u16 = super::byteBaseHalfLast as u16;
@@ -3526,6 +3685,9 @@ pub mod u16 {
     pub const cellW3Last: u16 = super::cellW3Last as u16;
     pub const weightUnitHalf: u16 = super::weightUnitHalf as u16;
     pub const weightUnitHalfLast: u16 = super::weightUnitHalfLast as u16;
+    pub const squashStepLast: u16 = super::squashStepLast as u16;
+    pub const squashStepHalf: u16 = super::squashStepHalf as u16;
+    pub const squashStepHalfLast: u16 = super::squashStepHalfLast as u16;
     pub const tidA1Last: u16 = super::tidA1Last as u16;
     pub const tidA1Half: u16 = super::tidA1Half as u16;
     pub const tidA2Last: u16 = super::tidA2Last as u16;
@@ -3824,6 +3986,15 @@ pub mod u16 {
     pub const widthBestkLast: u16 = super::widthBestkLast as u16;
     pub const widthBestkHalf: u16 = super::widthBestkHalf as u16;
     pub const widthBestkHalfLast: u16 = super::widthBestkHalfLast as u16;
+    pub const hashFold0Last: u16 = super::hashFold0Last as u16;
+    pub const hashFold0Half: u16 = super::hashFold0Half as u16;
+    pub const hashFold0HalfLast: u16 = super::hashFold0HalfLast as u16;
+    pub const hashFold1Last: u16 = super::hashFold1Last as u16;
+    pub const hashFold1Half: u16 = super::hashFold1Half as u16;
+    pub const hashFold1HalfLast: u16 = super::hashFold1HalfLast as u16;
+    pub const hashFold2Last: u16 = super::hashFold2Last as u16;
+    pub const hashFold2Half: u16 = super::hashFold2Half as u16;
+    pub const hashFold2HalfLast: u16 = super::hashFold2HalfLast as u16;
     pub const memDepthLast: u16 = super::memDepthLast as u16;
     pub const memDepthHalf: u16 = super::memDepthHalf as u16;
     pub const memDepthHalfLast: u16 = super::memDepthHalfLast as u16;
@@ -3847,13 +4018,20 @@ pub mod u16 {
 
     /// The base-two logarithm of each power-of-two quantity, as a `u16`.
     pub mod bits {
+        pub const shortBit: u16 = super::super::shortBit.trailing_zeros() as u16;
+        pub const radix: u16 = super::super::radix.trailing_zeros() as u16;
+        pub const repBit: u16 = super::super::repBit.trailing_zeros() as u16;
+        pub const selBit: u16 = super::super::selBit.trailing_zeros() as u16;
+        pub const tableUnit: u16 = super::super::tableUnit.trailing_zeros() as u16;
+        pub const tableField: u16 = super::super::tableField.trailing_zeros() as u16;
+        pub const matchUnit: u16 = super::super::matchUnit.trailing_zeros() as u16;
+        pub const matchField: u16 = super::super::matchField.trailing_zeros() as u16;
         pub const byteBase: u16 = super::super::byteBase.trailing_zeros() as u16;
         pub const cell2Base: u16 = super::super::cell2Base.trailing_zeros() as u16;
         pub const cell3Base: u16 = super::super::cell3Base.trailing_zeros() as u16;
         pub const cell4Base: u16 = super::super::cell4Base.trailing_zeros() as u16;
         pub const cellSTR: u16 = super::super::cellSTR.trailing_zeros() as u16;
         pub const stretchRange: u16 = super::super::stretchRange.trailing_zeros() as u16;
-        pub const radix: u16 = super::super::radix.trailing_zeros() as u16;
         pub const cell3Half: u16 = super::super::cell3Half.trailing_zeros() as u16;
         pub const cellMT: u16 = super::super::cellMT.trailing_zeros() as u16;
         pub const cellM2T: u16 = super::super::cellM2T.trailing_zeros() as u16;
@@ -3884,15 +4062,19 @@ pub mod u16 {
         pub const weightStart: u16 = super::super::weightStart.trailing_zeros() as u16;
         pub const weightRange: u16 = super::super::weightRange.trailing_zeros() as u16;
         pub const weightUnit: u16 = super::super::weightUnit.trailing_zeros() as u16;
+        pub const squashStep: u16 = super::super::squashStep.trailing_zeros() as u16;
+        pub const apmIntervals: u16 = super::super::apmIntervals.trailing_zeros() as u16;
         pub const cellA1: u16 = super::super::cellA1.trailing_zeros() as u16;
-        pub const cellA2: u16 = super::super::cellA2.trailing_zeros() as u16;
-        pub const cell1Half: u16 = super::super::cell1Half.trailing_zeros() as u16;
         pub const slotPerStretch: u16 = super::super::slotPerStretch.trailing_zeros() as u16;
+        pub const apmScale: u16 = super::super::apmScale.trailing_zeros() as u16;
+        pub const squashHalfStep: u16 = super::super::squashHalfStep.trailing_zeros() as u16;
+        pub const cellA2: u16 = super::super::cellA2.trailing_zeros() as u16;
         pub const tidA1: u16 = super::super::tidA1.trailing_zeros() as u16;
         pub const tidRS: u16 = super::super::tidRS.trailing_zeros() as u16;
         pub const weightHalf: u16 = super::super::weightHalf.trailing_zeros() as u16;
         pub const tidW1: u16 = super::super::tidW1.trailing_zeros() as u16;
         pub const tidW2: u16 = super::super::tidW2.trailing_zeros() as u16;
+        pub const cell1Half: u16 = super::super::cell1Half.trailing_zeros() as u16;
         pub const inputUnbounded: u16 = super::super::inputUnbounded.trailing_zeros() as u16;
         pub const profileBase: u16 = super::super::profileBase.trailing_zeros() as u16;
         pub const probBase: u16 = super::super::probBase.trailing_zeros() as u16;
@@ -4086,8 +4268,16 @@ pub mod u16 {
         pub const widthBestg: u16 = super::super::widthBestg.trailing_zeros() as u16;
         pub const widthAnyb: u16 = super::super::widthAnyb.trailing_zeros() as u16;
         pub const widthIsb: u16 = super::super::widthIsb.trailing_zeros() as u16;
+        pub const sqtCell: u16 = super::super::sqtCell.trailing_zeros() as u16;
+        pub const hashWord: u16 = super::super::hashWord.trailing_zeros() as u16;
+        pub const hashFold0: u16 = super::super::hashFold0.trailing_zeros() as u16;
+        pub const hashFold1: u16 = super::super::hashFold1.trailing_zeros() as u16;
+        pub const hashFold2: u16 = super::super::hashFold2.trailing_zeros() as u16;
         pub const wordBits: u16 = super::super::wordBits.trailing_zeros() as u16;
         pub const frameRange: u16 = super::super::frameRange.trailing_zeros() as u16;
+        pub const shortBitHalf: u16 = super::super::shortBitHalf.trailing_zeros() as u16;
+        pub const tableFieldHalf: u16 = super::super::tableFieldHalf.trailing_zeros() as u16;
+        pub const matchFieldHalf: u16 = super::super::matchFieldHalf.trailing_zeros() as u16;
         pub const byteBaseHalf: u16 = super::super::byteBaseHalf.trailing_zeros() as u16;
         pub const stretchRangeHalf: u16 = super::super::stretchRangeHalf.trailing_zeros() as u16;
         pub const cellMSLast: u16 = super::super::cellMSLast.trailing_zeros() as u16;
@@ -4124,6 +4314,7 @@ pub mod u16 {
         pub const cellW2Last: u16 = super::super::cellW2Last.trailing_zeros() as u16;
         pub const cellW3Last: u16 = super::super::cellW3Last.trailing_zeros() as u16;
         pub const weightUnitHalf: u16 = super::super::weightUnitHalf.trailing_zeros() as u16;
+        pub const squashStepHalf: u16 = super::super::squashStepHalf.trailing_zeros() as u16;
         pub const tidA1Half: u16 = super::super::tidA1Half.trailing_zeros() as u16;
         pub const tidA2Last: u16 = super::super::tidA2Last.trailing_zeros() as u16;
         pub const tidMSHalfLast: u16 = super::super::tidMSHalfLast.trailing_zeros() as u16;
@@ -4260,12 +4451,24 @@ pub mod u16 {
         pub const widthAdnHalf: u16 = super::super::widthAdnHalf.trailing_zeros() as u16;
         pub const widthAdpHalf: u16 = super::super::widthAdpHalf.trailing_zeros() as u16;
         pub const widthBestkHalf: u16 = super::super::widthBestkHalf.trailing_zeros() as u16;
+        pub const hashWordHalf: u16 = super::super::hashWordHalf.trailing_zeros() as u16;
+        pub const hashFold0Half: u16 = super::super::hashFold0Half.trailing_zeros() as u16;
+        pub const hashFold1Half: u16 = super::super::hashFold1Half.trailing_zeros() as u16;
+        pub const hashFold2Half: u16 = super::super::hashFold2Half.trailing_zeros() as u16;
         pub const shortMatchDepthHalfLast: u16 = super::super::shortMatchDepthHalfLast.trailing_zeros() as u16;
     }
 }
 
 /// The quantities a `u32` holds.
 pub mod u32 {
+    pub const shortBit: u32 = super::shortBit as u32;
+    pub const radix: u32 = super::radix as u32;
+    pub const repBit: u32 = super::repBit as u32;
+    pub const selBit: u32 = super::selBit as u32;
+    pub const tableUnit: u32 = super::tableUnit as u32;
+    pub const tableField: u32 = super::tableField as u32;
+    pub const matchUnit: u32 = super::matchUnit as u32;
+    pub const matchField: u32 = super::matchField as u32;
     pub const byteBase: u32 = super::byteBase as u32;
     pub const cell2Base: u32 = super::cell2Base as u32;
     pub const cell3Base: u32 = super::cell3Base as u32;
@@ -4276,8 +4479,8 @@ pub mod u32 {
     pub const cellMS: u32 = super::cellMS as u32;
     pub const cellM2S: u32 = super::cellM2S as u32;
     pub const cellRS: u32 = super::cellRS as u32;
-    pub const radix: u32 = super::radix as u32;
     pub const cell3Half: u32 = super::cell3Half as u32;
+    pub const rollMultiplier: u32 = super::rollMultiplier as u32;
     pub const cellMT: u32 = super::cellMT as u32;
     pub const cellM2T: u32 = super::cellM2T as u32;
     pub const tidMT: u32 = super::tidMT as u32;
@@ -4340,10 +4543,15 @@ pub mod u32 {
     pub const weightUnit: u32 = super::weightUnit as u32;
     pub const stretchHalfLast: u32 = super::stretchHalfLast as u32;
     pub const weightUnitLast: u32 = super::weightUnitLast as u32;
+    pub const squashStep: u32 = super::squashStep as u32;
+    pub const apmIntervals: u32 = super::apmIntervals as u32;
+    pub const apmPoints: u32 = super::apmPoints as u32;
     pub const cellA1: u32 = super::cellA1 as u32;
-    pub const cellA2: u32 = super::cellA2 as u32;
-    pub const cell1Half: u32 = super::cell1Half as u32;
     pub const slotPerStretch: u32 = super::slotPerStretch as u32;
+    pub const apmTop: u32 = super::apmTop as u32;
+    pub const apmScale: u32 = super::apmScale as u32;
+    pub const squashHalfStep: u32 = super::squashHalfStep as u32;
+    pub const cellA2: u32 = super::cellA2 as u32;
     pub const tidA1: u32 = super::tidA1 as u32;
     pub const tidA2: u32 = super::tidA2 as u32;
     pub const slotLast: u32 = super::slotLast as u32;
@@ -4358,6 +4566,7 @@ pub mod u32 {
     pub const tidW1: u32 = super::tidW1 as u32;
     pub const tidW2: u32 = super::tidW2 as u32;
     pub const tidH: u32 = super::tidH as u32;
+    pub const cell1Half: u32 = super::cell1Half as u32;
     pub const laneBlockInLPL: u32 = super::laneBlockInLPL as u32;
     pub const laneEndIXLInLPL: u32 = super::laneEndIXLInLPL as u32;
     pub const laneBlockInLDL: u32 = super::laneBlockInLDL as u32;
@@ -4686,6 +4895,13 @@ pub mod u32 {
     pub const atAnyb: u32 = super::atAnyb as u32;
     pub const widthIsb: u32 = super::widthIsb as u32;
     pub const atIsb: u32 = super::atIsb as u32;
+    pub const sqtCell: u32 = super::sqtCell as u32;
+    pub const hashMultiplier0: u32 = super::hashMultiplier0 as u32;
+    pub const hashFold0: u32 = super::hashFold0 as u32;
+    pub const hashMultiplier1: u32 = super::hashMultiplier1 as u32;
+    pub const hashFold1: u32 = super::hashFold1 as u32;
+    pub const hashMultiplier2: u32 = super::hashMultiplier2 as u32;
+    pub const hashFold2: u32 = super::hashFold2 as u32;
     pub const pastEnd: u32 = super::pastEnd as u32;
     pub const staticEndW2: u32 = super::staticEndW2 as u32;
     pub const staticEndW3: u32 = super::staticEndW3 as u32;
@@ -4700,6 +4916,15 @@ pub mod u32 {
     pub const shortMatchDepth: u32 = super::shortMatchDepth as u32;
     pub const repeatDepth: u32 = super::repeatDepth as u32;
     pub const bucketRoom: u32 = super::bucketRoom as u32;
+    pub const shortBitLast: u32 = super::shortBitLast as u32;
+    pub const shortBitHalf: u32 = super::shortBitHalf as u32;
+    pub const shortBitHalfLast: u32 = super::shortBitHalfLast as u32;
+    pub const tableFieldLast: u32 = super::tableFieldLast as u32;
+    pub const tableFieldHalf: u32 = super::tableFieldHalf as u32;
+    pub const tableFieldHalfLast: u32 = super::tableFieldHalfLast as u32;
+    pub const matchFieldLast: u32 = super::matchFieldLast as u32;
+    pub const matchFieldHalf: u32 = super::matchFieldHalf as u32;
+    pub const matchFieldHalfLast: u32 = super::matchFieldHalfLast as u32;
     pub const byteBaseLast: u32 = super::byteBaseLast as u32;
     pub const byteBaseHalf: u32 = super::byteBaseHalf as u32;
     pub const byteBaseHalfLast: u32 = super::byteBaseHalfLast as u32;
@@ -4709,6 +4934,7 @@ pub mod u32 {
     pub const cellMSLast: u32 = super::cellMSLast as u32;
     pub const cellM2SLast: u32 = super::cellM2SLast as u32;
     pub const cellRSLast: u32 = super::cellRSLast as u32;
+    pub const rollMultiplierLast: u32 = super::rollMultiplierLast as u32;
     pub const cellMTLast: u32 = super::cellMTLast as u32;
     pub const cellMTHalf: u32 = super::cellMTHalf as u32;
     pub const cellM2TLast: u32 = super::cellM2TLast as u32;
@@ -4781,6 +5007,9 @@ pub mod u32 {
     pub const cellW3Last: u32 = super::cellW3Last as u32;
     pub const weightUnitHalf: u32 = super::weightUnitHalf as u32;
     pub const weightUnitHalfLast: u32 = super::weightUnitHalfLast as u32;
+    pub const squashStepLast: u32 = super::squashStepLast as u32;
+    pub const squashStepHalf: u32 = super::squashStepHalf as u32;
+    pub const squashStepHalfLast: u32 = super::squashStepHalfLast as u32;
     pub const tidA1Last: u32 = super::tidA1Last as u32;
     pub const tidA1Half: u32 = super::tidA1Half as u32;
     pub const tidA2Last: u32 = super::tidA2Last as u32;
@@ -5125,6 +5354,21 @@ pub mod u32 {
     pub const widthBestkLast: u32 = super::widthBestkLast as u32;
     pub const widthBestkHalf: u32 = super::widthBestkHalf as u32;
     pub const widthBestkHalfLast: u32 = super::widthBestkHalfLast as u32;
+    pub const hashWordLast: u32 = super::hashWordLast as u32;
+    pub const hashWordHalf: u32 = super::hashWordHalf as u32;
+    pub const hashWordHalfLast: u32 = super::hashWordHalfLast as u32;
+    pub const hashMultiplier0Last: u32 = super::hashMultiplier0Last as u32;
+    pub const hashFold0Last: u32 = super::hashFold0Last as u32;
+    pub const hashFold0Half: u32 = super::hashFold0Half as u32;
+    pub const hashFold0HalfLast: u32 = super::hashFold0HalfLast as u32;
+    pub const hashMultiplier1Last: u32 = super::hashMultiplier1Last as u32;
+    pub const hashFold1Last: u32 = super::hashFold1Last as u32;
+    pub const hashFold1Half: u32 = super::hashFold1Half as u32;
+    pub const hashFold1HalfLast: u32 = super::hashFold1HalfLast as u32;
+    pub const hashMultiplier2Last: u32 = super::hashMultiplier2Last as u32;
+    pub const hashFold2Last: u32 = super::hashFold2Last as u32;
+    pub const hashFold2Half: u32 = super::hashFold2Half as u32;
+    pub const hashFold2HalfLast: u32 = super::hashFold2HalfLast as u32;
     pub const memDepthLast: u32 = super::memDepthLast as u32;
     pub const memDepthHalf: u32 = super::memDepthHalf as u32;
     pub const memDepthHalfLast: u32 = super::memDepthHalfLast as u32;
@@ -5148,13 +5392,20 @@ pub mod u32 {
 
     /// The base-two logarithm of each power-of-two quantity, as a `u32`.
     pub mod bits {
+        pub const shortBit: u32 = super::super::shortBit.trailing_zeros() as u32;
+        pub const radix: u32 = super::super::radix.trailing_zeros() as u32;
+        pub const repBit: u32 = super::super::repBit.trailing_zeros() as u32;
+        pub const selBit: u32 = super::super::selBit.trailing_zeros() as u32;
+        pub const tableUnit: u32 = super::super::tableUnit.trailing_zeros() as u32;
+        pub const tableField: u32 = super::super::tableField.trailing_zeros() as u32;
+        pub const matchUnit: u32 = super::super::matchUnit.trailing_zeros() as u32;
+        pub const matchField: u32 = super::super::matchField.trailing_zeros() as u32;
         pub const byteBase: u32 = super::super::byteBase.trailing_zeros() as u32;
         pub const cell2Base: u32 = super::super::cell2Base.trailing_zeros() as u32;
         pub const cell3Base: u32 = super::super::cell3Base.trailing_zeros() as u32;
         pub const cell4Base: u32 = super::super::cell4Base.trailing_zeros() as u32;
         pub const cellSTR: u32 = super::super::cellSTR.trailing_zeros() as u32;
         pub const stretchRange: u32 = super::super::stretchRange.trailing_zeros() as u32;
-        pub const radix: u32 = super::super::radix.trailing_zeros() as u32;
         pub const cell3Half: u32 = super::super::cell3Half.trailing_zeros() as u32;
         pub const cellMT: u32 = super::super::cellMT.trailing_zeros() as u32;
         pub const cellM2T: u32 = super::super::cellM2T.trailing_zeros() as u32;
@@ -5185,15 +5436,19 @@ pub mod u32 {
         pub const weightStart: u32 = super::super::weightStart.trailing_zeros() as u32;
         pub const weightRange: u32 = super::super::weightRange.trailing_zeros() as u32;
         pub const weightUnit: u32 = super::super::weightUnit.trailing_zeros() as u32;
+        pub const squashStep: u32 = super::super::squashStep.trailing_zeros() as u32;
+        pub const apmIntervals: u32 = super::super::apmIntervals.trailing_zeros() as u32;
         pub const cellA1: u32 = super::super::cellA1.trailing_zeros() as u32;
-        pub const cellA2: u32 = super::super::cellA2.trailing_zeros() as u32;
-        pub const cell1Half: u32 = super::super::cell1Half.trailing_zeros() as u32;
         pub const slotPerStretch: u32 = super::super::slotPerStretch.trailing_zeros() as u32;
+        pub const apmScale: u32 = super::super::apmScale.trailing_zeros() as u32;
+        pub const squashHalfStep: u32 = super::super::squashHalfStep.trailing_zeros() as u32;
+        pub const cellA2: u32 = super::super::cellA2.trailing_zeros() as u32;
         pub const tidA1: u32 = super::super::tidA1.trailing_zeros() as u32;
         pub const tidRS: u32 = super::super::tidRS.trailing_zeros() as u32;
         pub const weightHalf: u32 = super::super::weightHalf.trailing_zeros() as u32;
         pub const tidW1: u32 = super::super::tidW1.trailing_zeros() as u32;
         pub const tidW2: u32 = super::super::tidW2.trailing_zeros() as u32;
+        pub const cell1Half: u32 = super::super::cell1Half.trailing_zeros() as u32;
         pub const inputUnbounded: u32 = super::super::inputUnbounded.trailing_zeros() as u32;
         pub const profileBase: u32 = super::super::profileBase.trailing_zeros() as u32;
         pub const probBase: u32 = super::super::probBase.trailing_zeros() as u32;
@@ -5387,8 +5642,16 @@ pub mod u32 {
         pub const widthBestg: u32 = super::super::widthBestg.trailing_zeros() as u32;
         pub const widthAnyb: u32 = super::super::widthAnyb.trailing_zeros() as u32;
         pub const widthIsb: u32 = super::super::widthIsb.trailing_zeros() as u32;
+        pub const sqtCell: u32 = super::super::sqtCell.trailing_zeros() as u32;
+        pub const hashWord: u32 = super::super::hashWord.trailing_zeros() as u32;
+        pub const hashFold0: u32 = super::super::hashFold0.trailing_zeros() as u32;
+        pub const hashFold1: u32 = super::super::hashFold1.trailing_zeros() as u32;
+        pub const hashFold2: u32 = super::super::hashFold2.trailing_zeros() as u32;
         pub const wordBits: u32 = super::super::wordBits.trailing_zeros() as u32;
         pub const frameRange: u32 = super::super::frameRange.trailing_zeros() as u32;
+        pub const shortBitHalf: u32 = super::super::shortBitHalf.trailing_zeros() as u32;
+        pub const tableFieldHalf: u32 = super::super::tableFieldHalf.trailing_zeros() as u32;
+        pub const matchFieldHalf: u32 = super::super::matchFieldHalf.trailing_zeros() as u32;
         pub const byteBaseHalf: u32 = super::super::byteBaseHalf.trailing_zeros() as u32;
         pub const stretchRangeHalf: u32 = super::super::stretchRangeHalf.trailing_zeros() as u32;
         pub const cellMSLast: u32 = super::super::cellMSLast.trailing_zeros() as u32;
@@ -5425,6 +5688,7 @@ pub mod u32 {
         pub const cellW2Last: u32 = super::super::cellW2Last.trailing_zeros() as u32;
         pub const cellW3Last: u32 = super::super::cellW3Last.trailing_zeros() as u32;
         pub const weightUnitHalf: u32 = super::super::weightUnitHalf.trailing_zeros() as u32;
+        pub const squashStepHalf: u32 = super::super::squashStepHalf.trailing_zeros() as u32;
         pub const tidA1Half: u32 = super::super::tidA1Half.trailing_zeros() as u32;
         pub const tidA2Last: u32 = super::super::tidA2Last.trailing_zeros() as u32;
         pub const tidMSHalfLast: u32 = super::super::tidMSHalfLast.trailing_zeros() as u32;
@@ -5561,12 +5825,24 @@ pub mod u32 {
         pub const widthAdnHalf: u32 = super::super::widthAdnHalf.trailing_zeros() as u32;
         pub const widthAdpHalf: u32 = super::super::widthAdpHalf.trailing_zeros() as u32;
         pub const widthBestkHalf: u32 = super::super::widthBestkHalf.trailing_zeros() as u32;
+        pub const hashWordHalf: u32 = super::super::hashWordHalf.trailing_zeros() as u32;
+        pub const hashFold0Half: u32 = super::super::hashFold0Half.trailing_zeros() as u32;
+        pub const hashFold1Half: u32 = super::super::hashFold1Half.trailing_zeros() as u32;
+        pub const hashFold2Half: u32 = super::super::hashFold2Half.trailing_zeros() as u32;
         pub const shortMatchDepthHalfLast: u32 = super::super::shortMatchDepthHalfLast.trailing_zeros() as u32;
     }
 }
 
 /// The quantities a `u64` holds.
 pub mod u64 {
+    pub const shortBit: u64 = super::shortBit as u64;
+    pub const radix: u64 = super::radix as u64;
+    pub const repBit: u64 = super::repBit as u64;
+    pub const selBit: u64 = super::selBit as u64;
+    pub const tableUnit: u64 = super::tableUnit as u64;
+    pub const tableField: u64 = super::tableField as u64;
+    pub const matchUnit: u64 = super::matchUnit as u64;
+    pub const matchField: u64 = super::matchField as u64;
     pub const byteBase: u64 = super::byteBase as u64;
     pub const cell2Base: u64 = super::cell2Base as u64;
     pub const cell3Base: u64 = super::cell3Base as u64;
@@ -5578,8 +5854,8 @@ pub mod u64 {
     pub const cellMS: u64 = super::cellMS as u64;
     pub const cellM2S: u64 = super::cellM2S as u64;
     pub const cellRS: u64 = super::cellRS as u64;
-    pub const radix: u64 = super::radix as u64;
     pub const cell3Half: u64 = super::cell3Half as u64;
+    pub const rollMultiplier: u64 = super::rollMultiplier as u64;
     pub const cellMT: u64 = super::cellMT as u64;
     pub const cellM2T: u64 = super::cellM2T as u64;
     pub const tidMT: u64 = super::tidMT as u64;
@@ -5643,10 +5919,15 @@ pub mod u64 {
     pub const weightUnit: u64 = super::weightUnit as u64;
     pub const stretchHalfLast: u64 = super::stretchHalfLast as u64;
     pub const weightUnitLast: u64 = super::weightUnitLast as u64;
+    pub const squashStep: u64 = super::squashStep as u64;
+    pub const apmIntervals: u64 = super::apmIntervals as u64;
+    pub const apmPoints: u64 = super::apmPoints as u64;
     pub const cellA1: u64 = super::cellA1 as u64;
-    pub const cellA2: u64 = super::cellA2 as u64;
-    pub const cell1Half: u64 = super::cell1Half as u64;
     pub const slotPerStretch: u64 = super::slotPerStretch as u64;
+    pub const apmTop: u64 = super::apmTop as u64;
+    pub const apmScale: u64 = super::apmScale as u64;
+    pub const squashHalfStep: u64 = super::squashHalfStep as u64;
+    pub const cellA2: u64 = super::cellA2 as u64;
     pub const tidA1: u64 = super::tidA1 as u64;
     pub const tidA2: u64 = super::tidA2 as u64;
     pub const slotLast: u64 = super::slotLast as u64;
@@ -5661,6 +5942,7 @@ pub mod u64 {
     pub const tidW1: u64 = super::tidW1 as u64;
     pub const tidW2: u64 = super::tidW2 as u64;
     pub const tidH: u64 = super::tidH as u64;
+    pub const cell1Half: u64 = super::cell1Half as u64;
     pub const laneBlockInLPL: u64 = super::laneBlockInLPL as u64;
     pub const laneEndIXLInLPL: u64 = super::laneEndIXLInLPL as u64;
     pub const laneBlockInLDL: u64 = super::laneBlockInLDL as u64;
@@ -6022,6 +6304,14 @@ pub mod u64 {
     pub const atAnyb: u64 = super::atAnyb as u64;
     pub const widthIsb: u64 = super::widthIsb as u64;
     pub const atIsb: u64 = super::atIsb as u64;
+    pub const sqtCell: u64 = super::sqtCell as u64;
+    pub const hashWord: u64 = super::hashWord as u64;
+    pub const hashMultiplier0: u64 = super::hashMultiplier0 as u64;
+    pub const hashFold0: u64 = super::hashFold0 as u64;
+    pub const hashMultiplier1: u64 = super::hashMultiplier1 as u64;
+    pub const hashFold1: u64 = super::hashFold1 as u64;
+    pub const hashMultiplier2: u64 = super::hashMultiplier2 as u64;
+    pub const hashFold2: u64 = super::hashFold2 as u64;
     pub const pastEnd: u64 = super::pastEnd as u64;
     pub const staticEndW2: u64 = super::staticEndW2 as u64;
     pub const staticEndW3: u64 = super::staticEndW3 as u64;
@@ -6037,6 +6327,15 @@ pub mod u64 {
     pub const repeatDepth: u64 = super::repeatDepth as u64;
     pub const bucketRoom: u64 = super::bucketRoom as u64;
     pub const frameRange: u64 = super::frameRange as u64;
+    pub const shortBitLast: u64 = super::shortBitLast as u64;
+    pub const shortBitHalf: u64 = super::shortBitHalf as u64;
+    pub const shortBitHalfLast: u64 = super::shortBitHalfLast as u64;
+    pub const tableFieldLast: u64 = super::tableFieldLast as u64;
+    pub const tableFieldHalf: u64 = super::tableFieldHalf as u64;
+    pub const tableFieldHalfLast: u64 = super::tableFieldHalfLast as u64;
+    pub const matchFieldLast: u64 = super::matchFieldLast as u64;
+    pub const matchFieldHalf: u64 = super::matchFieldHalf as u64;
+    pub const matchFieldHalfLast: u64 = super::matchFieldHalfLast as u64;
     pub const byteBaseLast: u64 = super::byteBaseLast as u64;
     pub const byteBaseHalf: u64 = super::byteBaseHalf as u64;
     pub const byteBaseHalfLast: u64 = super::byteBaseHalfLast as u64;
@@ -6046,6 +6345,7 @@ pub mod u64 {
     pub const cellMSLast: u64 = super::cellMSLast as u64;
     pub const cellM2SLast: u64 = super::cellM2SLast as u64;
     pub const cellRSLast: u64 = super::cellRSLast as u64;
+    pub const rollMultiplierLast: u64 = super::rollMultiplierLast as u64;
     pub const cellMTLast: u64 = super::cellMTLast as u64;
     pub const cellMTHalf: u64 = super::cellMTHalf as u64;
     pub const cellM2TLast: u64 = super::cellM2TLast as u64;
@@ -6118,6 +6418,9 @@ pub mod u64 {
     pub const cellW3Last: u64 = super::cellW3Last as u64;
     pub const weightUnitHalf: u64 = super::weightUnitHalf as u64;
     pub const weightUnitHalfLast: u64 = super::weightUnitHalfLast as u64;
+    pub const squashStepLast: u64 = super::squashStepLast as u64;
+    pub const squashStepHalf: u64 = super::squashStepHalf as u64;
+    pub const squashStepHalfLast: u64 = super::squashStepHalfLast as u64;
     pub const tidA1Last: u64 = super::tidA1Last as u64;
     pub const tidA1Half: u64 = super::tidA1Half as u64;
     pub const tidA2Last: u64 = super::tidA2Last as u64;
@@ -6539,6 +6842,21 @@ pub mod u64 {
     pub const widthBestkLast: u64 = super::widthBestkLast as u64;
     pub const widthBestkHalf: u64 = super::widthBestkHalf as u64;
     pub const widthBestkHalfLast: u64 = super::widthBestkHalfLast as u64;
+    pub const hashWordLast: u64 = super::hashWordLast as u64;
+    pub const hashWordHalf: u64 = super::hashWordHalf as u64;
+    pub const hashWordHalfLast: u64 = super::hashWordHalfLast as u64;
+    pub const hashMultiplier0Last: u64 = super::hashMultiplier0Last as u64;
+    pub const hashFold0Last: u64 = super::hashFold0Last as u64;
+    pub const hashFold0Half: u64 = super::hashFold0Half as u64;
+    pub const hashFold0HalfLast: u64 = super::hashFold0HalfLast as u64;
+    pub const hashMultiplier1Last: u64 = super::hashMultiplier1Last as u64;
+    pub const hashFold1Last: u64 = super::hashFold1Last as u64;
+    pub const hashFold1Half: u64 = super::hashFold1Half as u64;
+    pub const hashFold1HalfLast: u64 = super::hashFold1HalfLast as u64;
+    pub const hashMultiplier2Last: u64 = super::hashMultiplier2Last as u64;
+    pub const hashFold2Last: u64 = super::hashFold2Last as u64;
+    pub const hashFold2Half: u64 = super::hashFold2Half as u64;
+    pub const hashFold2HalfLast: u64 = super::hashFold2HalfLast as u64;
     pub const memDepthLast: u64 = super::memDepthLast as u64;
     pub const memDepthHalf: u64 = super::memDepthHalf as u64;
     pub const memDepthHalfLast: u64 = super::memDepthHalfLast as u64;
@@ -6562,13 +6880,20 @@ pub mod u64 {
 
     /// The base-two logarithm of each power-of-two quantity, as a `u64`.
     pub mod bits {
+        pub const shortBit: u64 = super::super::shortBit.trailing_zeros() as u64;
+        pub const radix: u64 = super::super::radix.trailing_zeros() as u64;
+        pub const repBit: u64 = super::super::repBit.trailing_zeros() as u64;
+        pub const selBit: u64 = super::super::selBit.trailing_zeros() as u64;
+        pub const tableUnit: u64 = super::super::tableUnit.trailing_zeros() as u64;
+        pub const tableField: u64 = super::super::tableField.trailing_zeros() as u64;
+        pub const matchUnit: u64 = super::super::matchUnit.trailing_zeros() as u64;
+        pub const matchField: u64 = super::super::matchField.trailing_zeros() as u64;
         pub const byteBase: u64 = super::super::byteBase.trailing_zeros() as u64;
         pub const cell2Base: u64 = super::super::cell2Base.trailing_zeros() as u64;
         pub const cell3Base: u64 = super::super::cell3Base.trailing_zeros() as u64;
         pub const cell4Base: u64 = super::super::cell4Base.trailing_zeros() as u64;
         pub const cellSTR: u64 = super::super::cellSTR.trailing_zeros() as u64;
         pub const stretchRange: u64 = super::super::stretchRange.trailing_zeros() as u64;
-        pub const radix: u64 = super::super::radix.trailing_zeros() as u64;
         pub const cell3Half: u64 = super::super::cell3Half.trailing_zeros() as u64;
         pub const cellMT: u64 = super::super::cellMT.trailing_zeros() as u64;
         pub const cellM2T: u64 = super::super::cellM2T.trailing_zeros() as u64;
@@ -6599,15 +6924,19 @@ pub mod u64 {
         pub const weightStart: u64 = super::super::weightStart.trailing_zeros() as u64;
         pub const weightRange: u64 = super::super::weightRange.trailing_zeros() as u64;
         pub const weightUnit: u64 = super::super::weightUnit.trailing_zeros() as u64;
+        pub const squashStep: u64 = super::super::squashStep.trailing_zeros() as u64;
+        pub const apmIntervals: u64 = super::super::apmIntervals.trailing_zeros() as u64;
         pub const cellA1: u64 = super::super::cellA1.trailing_zeros() as u64;
-        pub const cellA2: u64 = super::super::cellA2.trailing_zeros() as u64;
-        pub const cell1Half: u64 = super::super::cell1Half.trailing_zeros() as u64;
         pub const slotPerStretch: u64 = super::super::slotPerStretch.trailing_zeros() as u64;
+        pub const apmScale: u64 = super::super::apmScale.trailing_zeros() as u64;
+        pub const squashHalfStep: u64 = super::super::squashHalfStep.trailing_zeros() as u64;
+        pub const cellA2: u64 = super::super::cellA2.trailing_zeros() as u64;
         pub const tidA1: u64 = super::super::tidA1.trailing_zeros() as u64;
         pub const tidRS: u64 = super::super::tidRS.trailing_zeros() as u64;
         pub const weightHalf: u64 = super::super::weightHalf.trailing_zeros() as u64;
         pub const tidW1: u64 = super::super::tidW1.trailing_zeros() as u64;
         pub const tidW2: u64 = super::super::tidW2.trailing_zeros() as u64;
+        pub const cell1Half: u64 = super::super::cell1Half.trailing_zeros() as u64;
         pub const inputUnbounded: u64 = super::super::inputUnbounded.trailing_zeros() as u64;
         pub const profileBase: u64 = super::super::profileBase.trailing_zeros() as u64;
         pub const probBase: u64 = super::super::probBase.trailing_zeros() as u64;
@@ -6801,8 +7130,16 @@ pub mod u64 {
         pub const widthBestg: u64 = super::super::widthBestg.trailing_zeros() as u64;
         pub const widthAnyb: u64 = super::super::widthAnyb.trailing_zeros() as u64;
         pub const widthIsb: u64 = super::super::widthIsb.trailing_zeros() as u64;
+        pub const sqtCell: u64 = super::super::sqtCell.trailing_zeros() as u64;
+        pub const hashWord: u64 = super::super::hashWord.trailing_zeros() as u64;
+        pub const hashFold0: u64 = super::super::hashFold0.trailing_zeros() as u64;
+        pub const hashFold1: u64 = super::super::hashFold1.trailing_zeros() as u64;
+        pub const hashFold2: u64 = super::super::hashFold2.trailing_zeros() as u64;
         pub const wordBits: u64 = super::super::wordBits.trailing_zeros() as u64;
         pub const frameRange: u64 = super::super::frameRange.trailing_zeros() as u64;
+        pub const shortBitHalf: u64 = super::super::shortBitHalf.trailing_zeros() as u64;
+        pub const tableFieldHalf: u64 = super::super::tableFieldHalf.trailing_zeros() as u64;
+        pub const matchFieldHalf: u64 = super::super::matchFieldHalf.trailing_zeros() as u64;
         pub const byteBaseHalf: u64 = super::super::byteBaseHalf.trailing_zeros() as u64;
         pub const stretchRangeHalf: u64 = super::super::stretchRangeHalf.trailing_zeros() as u64;
         pub const cellMSLast: u64 = super::super::cellMSLast.trailing_zeros() as u64;
@@ -6839,6 +7176,7 @@ pub mod u64 {
         pub const cellW2Last: u64 = super::super::cellW2Last.trailing_zeros() as u64;
         pub const cellW3Last: u64 = super::super::cellW3Last.trailing_zeros() as u64;
         pub const weightUnitHalf: u64 = super::super::weightUnitHalf.trailing_zeros() as u64;
+        pub const squashStepHalf: u64 = super::super::squashStepHalf.trailing_zeros() as u64;
         pub const tidA1Half: u64 = super::super::tidA1Half.trailing_zeros() as u64;
         pub const tidA2Last: u64 = super::super::tidA2Last.trailing_zeros() as u64;
         pub const tidMSHalfLast: u64 = super::super::tidMSHalfLast.trailing_zeros() as u64;
@@ -6975,12 +7313,24 @@ pub mod u64 {
         pub const widthAdnHalf: u64 = super::super::widthAdnHalf.trailing_zeros() as u64;
         pub const widthAdpHalf: u64 = super::super::widthAdpHalf.trailing_zeros() as u64;
         pub const widthBestkHalf: u64 = super::super::widthBestkHalf.trailing_zeros() as u64;
+        pub const hashWordHalf: u64 = super::super::hashWordHalf.trailing_zeros() as u64;
+        pub const hashFold0Half: u64 = super::super::hashFold0Half.trailing_zeros() as u64;
+        pub const hashFold1Half: u64 = super::super::hashFold1Half.trailing_zeros() as u64;
+        pub const hashFold2Half: u64 = super::super::hashFold2Half.trailing_zeros() as u64;
         pub const shortMatchDepthHalfLast: u64 = super::super::shortMatchDepthHalfLast.trailing_zeros() as u64;
     }
 }
 
 /// The quantities a `usize` holds.
 pub mod usize {
+    pub const shortBit: usize = super::shortBit as usize;
+    pub const radix: usize = super::radix as usize;
+    pub const repBit: usize = super::repBit as usize;
+    pub const selBit: usize = super::selBit as usize;
+    pub const tableUnit: usize = super::tableUnit as usize;
+    pub const tableField: usize = super::tableField as usize;
+    pub const matchUnit: usize = super::matchUnit as usize;
+    pub const matchField: usize = super::matchField as usize;
     pub const byteBase: usize = super::byteBase as usize;
     pub const cell2Base: usize = super::cell2Base as usize;
     pub const cell3Base: usize = super::cell3Base as usize;
@@ -6991,8 +7341,8 @@ pub mod usize {
     pub const cellMS: usize = super::cellMS as usize;
     pub const cellM2S: usize = super::cellM2S as usize;
     pub const cellRS: usize = super::cellRS as usize;
-    pub const radix: usize = super::radix as usize;
     pub const cell3Half: usize = super::cell3Half as usize;
+    pub const rollMultiplier: usize = super::rollMultiplier as usize;
     pub const cellMT: usize = super::cellMT as usize;
     pub const cellM2T: usize = super::cellM2T as usize;
     pub const tidMT: usize = super::tidMT as usize;
@@ -7055,10 +7405,15 @@ pub mod usize {
     pub const weightUnit: usize = super::weightUnit as usize;
     pub const stretchHalfLast: usize = super::stretchHalfLast as usize;
     pub const weightUnitLast: usize = super::weightUnitLast as usize;
+    pub const squashStep: usize = super::squashStep as usize;
+    pub const apmIntervals: usize = super::apmIntervals as usize;
+    pub const apmPoints: usize = super::apmPoints as usize;
     pub const cellA1: usize = super::cellA1 as usize;
-    pub const cellA2: usize = super::cellA2 as usize;
-    pub const cell1Half: usize = super::cell1Half as usize;
     pub const slotPerStretch: usize = super::slotPerStretch as usize;
+    pub const apmTop: usize = super::apmTop as usize;
+    pub const apmScale: usize = super::apmScale as usize;
+    pub const squashHalfStep: usize = super::squashHalfStep as usize;
+    pub const cellA2: usize = super::cellA2 as usize;
     pub const tidA1: usize = super::tidA1 as usize;
     pub const tidA2: usize = super::tidA2 as usize;
     pub const slotLast: usize = super::slotLast as usize;
@@ -7073,6 +7428,7 @@ pub mod usize {
     pub const tidW1: usize = super::tidW1 as usize;
     pub const tidW2: usize = super::tidW2 as usize;
     pub const tidH: usize = super::tidH as usize;
+    pub const cell1Half: usize = super::cell1Half as usize;
     pub const laneBlockInLPL: usize = super::laneBlockInLPL as usize;
     pub const laneEndIXLInLPL: usize = super::laneEndIXLInLPL as usize;
     pub const laneBlockInLDL: usize = super::laneBlockInLDL as usize;
@@ -7401,6 +7757,13 @@ pub mod usize {
     pub const atAnyb: usize = super::atAnyb as usize;
     pub const widthIsb: usize = super::widthIsb as usize;
     pub const atIsb: usize = super::atIsb as usize;
+    pub const sqtCell: usize = super::sqtCell as usize;
+    pub const hashMultiplier0: usize = super::hashMultiplier0 as usize;
+    pub const hashFold0: usize = super::hashFold0 as usize;
+    pub const hashMultiplier1: usize = super::hashMultiplier1 as usize;
+    pub const hashFold1: usize = super::hashFold1 as usize;
+    pub const hashMultiplier2: usize = super::hashMultiplier2 as usize;
+    pub const hashFold2: usize = super::hashFold2 as usize;
     pub const pastEnd: usize = super::pastEnd as usize;
     pub const staticEndW2: usize = super::staticEndW2 as usize;
     pub const staticEndW3: usize = super::staticEndW3 as usize;
@@ -7415,6 +7778,15 @@ pub mod usize {
     pub const shortMatchDepth: usize = super::shortMatchDepth as usize;
     pub const repeatDepth: usize = super::repeatDepth as usize;
     pub const bucketRoom: usize = super::bucketRoom as usize;
+    pub const shortBitLast: usize = super::shortBitLast as usize;
+    pub const shortBitHalf: usize = super::shortBitHalf as usize;
+    pub const shortBitHalfLast: usize = super::shortBitHalfLast as usize;
+    pub const tableFieldLast: usize = super::tableFieldLast as usize;
+    pub const tableFieldHalf: usize = super::tableFieldHalf as usize;
+    pub const tableFieldHalfLast: usize = super::tableFieldHalfLast as usize;
+    pub const matchFieldLast: usize = super::matchFieldLast as usize;
+    pub const matchFieldHalf: usize = super::matchFieldHalf as usize;
+    pub const matchFieldHalfLast: usize = super::matchFieldHalfLast as usize;
     pub const byteBaseLast: usize = super::byteBaseLast as usize;
     pub const byteBaseHalf: usize = super::byteBaseHalf as usize;
     pub const byteBaseHalfLast: usize = super::byteBaseHalfLast as usize;
@@ -7424,6 +7796,7 @@ pub mod usize {
     pub const cellMSLast: usize = super::cellMSLast as usize;
     pub const cellM2SLast: usize = super::cellM2SLast as usize;
     pub const cellRSLast: usize = super::cellRSLast as usize;
+    pub const rollMultiplierLast: usize = super::rollMultiplierLast as usize;
     pub const cellMTLast: usize = super::cellMTLast as usize;
     pub const cellMTHalf: usize = super::cellMTHalf as usize;
     pub const cellM2TLast: usize = super::cellM2TLast as usize;
@@ -7496,6 +7869,9 @@ pub mod usize {
     pub const cellW3Last: usize = super::cellW3Last as usize;
     pub const weightUnitHalf: usize = super::weightUnitHalf as usize;
     pub const weightUnitHalfLast: usize = super::weightUnitHalfLast as usize;
+    pub const squashStepLast: usize = super::squashStepLast as usize;
+    pub const squashStepHalf: usize = super::squashStepHalf as usize;
+    pub const squashStepHalfLast: usize = super::squashStepHalfLast as usize;
     pub const tidA1Last: usize = super::tidA1Last as usize;
     pub const tidA1Half: usize = super::tidA1Half as usize;
     pub const tidA2Last: usize = super::tidA2Last as usize;
@@ -7840,6 +8216,21 @@ pub mod usize {
     pub const widthBestkLast: usize = super::widthBestkLast as usize;
     pub const widthBestkHalf: usize = super::widthBestkHalf as usize;
     pub const widthBestkHalfLast: usize = super::widthBestkHalfLast as usize;
+    pub const hashWordLast: usize = super::hashWordLast as usize;
+    pub const hashWordHalf: usize = super::hashWordHalf as usize;
+    pub const hashWordHalfLast: usize = super::hashWordHalfLast as usize;
+    pub const hashMultiplier0Last: usize = super::hashMultiplier0Last as usize;
+    pub const hashFold0Last: usize = super::hashFold0Last as usize;
+    pub const hashFold0Half: usize = super::hashFold0Half as usize;
+    pub const hashFold0HalfLast: usize = super::hashFold0HalfLast as usize;
+    pub const hashMultiplier1Last: usize = super::hashMultiplier1Last as usize;
+    pub const hashFold1Last: usize = super::hashFold1Last as usize;
+    pub const hashFold1Half: usize = super::hashFold1Half as usize;
+    pub const hashFold1HalfLast: usize = super::hashFold1HalfLast as usize;
+    pub const hashMultiplier2Last: usize = super::hashMultiplier2Last as usize;
+    pub const hashFold2Last: usize = super::hashFold2Last as usize;
+    pub const hashFold2Half: usize = super::hashFold2Half as usize;
+    pub const hashFold2HalfLast: usize = super::hashFold2HalfLast as usize;
     pub const memDepthLast: usize = super::memDepthLast as usize;
     pub const memDepthHalf: usize = super::memDepthHalf as usize;
     pub const memDepthHalfLast: usize = super::memDepthHalfLast as usize;
@@ -7863,13 +8254,20 @@ pub mod usize {
 
     /// The base-two logarithm of each power-of-two quantity, as a `usize`.
     pub mod bits {
+        pub const shortBit: usize = super::super::shortBit.trailing_zeros() as usize;
+        pub const radix: usize = super::super::radix.trailing_zeros() as usize;
+        pub const repBit: usize = super::super::repBit.trailing_zeros() as usize;
+        pub const selBit: usize = super::super::selBit.trailing_zeros() as usize;
+        pub const tableUnit: usize = super::super::tableUnit.trailing_zeros() as usize;
+        pub const tableField: usize = super::super::tableField.trailing_zeros() as usize;
+        pub const matchUnit: usize = super::super::matchUnit.trailing_zeros() as usize;
+        pub const matchField: usize = super::super::matchField.trailing_zeros() as usize;
         pub const byteBase: usize = super::super::byteBase.trailing_zeros() as usize;
         pub const cell2Base: usize = super::super::cell2Base.trailing_zeros() as usize;
         pub const cell3Base: usize = super::super::cell3Base.trailing_zeros() as usize;
         pub const cell4Base: usize = super::super::cell4Base.trailing_zeros() as usize;
         pub const cellSTR: usize = super::super::cellSTR.trailing_zeros() as usize;
         pub const stretchRange: usize = super::super::stretchRange.trailing_zeros() as usize;
-        pub const radix: usize = super::super::radix.trailing_zeros() as usize;
         pub const cell3Half: usize = super::super::cell3Half.trailing_zeros() as usize;
         pub const cellMT: usize = super::super::cellMT.trailing_zeros() as usize;
         pub const cellM2T: usize = super::super::cellM2T.trailing_zeros() as usize;
@@ -7900,15 +8298,19 @@ pub mod usize {
         pub const weightStart: usize = super::super::weightStart.trailing_zeros() as usize;
         pub const weightRange: usize = super::super::weightRange.trailing_zeros() as usize;
         pub const weightUnit: usize = super::super::weightUnit.trailing_zeros() as usize;
+        pub const squashStep: usize = super::super::squashStep.trailing_zeros() as usize;
+        pub const apmIntervals: usize = super::super::apmIntervals.trailing_zeros() as usize;
         pub const cellA1: usize = super::super::cellA1.trailing_zeros() as usize;
-        pub const cellA2: usize = super::super::cellA2.trailing_zeros() as usize;
-        pub const cell1Half: usize = super::super::cell1Half.trailing_zeros() as usize;
         pub const slotPerStretch: usize = super::super::slotPerStretch.trailing_zeros() as usize;
+        pub const apmScale: usize = super::super::apmScale.trailing_zeros() as usize;
+        pub const squashHalfStep: usize = super::super::squashHalfStep.trailing_zeros() as usize;
+        pub const cellA2: usize = super::super::cellA2.trailing_zeros() as usize;
         pub const tidA1: usize = super::super::tidA1.trailing_zeros() as usize;
         pub const tidRS: usize = super::super::tidRS.trailing_zeros() as usize;
         pub const weightHalf: usize = super::super::weightHalf.trailing_zeros() as usize;
         pub const tidW1: usize = super::super::tidW1.trailing_zeros() as usize;
         pub const tidW2: usize = super::super::tidW2.trailing_zeros() as usize;
+        pub const cell1Half: usize = super::super::cell1Half.trailing_zeros() as usize;
         pub const inputUnbounded: usize = super::super::inputUnbounded.trailing_zeros() as usize;
         pub const profileBase: usize = super::super::profileBase.trailing_zeros() as usize;
         pub const probBase: usize = super::super::probBase.trailing_zeros() as usize;
@@ -8102,8 +8504,16 @@ pub mod usize {
         pub const widthBestg: usize = super::super::widthBestg.trailing_zeros() as usize;
         pub const widthAnyb: usize = super::super::widthAnyb.trailing_zeros() as usize;
         pub const widthIsb: usize = super::super::widthIsb.trailing_zeros() as usize;
+        pub const sqtCell: usize = super::super::sqtCell.trailing_zeros() as usize;
+        pub const hashWord: usize = super::super::hashWord.trailing_zeros() as usize;
+        pub const hashFold0: usize = super::super::hashFold0.trailing_zeros() as usize;
+        pub const hashFold1: usize = super::super::hashFold1.trailing_zeros() as usize;
+        pub const hashFold2: usize = super::super::hashFold2.trailing_zeros() as usize;
         pub const wordBits: usize = super::super::wordBits.trailing_zeros() as usize;
         pub const frameRange: usize = super::super::frameRange.trailing_zeros() as usize;
+        pub const shortBitHalf: usize = super::super::shortBitHalf.trailing_zeros() as usize;
+        pub const tableFieldHalf: usize = super::super::tableFieldHalf.trailing_zeros() as usize;
+        pub const matchFieldHalf: usize = super::super::matchFieldHalf.trailing_zeros() as usize;
         pub const byteBaseHalf: usize = super::super::byteBaseHalf.trailing_zeros() as usize;
         pub const stretchRangeHalf: usize = super::super::stretchRangeHalf.trailing_zeros() as usize;
         pub const cellMSLast: usize = super::super::cellMSLast.trailing_zeros() as usize;
@@ -8140,6 +8550,7 @@ pub mod usize {
         pub const cellW2Last: usize = super::super::cellW2Last.trailing_zeros() as usize;
         pub const cellW3Last: usize = super::super::cellW3Last.trailing_zeros() as usize;
         pub const weightUnitHalf: usize = super::super::weightUnitHalf.trailing_zeros() as usize;
+        pub const squashStepHalf: usize = super::super::squashStepHalf.trailing_zeros() as usize;
         pub const tidA1Half: usize = super::super::tidA1Half.trailing_zeros() as usize;
         pub const tidA2Last: usize = super::super::tidA2Last.trailing_zeros() as usize;
         pub const tidMSHalfLast: usize = super::super::tidMSHalfLast.trailing_zeros() as usize;
@@ -8276,12 +8687,19 @@ pub mod usize {
         pub const widthAdnHalf: usize = super::super::widthAdnHalf.trailing_zeros() as usize;
         pub const widthAdpHalf: usize = super::super::widthAdpHalf.trailing_zeros() as usize;
         pub const widthBestkHalf: usize = super::super::widthBestkHalf.trailing_zeros() as usize;
+        pub const hashWordHalf: usize = super::super::hashWordHalf.trailing_zeros() as usize;
+        pub const hashFold0Half: usize = super::super::hashFold0Half.trailing_zeros() as usize;
+        pub const hashFold1Half: usize = super::super::hashFold1Half.trailing_zeros() as usize;
+        pub const hashFold2Half: usize = super::super::hashFold2Half.trailing_zeros() as usize;
         pub const shortMatchDepthHalfLast: usize = super::super::shortMatchDepthHalfLast.trailing_zeros() as usize;
     }
 }
 
 /// The quantities a `i16` holds.
 pub mod i16 {
+    pub const radix: i16 = super::radix as i16;
+    pub const tableField: i16 = super::tableField as i16;
+    pub const matchField: i16 = super::matchField as i16;
     pub const byteBase: i16 = super::byteBase as i16;
     pub const cellSTR: i16 = super::cellSTR as i16;
     pub const stretchRange: i16 = super::stretchRange as i16;
@@ -8289,7 +8707,6 @@ pub mod i16 {
     pub const cellMS: i16 = super::cellMS as i16;
     pub const cellM2S: i16 = super::cellM2S as i16;
     pub const cellRS: i16 = super::cellRS as i16;
-    pub const radix: i16 = super::radix as i16;
     pub const cellMT: i16 = super::cellMT as i16;
     pub const cellM2T: i16 = super::cellM2T as i16;
     pub const tidMT: i16 = super::tidMT as i16;
@@ -8336,10 +8753,14 @@ pub mod i16 {
     pub const cellW2: i16 = super::cellW2 as i16;
     pub const cellW3: i16 = super::cellW3 as i16;
     pub const stretchHalfLast: i16 = super::stretchHalfLast as i16;
+    pub const squashStep: i16 = super::squashStep as i16;
+    pub const apmIntervals: i16 = super::apmIntervals as i16;
+    pub const apmPoints: i16 = super::apmPoints as i16;
     pub const cellA1: i16 = super::cellA1 as i16;
-    pub const cellA2: i16 = super::cellA2 as i16;
-    pub const cell1Half: i16 = super::cell1Half as i16;
     pub const slotPerStretch: i16 = super::slotPerStretch as i16;
+    pub const apmScale: i16 = super::apmScale as i16;
+    pub const squashHalfStep: i16 = super::squashHalfStep as i16;
+    pub const cellA2: i16 = super::cellA2 as i16;
     pub const tidA1: i16 = super::tidA1 as i16;
     pub const tidA2: i16 = super::tidA2 as i16;
     pub const tidMS: i16 = super::tidMS as i16;
@@ -8349,6 +8770,7 @@ pub mod i16 {
     pub const tidW1: i16 = super::tidW1 as i16;
     pub const tidW2: i16 = super::tidW2 as i16;
     pub const tidH: i16 = super::tidH as i16;
+    pub const cell1Half: i16 = super::cell1Half as i16;
     pub const laneEndIXLInLPL: i16 = super::laneEndIXLInLPL as i16;
     pub const laneEndLPLInLDL: i16 = super::laneEndLPLInLDL as i16;
     pub const laneEndSTLInRCL: i16 = super::laneEndSTLInRCL as i16;
@@ -8648,6 +9070,8 @@ pub mod i16 {
     pub const atAnyb: i16 = super::atAnyb as i16;
     pub const widthIsb: i16 = super::widthIsb as i16;
     pub const atIsb: i16 = super::atIsb as i16;
+    pub const sqtCell: i16 = super::sqtCell as i16;
+    pub const hashFold1: i16 = super::hashFold1 as i16;
     pub const pastEnd: i16 = super::pastEnd as i16;
     pub const wordBits: i16 = super::wordBits as i16;
     pub const memDepth: i16 = super::memDepth as i16;
@@ -8655,6 +9079,12 @@ pub mod i16 {
     pub const shortMatchDepth: i16 = super::shortMatchDepth as i16;
     pub const repeatDepth: i16 = super::repeatDepth as i16;
     pub const bucketRoom: i16 = super::bucketRoom as i16;
+    pub const tableFieldLast: i16 = super::tableFieldLast as i16;
+    pub const tableFieldHalf: i16 = super::tableFieldHalf as i16;
+    pub const tableFieldHalfLast: i16 = super::tableFieldHalfLast as i16;
+    pub const matchFieldLast: i16 = super::matchFieldLast as i16;
+    pub const matchFieldHalf: i16 = super::matchFieldHalf as i16;
+    pub const matchFieldHalfLast: i16 = super::matchFieldHalfLast as i16;
     pub const byteBaseLast: i16 = super::byteBaseLast as i16;
     pub const byteBaseHalf: i16 = super::byteBaseHalf as i16;
     pub const byteBaseHalfLast: i16 = super::byteBaseHalfLast as i16;
@@ -8725,6 +9155,9 @@ pub mod i16 {
     pub const cellW2Last: i16 = super::cellW2Last as i16;
     pub const cellW3Last: i16 = super::cellW3Last as i16;
     pub const weightUnitHalfLast: i16 = super::weightUnitHalfLast as i16;
+    pub const squashStepLast: i16 = super::squashStepLast as i16;
+    pub const squashStepHalf: i16 = super::squashStepHalf as i16;
+    pub const squashStepHalfLast: i16 = super::squashStepHalfLast as i16;
     pub const tidA1Last: i16 = super::tidA1Last as i16;
     pub const tidA1Half: i16 = super::tidA1Half as i16;
     pub const tidA2Last: i16 = super::tidA2Last as i16;
@@ -9019,6 +9452,15 @@ pub mod i16 {
     pub const widthBestkLast: i16 = super::widthBestkLast as i16;
     pub const widthBestkHalf: i16 = super::widthBestkHalf as i16;
     pub const widthBestkHalfLast: i16 = super::widthBestkHalfLast as i16;
+    pub const hashFold0Last: i16 = super::hashFold0Last as i16;
+    pub const hashFold0Half: i16 = super::hashFold0Half as i16;
+    pub const hashFold0HalfLast: i16 = super::hashFold0HalfLast as i16;
+    pub const hashFold1Last: i16 = super::hashFold1Last as i16;
+    pub const hashFold1Half: i16 = super::hashFold1Half as i16;
+    pub const hashFold1HalfLast: i16 = super::hashFold1HalfLast as i16;
+    pub const hashFold2Last: i16 = super::hashFold2Last as i16;
+    pub const hashFold2Half: i16 = super::hashFold2Half as i16;
+    pub const hashFold2HalfLast: i16 = super::hashFold2HalfLast as i16;
     pub const memDepthLast: i16 = super::memDepthLast as i16;
     pub const memDepthHalf: i16 = super::memDepthHalf as i16;
     pub const memDepthHalfLast: i16 = super::memDepthHalfLast as i16;
@@ -9042,13 +9484,20 @@ pub mod i16 {
 
     /// The base-two logarithm of each power-of-two quantity, as a `i16`.
     pub mod bits {
+        pub const shortBit: i16 = super::super::shortBit.trailing_zeros() as i16;
+        pub const radix: i16 = super::super::radix.trailing_zeros() as i16;
+        pub const repBit: i16 = super::super::repBit.trailing_zeros() as i16;
+        pub const selBit: i16 = super::super::selBit.trailing_zeros() as i16;
+        pub const tableUnit: i16 = super::super::tableUnit.trailing_zeros() as i16;
+        pub const tableField: i16 = super::super::tableField.trailing_zeros() as i16;
+        pub const matchUnit: i16 = super::super::matchUnit.trailing_zeros() as i16;
+        pub const matchField: i16 = super::super::matchField.trailing_zeros() as i16;
         pub const byteBase: i16 = super::super::byteBase.trailing_zeros() as i16;
         pub const cell2Base: i16 = super::super::cell2Base.trailing_zeros() as i16;
         pub const cell3Base: i16 = super::super::cell3Base.trailing_zeros() as i16;
         pub const cell4Base: i16 = super::super::cell4Base.trailing_zeros() as i16;
         pub const cellSTR: i16 = super::super::cellSTR.trailing_zeros() as i16;
         pub const stretchRange: i16 = super::super::stretchRange.trailing_zeros() as i16;
-        pub const radix: i16 = super::super::radix.trailing_zeros() as i16;
         pub const cell3Half: i16 = super::super::cell3Half.trailing_zeros() as i16;
         pub const cellMT: i16 = super::super::cellMT.trailing_zeros() as i16;
         pub const cellM2T: i16 = super::super::cellM2T.trailing_zeros() as i16;
@@ -9079,15 +9528,19 @@ pub mod i16 {
         pub const weightStart: i16 = super::super::weightStart.trailing_zeros() as i16;
         pub const weightRange: i16 = super::super::weightRange.trailing_zeros() as i16;
         pub const weightUnit: i16 = super::super::weightUnit.trailing_zeros() as i16;
+        pub const squashStep: i16 = super::super::squashStep.trailing_zeros() as i16;
+        pub const apmIntervals: i16 = super::super::apmIntervals.trailing_zeros() as i16;
         pub const cellA1: i16 = super::super::cellA1.trailing_zeros() as i16;
-        pub const cellA2: i16 = super::super::cellA2.trailing_zeros() as i16;
-        pub const cell1Half: i16 = super::super::cell1Half.trailing_zeros() as i16;
         pub const slotPerStretch: i16 = super::super::slotPerStretch.trailing_zeros() as i16;
+        pub const apmScale: i16 = super::super::apmScale.trailing_zeros() as i16;
+        pub const squashHalfStep: i16 = super::super::squashHalfStep.trailing_zeros() as i16;
+        pub const cellA2: i16 = super::super::cellA2.trailing_zeros() as i16;
         pub const tidA1: i16 = super::super::tidA1.trailing_zeros() as i16;
         pub const tidRS: i16 = super::super::tidRS.trailing_zeros() as i16;
         pub const weightHalf: i16 = super::super::weightHalf.trailing_zeros() as i16;
         pub const tidW1: i16 = super::super::tidW1.trailing_zeros() as i16;
         pub const tidW2: i16 = super::super::tidW2.trailing_zeros() as i16;
+        pub const cell1Half: i16 = super::super::cell1Half.trailing_zeros() as i16;
         pub const inputUnbounded: i16 = super::super::inputUnbounded.trailing_zeros() as i16;
         pub const profileBase: i16 = super::super::profileBase.trailing_zeros() as i16;
         pub const probBase: i16 = super::super::probBase.trailing_zeros() as i16;
@@ -9281,8 +9734,16 @@ pub mod i16 {
         pub const widthBestg: i16 = super::super::widthBestg.trailing_zeros() as i16;
         pub const widthAnyb: i16 = super::super::widthAnyb.trailing_zeros() as i16;
         pub const widthIsb: i16 = super::super::widthIsb.trailing_zeros() as i16;
+        pub const sqtCell: i16 = super::super::sqtCell.trailing_zeros() as i16;
+        pub const hashWord: i16 = super::super::hashWord.trailing_zeros() as i16;
+        pub const hashFold0: i16 = super::super::hashFold0.trailing_zeros() as i16;
+        pub const hashFold1: i16 = super::super::hashFold1.trailing_zeros() as i16;
+        pub const hashFold2: i16 = super::super::hashFold2.trailing_zeros() as i16;
         pub const wordBits: i16 = super::super::wordBits.trailing_zeros() as i16;
         pub const frameRange: i16 = super::super::frameRange.trailing_zeros() as i16;
+        pub const shortBitHalf: i16 = super::super::shortBitHalf.trailing_zeros() as i16;
+        pub const tableFieldHalf: i16 = super::super::tableFieldHalf.trailing_zeros() as i16;
+        pub const matchFieldHalf: i16 = super::super::matchFieldHalf.trailing_zeros() as i16;
         pub const byteBaseHalf: i16 = super::super::byteBaseHalf.trailing_zeros() as i16;
         pub const stretchRangeHalf: i16 = super::super::stretchRangeHalf.trailing_zeros() as i16;
         pub const cellMSLast: i16 = super::super::cellMSLast.trailing_zeros() as i16;
@@ -9319,6 +9780,7 @@ pub mod i16 {
         pub const cellW2Last: i16 = super::super::cellW2Last.trailing_zeros() as i16;
         pub const cellW3Last: i16 = super::super::cellW3Last.trailing_zeros() as i16;
         pub const weightUnitHalf: i16 = super::super::weightUnitHalf.trailing_zeros() as i16;
+        pub const squashStepHalf: i16 = super::super::squashStepHalf.trailing_zeros() as i16;
         pub const tidA1Half: i16 = super::super::tidA1Half.trailing_zeros() as i16;
         pub const tidA2Last: i16 = super::super::tidA2Last.trailing_zeros() as i16;
         pub const tidMSHalfLast: i16 = super::super::tidMSHalfLast.trailing_zeros() as i16;
@@ -9455,12 +9917,24 @@ pub mod i16 {
         pub const widthAdnHalf: i16 = super::super::widthAdnHalf.trailing_zeros() as i16;
         pub const widthAdpHalf: i16 = super::super::widthAdpHalf.trailing_zeros() as i16;
         pub const widthBestkHalf: i16 = super::super::widthBestkHalf.trailing_zeros() as i16;
+        pub const hashWordHalf: i16 = super::super::hashWordHalf.trailing_zeros() as i16;
+        pub const hashFold0Half: i16 = super::super::hashFold0Half.trailing_zeros() as i16;
+        pub const hashFold1Half: i16 = super::super::hashFold1Half.trailing_zeros() as i16;
+        pub const hashFold2Half: i16 = super::super::hashFold2Half.trailing_zeros() as i16;
         pub const shortMatchDepthHalfLast: i16 = super::super::shortMatchDepthHalfLast.trailing_zeros() as i16;
     }
 }
 
 /// The quantities a `i32` holds.
 pub mod i32 {
+    pub const shortBit: i32 = super::shortBit as i32;
+    pub const radix: i32 = super::radix as i32;
+    pub const repBit: i32 = super::repBit as i32;
+    pub const selBit: i32 = super::selBit as i32;
+    pub const tableUnit: i32 = super::tableUnit as i32;
+    pub const tableField: i32 = super::tableField as i32;
+    pub const matchUnit: i32 = super::matchUnit as i32;
+    pub const matchField: i32 = super::matchField as i32;
     pub const byteBase: i32 = super::byteBase as i32;
     pub const cell2Base: i32 = super::cell2Base as i32;
     pub const cell3Base: i32 = super::cell3Base as i32;
@@ -9470,8 +9944,8 @@ pub mod i32 {
     pub const cellMS: i32 = super::cellMS as i32;
     pub const cellM2S: i32 = super::cellM2S as i32;
     pub const cellRS: i32 = super::cellRS as i32;
-    pub const radix: i32 = super::radix as i32;
     pub const cell3Half: i32 = super::cell3Half as i32;
+    pub const rollMultiplier: i32 = super::rollMultiplier as i32;
     pub const cellMT: i32 = super::cellMT as i32;
     pub const cellM2T: i32 = super::cellM2T as i32;
     pub const tidMT: i32 = super::tidMT as i32;
@@ -9533,10 +10007,15 @@ pub mod i32 {
     pub const weightUnit: i32 = super::weightUnit as i32;
     pub const stretchHalfLast: i32 = super::stretchHalfLast as i32;
     pub const weightUnitLast: i32 = super::weightUnitLast as i32;
+    pub const squashStep: i32 = super::squashStep as i32;
+    pub const apmIntervals: i32 = super::apmIntervals as i32;
+    pub const apmPoints: i32 = super::apmPoints as i32;
     pub const cellA1: i32 = super::cellA1 as i32;
-    pub const cellA2: i32 = super::cellA2 as i32;
-    pub const cell1Half: i32 = super::cell1Half as i32;
     pub const slotPerStretch: i32 = super::slotPerStretch as i32;
+    pub const apmTop: i32 = super::apmTop as i32;
+    pub const apmScale: i32 = super::apmScale as i32;
+    pub const squashHalfStep: i32 = super::squashHalfStep as i32;
+    pub const cellA2: i32 = super::cellA2 as i32;
     pub const tidA1: i32 = super::tidA1 as i32;
     pub const tidA2: i32 = super::tidA2 as i32;
     pub const slotLast: i32 = super::slotLast as i32;
@@ -9551,6 +10030,7 @@ pub mod i32 {
     pub const tidW1: i32 = super::tidW1 as i32;
     pub const tidW2: i32 = super::tidW2 as i32;
     pub const tidH: i32 = super::tidH as i32;
+    pub const cell1Half: i32 = super::cell1Half as i32;
     pub const laneBlockInLPL: i32 = super::laneBlockInLPL as i32;
     pub const laneEndIXLInLPL: i32 = super::laneEndIXLInLPL as i32;
     pub const laneBlockInLDL: i32 = super::laneBlockInLDL as i32;
@@ -9876,6 +10356,12 @@ pub mod i32 {
     pub const atAnyb: i32 = super::atAnyb as i32;
     pub const widthIsb: i32 = super::widthIsb as i32;
     pub const atIsb: i32 = super::atIsb as i32;
+    pub const sqtCell: i32 = super::sqtCell as i32;
+    pub const hashFold0: i32 = super::hashFold0 as i32;
+    pub const hashMultiplier1: i32 = super::hashMultiplier1 as i32;
+    pub const hashFold1: i32 = super::hashFold1 as i32;
+    pub const hashMultiplier2: i32 = super::hashMultiplier2 as i32;
+    pub const hashFold2: i32 = super::hashFold2 as i32;
     pub const pastEnd: i32 = super::pastEnd as i32;
     pub const staticEndW2: i32 = super::staticEndW2 as i32;
     pub const staticEndW3: i32 = super::staticEndW3 as i32;
@@ -9890,6 +10376,15 @@ pub mod i32 {
     pub const shortMatchDepth: i32 = super::shortMatchDepth as i32;
     pub const repeatDepth: i32 = super::repeatDepth as i32;
     pub const bucketRoom: i32 = super::bucketRoom as i32;
+    pub const shortBitLast: i32 = super::shortBitLast as i32;
+    pub const shortBitHalf: i32 = super::shortBitHalf as i32;
+    pub const shortBitHalfLast: i32 = super::shortBitHalfLast as i32;
+    pub const tableFieldLast: i32 = super::tableFieldLast as i32;
+    pub const tableFieldHalf: i32 = super::tableFieldHalf as i32;
+    pub const tableFieldHalfLast: i32 = super::tableFieldHalfLast as i32;
+    pub const matchFieldLast: i32 = super::matchFieldLast as i32;
+    pub const matchFieldHalf: i32 = super::matchFieldHalf as i32;
+    pub const matchFieldHalfLast: i32 = super::matchFieldHalfLast as i32;
     pub const byteBaseLast: i32 = super::byteBaseLast as i32;
     pub const byteBaseHalf: i32 = super::byteBaseHalf as i32;
     pub const byteBaseHalfLast: i32 = super::byteBaseHalfLast as i32;
@@ -9899,6 +10394,7 @@ pub mod i32 {
     pub const cellMSLast: i32 = super::cellMSLast as i32;
     pub const cellM2SLast: i32 = super::cellM2SLast as i32;
     pub const cellRSLast: i32 = super::cellRSLast as i32;
+    pub const rollMultiplierLast: i32 = super::rollMultiplierLast as i32;
     pub const cellMTLast: i32 = super::cellMTLast as i32;
     pub const cellMTHalf: i32 = super::cellMTHalf as i32;
     pub const cellM2TLast: i32 = super::cellM2TLast as i32;
@@ -9971,6 +10467,9 @@ pub mod i32 {
     pub const cellW3Last: i32 = super::cellW3Last as i32;
     pub const weightUnitHalf: i32 = super::weightUnitHalf as i32;
     pub const weightUnitHalfLast: i32 = super::weightUnitHalfLast as i32;
+    pub const squashStepLast: i32 = super::squashStepLast as i32;
+    pub const squashStepHalf: i32 = super::squashStepHalf as i32;
+    pub const squashStepHalfLast: i32 = super::squashStepHalfLast as i32;
     pub const tidA1Last: i32 = super::tidA1Last as i32;
     pub const tidA1Half: i32 = super::tidA1Half as i32;
     pub const tidA2Last: i32 = super::tidA2Last as i32;
@@ -10309,6 +10808,18 @@ pub mod i32 {
     pub const widthBestkLast: i32 = super::widthBestkLast as i32;
     pub const widthBestkHalf: i32 = super::widthBestkHalf as i32;
     pub const widthBestkHalfLast: i32 = super::widthBestkHalfLast as i32;
+    pub const hashWordHalfLast: i32 = super::hashWordHalfLast as i32;
+    pub const hashFold0Last: i32 = super::hashFold0Last as i32;
+    pub const hashFold0Half: i32 = super::hashFold0Half as i32;
+    pub const hashFold0HalfLast: i32 = super::hashFold0HalfLast as i32;
+    pub const hashMultiplier1Last: i32 = super::hashMultiplier1Last as i32;
+    pub const hashFold1Last: i32 = super::hashFold1Last as i32;
+    pub const hashFold1Half: i32 = super::hashFold1Half as i32;
+    pub const hashFold1HalfLast: i32 = super::hashFold1HalfLast as i32;
+    pub const hashMultiplier2Last: i32 = super::hashMultiplier2Last as i32;
+    pub const hashFold2Last: i32 = super::hashFold2Last as i32;
+    pub const hashFold2Half: i32 = super::hashFold2Half as i32;
+    pub const hashFold2HalfLast: i32 = super::hashFold2HalfLast as i32;
     pub const memDepthLast: i32 = super::memDepthLast as i32;
     pub const memDepthHalf: i32 = super::memDepthHalf as i32;
     pub const memDepthHalfLast: i32 = super::memDepthHalfLast as i32;
@@ -10332,13 +10843,20 @@ pub mod i32 {
 
     /// The base-two logarithm of each power-of-two quantity, as a `i32`.
     pub mod bits {
+        pub const shortBit: i32 = super::super::shortBit.trailing_zeros() as i32;
+        pub const radix: i32 = super::super::radix.trailing_zeros() as i32;
+        pub const repBit: i32 = super::super::repBit.trailing_zeros() as i32;
+        pub const selBit: i32 = super::super::selBit.trailing_zeros() as i32;
+        pub const tableUnit: i32 = super::super::tableUnit.trailing_zeros() as i32;
+        pub const tableField: i32 = super::super::tableField.trailing_zeros() as i32;
+        pub const matchUnit: i32 = super::super::matchUnit.trailing_zeros() as i32;
+        pub const matchField: i32 = super::super::matchField.trailing_zeros() as i32;
         pub const byteBase: i32 = super::super::byteBase.trailing_zeros() as i32;
         pub const cell2Base: i32 = super::super::cell2Base.trailing_zeros() as i32;
         pub const cell3Base: i32 = super::super::cell3Base.trailing_zeros() as i32;
         pub const cell4Base: i32 = super::super::cell4Base.trailing_zeros() as i32;
         pub const cellSTR: i32 = super::super::cellSTR.trailing_zeros() as i32;
         pub const stretchRange: i32 = super::super::stretchRange.trailing_zeros() as i32;
-        pub const radix: i32 = super::super::radix.trailing_zeros() as i32;
         pub const cell3Half: i32 = super::super::cell3Half.trailing_zeros() as i32;
         pub const cellMT: i32 = super::super::cellMT.trailing_zeros() as i32;
         pub const cellM2T: i32 = super::super::cellM2T.trailing_zeros() as i32;
@@ -10369,15 +10887,19 @@ pub mod i32 {
         pub const weightStart: i32 = super::super::weightStart.trailing_zeros() as i32;
         pub const weightRange: i32 = super::super::weightRange.trailing_zeros() as i32;
         pub const weightUnit: i32 = super::super::weightUnit.trailing_zeros() as i32;
+        pub const squashStep: i32 = super::super::squashStep.trailing_zeros() as i32;
+        pub const apmIntervals: i32 = super::super::apmIntervals.trailing_zeros() as i32;
         pub const cellA1: i32 = super::super::cellA1.trailing_zeros() as i32;
-        pub const cellA2: i32 = super::super::cellA2.trailing_zeros() as i32;
-        pub const cell1Half: i32 = super::super::cell1Half.trailing_zeros() as i32;
         pub const slotPerStretch: i32 = super::super::slotPerStretch.trailing_zeros() as i32;
+        pub const apmScale: i32 = super::super::apmScale.trailing_zeros() as i32;
+        pub const squashHalfStep: i32 = super::super::squashHalfStep.trailing_zeros() as i32;
+        pub const cellA2: i32 = super::super::cellA2.trailing_zeros() as i32;
         pub const tidA1: i32 = super::super::tidA1.trailing_zeros() as i32;
         pub const tidRS: i32 = super::super::tidRS.trailing_zeros() as i32;
         pub const weightHalf: i32 = super::super::weightHalf.trailing_zeros() as i32;
         pub const tidW1: i32 = super::super::tidW1.trailing_zeros() as i32;
         pub const tidW2: i32 = super::super::tidW2.trailing_zeros() as i32;
+        pub const cell1Half: i32 = super::super::cell1Half.trailing_zeros() as i32;
         pub const inputUnbounded: i32 = super::super::inputUnbounded.trailing_zeros() as i32;
         pub const profileBase: i32 = super::super::profileBase.trailing_zeros() as i32;
         pub const probBase: i32 = super::super::probBase.trailing_zeros() as i32;
@@ -10571,8 +11093,16 @@ pub mod i32 {
         pub const widthBestg: i32 = super::super::widthBestg.trailing_zeros() as i32;
         pub const widthAnyb: i32 = super::super::widthAnyb.trailing_zeros() as i32;
         pub const widthIsb: i32 = super::super::widthIsb.trailing_zeros() as i32;
+        pub const sqtCell: i32 = super::super::sqtCell.trailing_zeros() as i32;
+        pub const hashWord: i32 = super::super::hashWord.trailing_zeros() as i32;
+        pub const hashFold0: i32 = super::super::hashFold0.trailing_zeros() as i32;
+        pub const hashFold1: i32 = super::super::hashFold1.trailing_zeros() as i32;
+        pub const hashFold2: i32 = super::super::hashFold2.trailing_zeros() as i32;
         pub const wordBits: i32 = super::super::wordBits.trailing_zeros() as i32;
         pub const frameRange: i32 = super::super::frameRange.trailing_zeros() as i32;
+        pub const shortBitHalf: i32 = super::super::shortBitHalf.trailing_zeros() as i32;
+        pub const tableFieldHalf: i32 = super::super::tableFieldHalf.trailing_zeros() as i32;
+        pub const matchFieldHalf: i32 = super::super::matchFieldHalf.trailing_zeros() as i32;
         pub const byteBaseHalf: i32 = super::super::byteBaseHalf.trailing_zeros() as i32;
         pub const stretchRangeHalf: i32 = super::super::stretchRangeHalf.trailing_zeros() as i32;
         pub const cellMSLast: i32 = super::super::cellMSLast.trailing_zeros() as i32;
@@ -10609,6 +11139,7 @@ pub mod i32 {
         pub const cellW2Last: i32 = super::super::cellW2Last.trailing_zeros() as i32;
         pub const cellW3Last: i32 = super::super::cellW3Last.trailing_zeros() as i32;
         pub const weightUnitHalf: i32 = super::super::weightUnitHalf.trailing_zeros() as i32;
+        pub const squashStepHalf: i32 = super::super::squashStepHalf.trailing_zeros() as i32;
         pub const tidA1Half: i32 = super::super::tidA1Half.trailing_zeros() as i32;
         pub const tidA2Last: i32 = super::super::tidA2Last.trailing_zeros() as i32;
         pub const tidMSHalfLast: i32 = super::super::tidMSHalfLast.trailing_zeros() as i32;
@@ -10745,12 +11276,24 @@ pub mod i32 {
         pub const widthAdnHalf: i32 = super::super::widthAdnHalf.trailing_zeros() as i32;
         pub const widthAdpHalf: i32 = super::super::widthAdpHalf.trailing_zeros() as i32;
         pub const widthBestkHalf: i32 = super::super::widthBestkHalf.trailing_zeros() as i32;
+        pub const hashWordHalf: i32 = super::super::hashWordHalf.trailing_zeros() as i32;
+        pub const hashFold0Half: i32 = super::super::hashFold0Half.trailing_zeros() as i32;
+        pub const hashFold1Half: i32 = super::super::hashFold1Half.trailing_zeros() as i32;
+        pub const hashFold2Half: i32 = super::super::hashFold2Half.trailing_zeros() as i32;
         pub const shortMatchDepthHalfLast: i32 = super::super::shortMatchDepthHalfLast.trailing_zeros() as i32;
     }
 }
 
 /// The quantities a `i64` holds.
 pub mod i64 {
+    pub const shortBit: i64 = super::shortBit as i64;
+    pub const radix: i64 = super::radix as i64;
+    pub const repBit: i64 = super::repBit as i64;
+    pub const selBit: i64 = super::selBit as i64;
+    pub const tableUnit: i64 = super::tableUnit as i64;
+    pub const tableField: i64 = super::tableField as i64;
+    pub const matchUnit: i64 = super::matchUnit as i64;
+    pub const matchField: i64 = super::matchField as i64;
     pub const byteBase: i64 = super::byteBase as i64;
     pub const cell2Base: i64 = super::cell2Base as i64;
     pub const cell3Base: i64 = super::cell3Base as i64;
@@ -10762,8 +11305,8 @@ pub mod i64 {
     pub const cellMS: i64 = super::cellMS as i64;
     pub const cellM2S: i64 = super::cellM2S as i64;
     pub const cellRS: i64 = super::cellRS as i64;
-    pub const radix: i64 = super::radix as i64;
     pub const cell3Half: i64 = super::cell3Half as i64;
+    pub const rollMultiplier: i64 = super::rollMultiplier as i64;
     pub const cellMT: i64 = super::cellMT as i64;
     pub const cellM2T: i64 = super::cellM2T as i64;
     pub const tidMT: i64 = super::tidMT as i64;
@@ -10827,10 +11370,15 @@ pub mod i64 {
     pub const weightUnit: i64 = super::weightUnit as i64;
     pub const stretchHalfLast: i64 = super::stretchHalfLast as i64;
     pub const weightUnitLast: i64 = super::weightUnitLast as i64;
+    pub const squashStep: i64 = super::squashStep as i64;
+    pub const apmIntervals: i64 = super::apmIntervals as i64;
+    pub const apmPoints: i64 = super::apmPoints as i64;
     pub const cellA1: i64 = super::cellA1 as i64;
-    pub const cellA2: i64 = super::cellA2 as i64;
-    pub const cell1Half: i64 = super::cell1Half as i64;
     pub const slotPerStretch: i64 = super::slotPerStretch as i64;
+    pub const apmTop: i64 = super::apmTop as i64;
+    pub const apmScale: i64 = super::apmScale as i64;
+    pub const squashHalfStep: i64 = super::squashHalfStep as i64;
+    pub const cellA2: i64 = super::cellA2 as i64;
     pub const tidA1: i64 = super::tidA1 as i64;
     pub const tidA2: i64 = super::tidA2 as i64;
     pub const slotLast: i64 = super::slotLast as i64;
@@ -10845,6 +11393,7 @@ pub mod i64 {
     pub const tidW1: i64 = super::tidW1 as i64;
     pub const tidW2: i64 = super::tidW2 as i64;
     pub const tidH: i64 = super::tidH as i64;
+    pub const cell1Half: i64 = super::cell1Half as i64;
     pub const laneBlockInLPL: i64 = super::laneBlockInLPL as i64;
     pub const laneEndIXLInLPL: i64 = super::laneEndIXLInLPL as i64;
     pub const laneBlockInLDL: i64 = super::laneBlockInLDL as i64;
@@ -11206,6 +11755,14 @@ pub mod i64 {
     pub const atAnyb: i64 = super::atAnyb as i64;
     pub const widthIsb: i64 = super::widthIsb as i64;
     pub const atIsb: i64 = super::atIsb as i64;
+    pub const sqtCell: i64 = super::sqtCell as i64;
+    pub const hashWord: i64 = super::hashWord as i64;
+    pub const hashMultiplier0: i64 = super::hashMultiplier0 as i64;
+    pub const hashFold0: i64 = super::hashFold0 as i64;
+    pub const hashMultiplier1: i64 = super::hashMultiplier1 as i64;
+    pub const hashFold1: i64 = super::hashFold1 as i64;
+    pub const hashMultiplier2: i64 = super::hashMultiplier2 as i64;
+    pub const hashFold2: i64 = super::hashFold2 as i64;
     pub const pastEnd: i64 = super::pastEnd as i64;
     pub const staticEndW2: i64 = super::staticEndW2 as i64;
     pub const staticEndW3: i64 = super::staticEndW3 as i64;
@@ -11221,6 +11778,15 @@ pub mod i64 {
     pub const repeatDepth: i64 = super::repeatDepth as i64;
     pub const bucketRoom: i64 = super::bucketRoom as i64;
     pub const frameRange: i64 = super::frameRange as i64;
+    pub const shortBitLast: i64 = super::shortBitLast as i64;
+    pub const shortBitHalf: i64 = super::shortBitHalf as i64;
+    pub const shortBitHalfLast: i64 = super::shortBitHalfLast as i64;
+    pub const tableFieldLast: i64 = super::tableFieldLast as i64;
+    pub const tableFieldHalf: i64 = super::tableFieldHalf as i64;
+    pub const tableFieldHalfLast: i64 = super::tableFieldHalfLast as i64;
+    pub const matchFieldLast: i64 = super::matchFieldLast as i64;
+    pub const matchFieldHalf: i64 = super::matchFieldHalf as i64;
+    pub const matchFieldHalfLast: i64 = super::matchFieldHalfLast as i64;
     pub const byteBaseLast: i64 = super::byteBaseLast as i64;
     pub const byteBaseHalf: i64 = super::byteBaseHalf as i64;
     pub const byteBaseHalfLast: i64 = super::byteBaseHalfLast as i64;
@@ -11230,6 +11796,7 @@ pub mod i64 {
     pub const cellMSLast: i64 = super::cellMSLast as i64;
     pub const cellM2SLast: i64 = super::cellM2SLast as i64;
     pub const cellRSLast: i64 = super::cellRSLast as i64;
+    pub const rollMultiplierLast: i64 = super::rollMultiplierLast as i64;
     pub const cellMTLast: i64 = super::cellMTLast as i64;
     pub const cellMTHalf: i64 = super::cellMTHalf as i64;
     pub const cellM2TLast: i64 = super::cellM2TLast as i64;
@@ -11302,6 +11869,9 @@ pub mod i64 {
     pub const cellW3Last: i64 = super::cellW3Last as i64;
     pub const weightUnitHalf: i64 = super::weightUnitHalf as i64;
     pub const weightUnitHalfLast: i64 = super::weightUnitHalfLast as i64;
+    pub const squashStepLast: i64 = super::squashStepLast as i64;
+    pub const squashStepHalf: i64 = super::squashStepHalf as i64;
+    pub const squashStepHalfLast: i64 = super::squashStepHalfLast as i64;
     pub const tidA1Last: i64 = super::tidA1Last as i64;
     pub const tidA1Half: i64 = super::tidA1Half as i64;
     pub const tidA2Last: i64 = super::tidA2Last as i64;
@@ -11723,6 +12293,21 @@ pub mod i64 {
     pub const widthBestkLast: i64 = super::widthBestkLast as i64;
     pub const widthBestkHalf: i64 = super::widthBestkHalf as i64;
     pub const widthBestkHalfLast: i64 = super::widthBestkHalfLast as i64;
+    pub const hashWordLast: i64 = super::hashWordLast as i64;
+    pub const hashWordHalf: i64 = super::hashWordHalf as i64;
+    pub const hashWordHalfLast: i64 = super::hashWordHalfLast as i64;
+    pub const hashMultiplier0Last: i64 = super::hashMultiplier0Last as i64;
+    pub const hashFold0Last: i64 = super::hashFold0Last as i64;
+    pub const hashFold0Half: i64 = super::hashFold0Half as i64;
+    pub const hashFold0HalfLast: i64 = super::hashFold0HalfLast as i64;
+    pub const hashMultiplier1Last: i64 = super::hashMultiplier1Last as i64;
+    pub const hashFold1Last: i64 = super::hashFold1Last as i64;
+    pub const hashFold1Half: i64 = super::hashFold1Half as i64;
+    pub const hashFold1HalfLast: i64 = super::hashFold1HalfLast as i64;
+    pub const hashMultiplier2Last: i64 = super::hashMultiplier2Last as i64;
+    pub const hashFold2Last: i64 = super::hashFold2Last as i64;
+    pub const hashFold2Half: i64 = super::hashFold2Half as i64;
+    pub const hashFold2HalfLast: i64 = super::hashFold2HalfLast as i64;
     pub const memDepthLast: i64 = super::memDepthLast as i64;
     pub const memDepthHalf: i64 = super::memDepthHalf as i64;
     pub const memDepthHalfLast: i64 = super::memDepthHalfLast as i64;
@@ -11746,13 +12331,20 @@ pub mod i64 {
 
     /// The base-two logarithm of each power-of-two quantity, as a `i64`.
     pub mod bits {
+        pub const shortBit: i64 = super::super::shortBit.trailing_zeros() as i64;
+        pub const radix: i64 = super::super::radix.trailing_zeros() as i64;
+        pub const repBit: i64 = super::super::repBit.trailing_zeros() as i64;
+        pub const selBit: i64 = super::super::selBit.trailing_zeros() as i64;
+        pub const tableUnit: i64 = super::super::tableUnit.trailing_zeros() as i64;
+        pub const tableField: i64 = super::super::tableField.trailing_zeros() as i64;
+        pub const matchUnit: i64 = super::super::matchUnit.trailing_zeros() as i64;
+        pub const matchField: i64 = super::super::matchField.trailing_zeros() as i64;
         pub const byteBase: i64 = super::super::byteBase.trailing_zeros() as i64;
         pub const cell2Base: i64 = super::super::cell2Base.trailing_zeros() as i64;
         pub const cell3Base: i64 = super::super::cell3Base.trailing_zeros() as i64;
         pub const cell4Base: i64 = super::super::cell4Base.trailing_zeros() as i64;
         pub const cellSTR: i64 = super::super::cellSTR.trailing_zeros() as i64;
         pub const stretchRange: i64 = super::super::stretchRange.trailing_zeros() as i64;
-        pub const radix: i64 = super::super::radix.trailing_zeros() as i64;
         pub const cell3Half: i64 = super::super::cell3Half.trailing_zeros() as i64;
         pub const cellMT: i64 = super::super::cellMT.trailing_zeros() as i64;
         pub const cellM2T: i64 = super::super::cellM2T.trailing_zeros() as i64;
@@ -11783,15 +12375,19 @@ pub mod i64 {
         pub const weightStart: i64 = super::super::weightStart.trailing_zeros() as i64;
         pub const weightRange: i64 = super::super::weightRange.trailing_zeros() as i64;
         pub const weightUnit: i64 = super::super::weightUnit.trailing_zeros() as i64;
+        pub const squashStep: i64 = super::super::squashStep.trailing_zeros() as i64;
+        pub const apmIntervals: i64 = super::super::apmIntervals.trailing_zeros() as i64;
         pub const cellA1: i64 = super::super::cellA1.trailing_zeros() as i64;
-        pub const cellA2: i64 = super::super::cellA2.trailing_zeros() as i64;
-        pub const cell1Half: i64 = super::super::cell1Half.trailing_zeros() as i64;
         pub const slotPerStretch: i64 = super::super::slotPerStretch.trailing_zeros() as i64;
+        pub const apmScale: i64 = super::super::apmScale.trailing_zeros() as i64;
+        pub const squashHalfStep: i64 = super::super::squashHalfStep.trailing_zeros() as i64;
+        pub const cellA2: i64 = super::super::cellA2.trailing_zeros() as i64;
         pub const tidA1: i64 = super::super::tidA1.trailing_zeros() as i64;
         pub const tidRS: i64 = super::super::tidRS.trailing_zeros() as i64;
         pub const weightHalf: i64 = super::super::weightHalf.trailing_zeros() as i64;
         pub const tidW1: i64 = super::super::tidW1.trailing_zeros() as i64;
         pub const tidW2: i64 = super::super::tidW2.trailing_zeros() as i64;
+        pub const cell1Half: i64 = super::super::cell1Half.trailing_zeros() as i64;
         pub const inputUnbounded: i64 = super::super::inputUnbounded.trailing_zeros() as i64;
         pub const profileBase: i64 = super::super::profileBase.trailing_zeros() as i64;
         pub const probBase: i64 = super::super::probBase.trailing_zeros() as i64;
@@ -11985,8 +12581,16 @@ pub mod i64 {
         pub const widthBestg: i64 = super::super::widthBestg.trailing_zeros() as i64;
         pub const widthAnyb: i64 = super::super::widthAnyb.trailing_zeros() as i64;
         pub const widthIsb: i64 = super::super::widthIsb.trailing_zeros() as i64;
+        pub const sqtCell: i64 = super::super::sqtCell.trailing_zeros() as i64;
+        pub const hashWord: i64 = super::super::hashWord.trailing_zeros() as i64;
+        pub const hashFold0: i64 = super::super::hashFold0.trailing_zeros() as i64;
+        pub const hashFold1: i64 = super::super::hashFold1.trailing_zeros() as i64;
+        pub const hashFold2: i64 = super::super::hashFold2.trailing_zeros() as i64;
         pub const wordBits: i64 = super::super::wordBits.trailing_zeros() as i64;
         pub const frameRange: i64 = super::super::frameRange.trailing_zeros() as i64;
+        pub const shortBitHalf: i64 = super::super::shortBitHalf.trailing_zeros() as i64;
+        pub const tableFieldHalf: i64 = super::super::tableFieldHalf.trailing_zeros() as i64;
+        pub const matchFieldHalf: i64 = super::super::matchFieldHalf.trailing_zeros() as i64;
         pub const byteBaseHalf: i64 = super::super::byteBaseHalf.trailing_zeros() as i64;
         pub const stretchRangeHalf: i64 = super::super::stretchRangeHalf.trailing_zeros() as i64;
         pub const cellMSLast: i64 = super::super::cellMSLast.trailing_zeros() as i64;
@@ -12023,6 +12627,7 @@ pub mod i64 {
         pub const cellW2Last: i64 = super::super::cellW2Last.trailing_zeros() as i64;
         pub const cellW3Last: i64 = super::super::cellW3Last.trailing_zeros() as i64;
         pub const weightUnitHalf: i64 = super::super::weightUnitHalf.trailing_zeros() as i64;
+        pub const squashStepHalf: i64 = super::super::squashStepHalf.trailing_zeros() as i64;
         pub const tidA1Half: i64 = super::super::tidA1Half.trailing_zeros() as i64;
         pub const tidA2Last: i64 = super::super::tidA2Last.trailing_zeros() as i64;
         pub const tidMSHalfLast: i64 = super::super::tidMSHalfLast.trailing_zeros() as i64;
@@ -12159,12 +12764,24 @@ pub mod i64 {
         pub const widthAdnHalf: i64 = super::super::widthAdnHalf.trailing_zeros() as i64;
         pub const widthAdpHalf: i64 = super::super::widthAdpHalf.trailing_zeros() as i64;
         pub const widthBestkHalf: i64 = super::super::widthBestkHalf.trailing_zeros() as i64;
+        pub const hashWordHalf: i64 = super::super::hashWordHalf.trailing_zeros() as i64;
+        pub const hashFold0Half: i64 = super::super::hashFold0Half.trailing_zeros() as i64;
+        pub const hashFold1Half: i64 = super::super::hashFold1Half.trailing_zeros() as i64;
+        pub const hashFold2Half: i64 = super::super::hashFold2Half.trailing_zeros() as i64;
         pub const shortMatchDepthHalfLast: i64 = super::super::shortMatchDepthHalfLast.trailing_zeros() as i64;
     }
 }
 
 /// The quantities a `i128` holds.
 pub mod i128 {
+    pub const shortBit: i128 = super::shortBit as i128;
+    pub const radix: i128 = super::radix as i128;
+    pub const repBit: i128 = super::repBit as i128;
+    pub const selBit: i128 = super::selBit as i128;
+    pub const tableUnit: i128 = super::tableUnit as i128;
+    pub const tableField: i128 = super::tableField as i128;
+    pub const matchUnit: i128 = super::matchUnit as i128;
+    pub const matchField: i128 = super::matchField as i128;
     pub const byteBase: i128 = super::byteBase as i128;
     pub const cell2Base: i128 = super::cell2Base as i128;
     pub const cell3Base: i128 = super::cell3Base as i128;
@@ -12176,8 +12793,8 @@ pub mod i128 {
     pub const cellMS: i128 = super::cellMS as i128;
     pub const cellM2S: i128 = super::cellM2S as i128;
     pub const cellRS: i128 = super::cellRS as i128;
-    pub const radix: i128 = super::radix as i128;
     pub const cell3Half: i128 = super::cell3Half as i128;
+    pub const rollMultiplier: i128 = super::rollMultiplier as i128;
     pub const cellMT: i128 = super::cellMT as i128;
     pub const cellM2T: i128 = super::cellM2T as i128;
     pub const tidMT: i128 = super::tidMT as i128;
@@ -12241,10 +12858,15 @@ pub mod i128 {
     pub const weightUnit: i128 = super::weightUnit as i128;
     pub const stretchHalfLast: i128 = super::stretchHalfLast as i128;
     pub const weightUnitLast: i128 = super::weightUnitLast as i128;
+    pub const squashStep: i128 = super::squashStep as i128;
+    pub const apmIntervals: i128 = super::apmIntervals as i128;
+    pub const apmPoints: i128 = super::apmPoints as i128;
     pub const cellA1: i128 = super::cellA1 as i128;
-    pub const cellA2: i128 = super::cellA2 as i128;
-    pub const cell1Half: i128 = super::cell1Half as i128;
     pub const slotPerStretch: i128 = super::slotPerStretch as i128;
+    pub const apmTop: i128 = super::apmTop as i128;
+    pub const apmScale: i128 = super::apmScale as i128;
+    pub const squashHalfStep: i128 = super::squashHalfStep as i128;
+    pub const cellA2: i128 = super::cellA2 as i128;
     pub const tidA1: i128 = super::tidA1 as i128;
     pub const tidA2: i128 = super::tidA2 as i128;
     pub const slotLast: i128 = super::slotLast as i128;
@@ -12259,6 +12881,7 @@ pub mod i128 {
     pub const tidW1: i128 = super::tidW1 as i128;
     pub const tidW2: i128 = super::tidW2 as i128;
     pub const tidH: i128 = super::tidH as i128;
+    pub const cell1Half: i128 = super::cell1Half as i128;
     pub const laneBlockInLPL: i128 = super::laneBlockInLPL as i128;
     pub const laneEndIXLInLPL: i128 = super::laneEndIXLInLPL as i128;
     pub const laneBlockInLDL: i128 = super::laneBlockInLDL as i128;
@@ -12620,6 +13243,14 @@ pub mod i128 {
     pub const atAnyb: i128 = super::atAnyb as i128;
     pub const widthIsb: i128 = super::widthIsb as i128;
     pub const atIsb: i128 = super::atIsb as i128;
+    pub const sqtCell: i128 = super::sqtCell as i128;
+    pub const hashWord: i128 = super::hashWord as i128;
+    pub const hashMultiplier0: i128 = super::hashMultiplier0 as i128;
+    pub const hashFold0: i128 = super::hashFold0 as i128;
+    pub const hashMultiplier1: i128 = super::hashMultiplier1 as i128;
+    pub const hashFold1: i128 = super::hashFold1 as i128;
+    pub const hashMultiplier2: i128 = super::hashMultiplier2 as i128;
+    pub const hashFold2: i128 = super::hashFold2 as i128;
     pub const pastEnd: i128 = super::pastEnd as i128;
     pub const staticEndW2: i128 = super::staticEndW2 as i128;
     pub const staticEndW3: i128 = super::staticEndW3 as i128;
@@ -12635,6 +13266,15 @@ pub mod i128 {
     pub const repeatDepth: i128 = super::repeatDepth as i128;
     pub const bucketRoom: i128 = super::bucketRoom as i128;
     pub const frameRange: i128 = super::frameRange as i128;
+    pub const shortBitLast: i128 = super::shortBitLast as i128;
+    pub const shortBitHalf: i128 = super::shortBitHalf as i128;
+    pub const shortBitHalfLast: i128 = super::shortBitHalfLast as i128;
+    pub const tableFieldLast: i128 = super::tableFieldLast as i128;
+    pub const tableFieldHalf: i128 = super::tableFieldHalf as i128;
+    pub const tableFieldHalfLast: i128 = super::tableFieldHalfLast as i128;
+    pub const matchFieldLast: i128 = super::matchFieldLast as i128;
+    pub const matchFieldHalf: i128 = super::matchFieldHalf as i128;
+    pub const matchFieldHalfLast: i128 = super::matchFieldHalfLast as i128;
     pub const byteBaseLast: i128 = super::byteBaseLast as i128;
     pub const byteBaseHalf: i128 = super::byteBaseHalf as i128;
     pub const byteBaseHalfLast: i128 = super::byteBaseHalfLast as i128;
@@ -12644,6 +13284,7 @@ pub mod i128 {
     pub const cellMSLast: i128 = super::cellMSLast as i128;
     pub const cellM2SLast: i128 = super::cellM2SLast as i128;
     pub const cellRSLast: i128 = super::cellRSLast as i128;
+    pub const rollMultiplierLast: i128 = super::rollMultiplierLast as i128;
     pub const cellMTLast: i128 = super::cellMTLast as i128;
     pub const cellMTHalf: i128 = super::cellMTHalf as i128;
     pub const cellM2TLast: i128 = super::cellM2TLast as i128;
@@ -12716,6 +13357,9 @@ pub mod i128 {
     pub const cellW3Last: i128 = super::cellW3Last as i128;
     pub const weightUnitHalf: i128 = super::weightUnitHalf as i128;
     pub const weightUnitHalfLast: i128 = super::weightUnitHalfLast as i128;
+    pub const squashStepLast: i128 = super::squashStepLast as i128;
+    pub const squashStepHalf: i128 = super::squashStepHalf as i128;
+    pub const squashStepHalfLast: i128 = super::squashStepHalfLast as i128;
     pub const tidA1Last: i128 = super::tidA1Last as i128;
     pub const tidA1Half: i128 = super::tidA1Half as i128;
     pub const tidA2Last: i128 = super::tidA2Last as i128;
@@ -13137,6 +13781,21 @@ pub mod i128 {
     pub const widthBestkLast: i128 = super::widthBestkLast as i128;
     pub const widthBestkHalf: i128 = super::widthBestkHalf as i128;
     pub const widthBestkHalfLast: i128 = super::widthBestkHalfLast as i128;
+    pub const hashWordLast: i128 = super::hashWordLast as i128;
+    pub const hashWordHalf: i128 = super::hashWordHalf as i128;
+    pub const hashWordHalfLast: i128 = super::hashWordHalfLast as i128;
+    pub const hashMultiplier0Last: i128 = super::hashMultiplier0Last as i128;
+    pub const hashFold0Last: i128 = super::hashFold0Last as i128;
+    pub const hashFold0Half: i128 = super::hashFold0Half as i128;
+    pub const hashFold0HalfLast: i128 = super::hashFold0HalfLast as i128;
+    pub const hashMultiplier1Last: i128 = super::hashMultiplier1Last as i128;
+    pub const hashFold1Last: i128 = super::hashFold1Last as i128;
+    pub const hashFold1Half: i128 = super::hashFold1Half as i128;
+    pub const hashFold1HalfLast: i128 = super::hashFold1HalfLast as i128;
+    pub const hashMultiplier2Last: i128 = super::hashMultiplier2Last as i128;
+    pub const hashFold2Last: i128 = super::hashFold2Last as i128;
+    pub const hashFold2Half: i128 = super::hashFold2Half as i128;
+    pub const hashFold2HalfLast: i128 = super::hashFold2HalfLast as i128;
     pub const memDepthLast: i128 = super::memDepthLast as i128;
     pub const memDepthHalf: i128 = super::memDepthHalf as i128;
     pub const memDepthHalfLast: i128 = super::memDepthHalfLast as i128;
@@ -13160,13 +13819,20 @@ pub mod i128 {
 
     /// The base-two logarithm of each power-of-two quantity, as a `i128`.
     pub mod bits {
+        pub const shortBit: i128 = super::super::shortBit.trailing_zeros() as i128;
+        pub const radix: i128 = super::super::radix.trailing_zeros() as i128;
+        pub const repBit: i128 = super::super::repBit.trailing_zeros() as i128;
+        pub const selBit: i128 = super::super::selBit.trailing_zeros() as i128;
+        pub const tableUnit: i128 = super::super::tableUnit.trailing_zeros() as i128;
+        pub const tableField: i128 = super::super::tableField.trailing_zeros() as i128;
+        pub const matchUnit: i128 = super::super::matchUnit.trailing_zeros() as i128;
+        pub const matchField: i128 = super::super::matchField.trailing_zeros() as i128;
         pub const byteBase: i128 = super::super::byteBase.trailing_zeros() as i128;
         pub const cell2Base: i128 = super::super::cell2Base.trailing_zeros() as i128;
         pub const cell3Base: i128 = super::super::cell3Base.trailing_zeros() as i128;
         pub const cell4Base: i128 = super::super::cell4Base.trailing_zeros() as i128;
         pub const cellSTR: i128 = super::super::cellSTR.trailing_zeros() as i128;
         pub const stretchRange: i128 = super::super::stretchRange.trailing_zeros() as i128;
-        pub const radix: i128 = super::super::radix.trailing_zeros() as i128;
         pub const cell3Half: i128 = super::super::cell3Half.trailing_zeros() as i128;
         pub const cellMT: i128 = super::super::cellMT.trailing_zeros() as i128;
         pub const cellM2T: i128 = super::super::cellM2T.trailing_zeros() as i128;
@@ -13197,15 +13863,19 @@ pub mod i128 {
         pub const weightStart: i128 = super::super::weightStart.trailing_zeros() as i128;
         pub const weightRange: i128 = super::super::weightRange.trailing_zeros() as i128;
         pub const weightUnit: i128 = super::super::weightUnit.trailing_zeros() as i128;
+        pub const squashStep: i128 = super::super::squashStep.trailing_zeros() as i128;
+        pub const apmIntervals: i128 = super::super::apmIntervals.trailing_zeros() as i128;
         pub const cellA1: i128 = super::super::cellA1.trailing_zeros() as i128;
-        pub const cellA2: i128 = super::super::cellA2.trailing_zeros() as i128;
-        pub const cell1Half: i128 = super::super::cell1Half.trailing_zeros() as i128;
         pub const slotPerStretch: i128 = super::super::slotPerStretch.trailing_zeros() as i128;
+        pub const apmScale: i128 = super::super::apmScale.trailing_zeros() as i128;
+        pub const squashHalfStep: i128 = super::super::squashHalfStep.trailing_zeros() as i128;
+        pub const cellA2: i128 = super::super::cellA2.trailing_zeros() as i128;
         pub const tidA1: i128 = super::super::tidA1.trailing_zeros() as i128;
         pub const tidRS: i128 = super::super::tidRS.trailing_zeros() as i128;
         pub const weightHalf: i128 = super::super::weightHalf.trailing_zeros() as i128;
         pub const tidW1: i128 = super::super::tidW1.trailing_zeros() as i128;
         pub const tidW2: i128 = super::super::tidW2.trailing_zeros() as i128;
+        pub const cell1Half: i128 = super::super::cell1Half.trailing_zeros() as i128;
         pub const inputUnbounded: i128 = super::super::inputUnbounded.trailing_zeros() as i128;
         pub const profileBase: i128 = super::super::profileBase.trailing_zeros() as i128;
         pub const probBase: i128 = super::super::probBase.trailing_zeros() as i128;
@@ -13399,8 +14069,16 @@ pub mod i128 {
         pub const widthBestg: i128 = super::super::widthBestg.trailing_zeros() as i128;
         pub const widthAnyb: i128 = super::super::widthAnyb.trailing_zeros() as i128;
         pub const widthIsb: i128 = super::super::widthIsb.trailing_zeros() as i128;
+        pub const sqtCell: i128 = super::super::sqtCell.trailing_zeros() as i128;
+        pub const hashWord: i128 = super::super::hashWord.trailing_zeros() as i128;
+        pub const hashFold0: i128 = super::super::hashFold0.trailing_zeros() as i128;
+        pub const hashFold1: i128 = super::super::hashFold1.trailing_zeros() as i128;
+        pub const hashFold2: i128 = super::super::hashFold2.trailing_zeros() as i128;
         pub const wordBits: i128 = super::super::wordBits.trailing_zeros() as i128;
         pub const frameRange: i128 = super::super::frameRange.trailing_zeros() as i128;
+        pub const shortBitHalf: i128 = super::super::shortBitHalf.trailing_zeros() as i128;
+        pub const tableFieldHalf: i128 = super::super::tableFieldHalf.trailing_zeros() as i128;
+        pub const matchFieldHalf: i128 = super::super::matchFieldHalf.trailing_zeros() as i128;
         pub const byteBaseHalf: i128 = super::super::byteBaseHalf.trailing_zeros() as i128;
         pub const stretchRangeHalf: i128 = super::super::stretchRangeHalf.trailing_zeros() as i128;
         pub const cellMSLast: i128 = super::super::cellMSLast.trailing_zeros() as i128;
@@ -13437,6 +14115,7 @@ pub mod i128 {
         pub const cellW2Last: i128 = super::super::cellW2Last.trailing_zeros() as i128;
         pub const cellW3Last: i128 = super::super::cellW3Last.trailing_zeros() as i128;
         pub const weightUnitHalf: i128 = super::super::weightUnitHalf.trailing_zeros() as i128;
+        pub const squashStepHalf: i128 = super::super::squashStepHalf.trailing_zeros() as i128;
         pub const tidA1Half: i128 = super::super::tidA1Half.trailing_zeros() as i128;
         pub const tidA2Last: i128 = super::super::tidA2Last.trailing_zeros() as i128;
         pub const tidMSHalfLast: i128 = super::super::tidMSHalfLast.trailing_zeros() as i128;
@@ -13573,19 +14252,30 @@ pub mod i128 {
         pub const widthAdnHalf: i128 = super::super::widthAdnHalf.trailing_zeros() as i128;
         pub const widthAdpHalf: i128 = super::super::widthAdpHalf.trailing_zeros() as i128;
         pub const widthBestkHalf: i128 = super::super::widthBestkHalf.trailing_zeros() as i128;
+        pub const hashWordHalf: i128 = super::super::hashWordHalf.trailing_zeros() as i128;
+        pub const hashFold0Half: i128 = super::super::hashFold0Half.trailing_zeros() as i128;
+        pub const hashFold1Half: i128 = super::super::hashFold1Half.trailing_zeros() as i128;
+        pub const hashFold2Half: i128 = super::super::hashFold2Half.trailing_zeros() as i128;
         pub const shortMatchDepthHalfLast: i128 = super::super::shortMatchDepthHalfLast.trailing_zeros() as i128;
     }
 }
 
 /// The base-two logarithm of each power-of-two quantity.
 pub mod bits {
+    pub const shortBit: u32 = super::shortBit.trailing_zeros();
+    pub const radix: u32 = super::radix.trailing_zeros();
+    pub const repBit: u32 = super::repBit.trailing_zeros();
+    pub const selBit: u32 = super::selBit.trailing_zeros();
+    pub const tableUnit: u32 = super::tableUnit.trailing_zeros();
+    pub const tableField: u32 = super::tableField.trailing_zeros();
+    pub const matchUnit: u32 = super::matchUnit.trailing_zeros();
+    pub const matchField: u32 = super::matchField.trailing_zeros();
     pub const byteBase: u32 = super::byteBase.trailing_zeros();
     pub const cell2Base: u32 = super::cell2Base.trailing_zeros();
     pub const cell3Base: u32 = super::cell3Base.trailing_zeros();
     pub const cell4Base: u32 = super::cell4Base.trailing_zeros();
     pub const cellSTR: u32 = super::cellSTR.trailing_zeros();
     pub const stretchRange: u32 = super::stretchRange.trailing_zeros();
-    pub const radix: u32 = super::radix.trailing_zeros();
     pub const cell3Half: u32 = super::cell3Half.trailing_zeros();
     pub const cellMT: u32 = super::cellMT.trailing_zeros();
     pub const cellM2T: u32 = super::cellM2T.trailing_zeros();
@@ -13616,15 +14306,19 @@ pub mod bits {
     pub const weightStart: u32 = super::weightStart.trailing_zeros();
     pub const weightRange: u32 = super::weightRange.trailing_zeros();
     pub const weightUnit: u32 = super::weightUnit.trailing_zeros();
+    pub const squashStep: u32 = super::squashStep.trailing_zeros();
+    pub const apmIntervals: u32 = super::apmIntervals.trailing_zeros();
     pub const cellA1: u32 = super::cellA1.trailing_zeros();
-    pub const cellA2: u32 = super::cellA2.trailing_zeros();
-    pub const cell1Half: u32 = super::cell1Half.trailing_zeros();
     pub const slotPerStretch: u32 = super::slotPerStretch.trailing_zeros();
+    pub const apmScale: u32 = super::apmScale.trailing_zeros();
+    pub const squashHalfStep: u32 = super::squashHalfStep.trailing_zeros();
+    pub const cellA2: u32 = super::cellA2.trailing_zeros();
     pub const tidA1: u32 = super::tidA1.trailing_zeros();
     pub const tidRS: u32 = super::tidRS.trailing_zeros();
     pub const weightHalf: u32 = super::weightHalf.trailing_zeros();
     pub const tidW1: u32 = super::tidW1.trailing_zeros();
     pub const tidW2: u32 = super::tidW2.trailing_zeros();
+    pub const cell1Half: u32 = super::cell1Half.trailing_zeros();
     pub const inputUnbounded: u32 = super::inputUnbounded.trailing_zeros();
     pub const profileBase: u32 = super::profileBase.trailing_zeros();
     pub const probBase: u32 = super::probBase.trailing_zeros();
@@ -13818,8 +14512,16 @@ pub mod bits {
     pub const widthBestg: u32 = super::widthBestg.trailing_zeros();
     pub const widthAnyb: u32 = super::widthAnyb.trailing_zeros();
     pub const widthIsb: u32 = super::widthIsb.trailing_zeros();
+    pub const sqtCell: u32 = super::sqtCell.trailing_zeros();
+    pub const hashWord: u32 = super::hashWord.trailing_zeros();
+    pub const hashFold0: u32 = super::hashFold0.trailing_zeros();
+    pub const hashFold1: u32 = super::hashFold1.trailing_zeros();
+    pub const hashFold2: u32 = super::hashFold2.trailing_zeros();
     pub const wordBits: u32 = super::wordBits.trailing_zeros();
     pub const frameRange: u32 = super::frameRange.trailing_zeros();
+    pub const shortBitHalf: u32 = super::shortBitHalf.trailing_zeros();
+    pub const tableFieldHalf: u32 = super::tableFieldHalf.trailing_zeros();
+    pub const matchFieldHalf: u32 = super::matchFieldHalf.trailing_zeros();
     pub const byteBaseHalf: u32 = super::byteBaseHalf.trailing_zeros();
     pub const stretchRangeHalf: u32 = super::stretchRangeHalf.trailing_zeros();
     pub const cellMSLast: u32 = super::cellMSLast.trailing_zeros();
@@ -13856,6 +14558,7 @@ pub mod bits {
     pub const cellW2Last: u32 = super::cellW2Last.trailing_zeros();
     pub const cellW3Last: u32 = super::cellW3Last.trailing_zeros();
     pub const weightUnitHalf: u32 = super::weightUnitHalf.trailing_zeros();
+    pub const squashStepHalf: u32 = super::squashStepHalf.trailing_zeros();
     pub const tidA1Half: u32 = super::tidA1Half.trailing_zeros();
     pub const tidA2Last: u32 = super::tidA2Last.trailing_zeros();
     pub const tidMSHalfLast: u32 = super::tidMSHalfLast.trailing_zeros();
@@ -13992,5 +14695,9 @@ pub mod bits {
     pub const widthAdnHalf: u32 = super::widthAdnHalf.trailing_zeros();
     pub const widthAdpHalf: u32 = super::widthAdpHalf.trailing_zeros();
     pub const widthBestkHalf: u32 = super::widthBestkHalf.trailing_zeros();
+    pub const hashWordHalf: u32 = super::hashWordHalf.trailing_zeros();
+    pub const hashFold0Half: u32 = super::hashFold0Half.trailing_zeros();
+    pub const hashFold1Half: u32 = super::hashFold1Half.trailing_zeros();
+    pub const hashFold2Half: u32 = super::hashFold2Half.trailing_zeros();
     pub const shortMatchDepthHalfLast: u32 = super::shortMatchDepthHalfLast.trailing_zeros();
 }
