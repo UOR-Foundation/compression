@@ -4,7 +4,7 @@
 //! Each quantity is the model's body over the others; a view module per
 //! integer type lists those the type holds, and [`bits`] the base-two
 //! logarithm of each power of two.
-#![allow(non_upper_case_globals, dead_code, unused_parens, clippy::all, clippy::pedantic)]
+#![allow(non_upper_case_globals, non_snake_case, dead_code, unused_parens, clippy::all, clippy::pedantic)]
 
 /// `Uorc.Wire.Frame::formatVersion`.
 pub const formatVersion: u128 = 2;
