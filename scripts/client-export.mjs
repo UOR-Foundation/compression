@@ -318,11 +318,21 @@ function pruneStore() {
   const dir = storeDirectory();
   if (!fs.existsSync(dir)) return;
   const entries = [];
-  for (const shard of fs.readdirSync(dir)) for (const key of fs.readdirSync(path.join(dir, shard))) {
+  // Other exports share the store and write or prune it while this walk
+  // runs: an entry that is not a directory, or that vanishes mid-walk, is
+  // theirs to finish and is left as it is.
+  const directories = (at) => {
+    try { return fs.readdirSync(at, {withFileTypes: true}).filter((d) => d.isDirectory()).map((d) => d.name); } catch { return []; }
+  };
+  for (const shard of directories(dir)) for (const key of directories(path.join(dir, shard))) {
     const entry = path.join(dir, shard, key);
-    let bytes = 0;
-    for (const f of fs.readdirSync(entry)) bytes += fs.statSync(path.join(entry, f)).size;
-    entries.push({entry, bytes, used: fs.statSync(path.join(entry, 'outputs.txt'), {throwIfNoEntry: false})?.mtimeMs ?? 0});
+    try {
+      let bytes = 0;
+      for (const f of fs.readdirSync(entry)) bytes += fs.statSync(path.join(entry, f)).size;
+      entries.push({entry, bytes, used: fs.statSync(path.join(entry, 'outputs.txt'), {throwIfNoEntry: false})?.mtimeMs ?? 0});
+    } catch (error) {
+      if (error.code !== 'ENOENT' && error.code !== 'ENOTDIR') throw error;
+    }
   }
   const free = Number(fs.statfsSync(dir).bavail) * Number(fs.statfsSync(dir).bsize);
   let held = entries.reduce((a, e) => a + e.bytes, 0);
