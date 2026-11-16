@@ -665,7 +665,7 @@ definition{
   body: (match fuel
     | Nat.zero => (ctor Option.none [Nat])
     | Nat.succ m => (let w : Nat := (withMatch (withTable profile tb) mb); (if (holdsStreams n held modelled w k) then (ctor Option.some [Nat] w) else (let all : Nat := (tableBytes tb mb profile); (if (((prim subtract all (tableBytes tb (prim subtract mb 1 : Nat) profile) : Nat) <=? (prim subtract all (tableBytes (prim subtract tb 1 : Nat) mb profile) : Nat)) && ((tableLeast) <? tb)) then (fitLoop m n held modelled profile k (prim subtract tb 1 : Nat) mb) else (if (1 <? mb) then (fitLoop m n held modelled profile k tb (prim subtract mb 1 : Nat)) else (if ((tableLeast) <? tb) then (fitLoop m n held modelled profile k (prim subtract tb 1 : Nat) mb) else (ctor Option.none [Nat])))))))),
-  axioms: [Quot.sound, propext],
+  axioms: [],
   recursive_argument: fuel
 }
 
@@ -674,7 +674,7 @@ definition{
   parameters: [n : Nat, held : Nat, modelled : Nat, profile : Nat, k : Nat],
   result: (Option Nat),
   body: (let tb : Nat := (Uorc.Codec.NcmEncode::tbOf modelled profile); (let mb : Nat := (Uorc.Codec.NcmEncode::mbOf modelled profile); (fitLoop ((tb + mb) + 1) n held modelled profile k tb mb))),
-  axioms: [Quot.sound, propext]
+  axioms: []
 }
 
 definition{
