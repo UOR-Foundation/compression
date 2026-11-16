@@ -2,6 +2,7 @@
 \importmodule{Uorc.Core.Bytes}
 \importmodule{Uorc.Core.Resources}
 \importmodule{Uorc.Wire.Frame}
+\importmodule{Uorc.Wire.Word}
 \importmodule{Uorc.Search.Identity}
 \importmodule{Uorc.Search.Schedule}
 \importmodule{Uorc.Search.Effort}
@@ -165,7 +166,7 @@ definition{
   name: strategyCount,
   parameters: [strategies : Bytes],
   result: Nat,
-  body: (prim quotient (prim length strategies : Nat) 5 0 : Nat),
+  body: (prim quotient (prim length strategies : Nat) (Uorc.Wire.Word::strategyBytes) 0 : Nat),
   axioms: []
 }
 
@@ -173,7 +174,7 @@ definition{
   name: strategyWord,
   parameters: [strategies : Bytes, s : Nat],
   result: Nat,
-  body: (let at : Nat := (prim multiply 5 s : Nat); (((Uorc.Codec.Archive::byteAt strategies at) + (prim multiply 256 (Uorc.Codec.Archive::byteAt strategies (at + 1)) : Nat)) + ((prim multiply 65536 (Uorc.Codec.Archive::byteAt strategies (at + 2)) : Nat) + (prim multiply 16777216 (Uorc.Codec.Archive::byteAt strategies (at + 3)) : Nat)))),
+  body: (Uorc.Wire.Word::littleEndian (Uorc.Wire.Word::profileWordBytes) strategies (prim multiply (Uorc.Wire.Word::strategyBytes) s : Nat)),
   axioms: [Quot.sound, propext]
 }
 
@@ -181,7 +182,7 @@ definition{
   name: strategyState,
   parameters: [strategies : Bytes, s : Nat],
   result: Nat,
-  body: (Uorc.Codec.Archive::byteAt strategies ((prim multiply 5 s : Nat) + 4)),
+  body: (Uorc.Codec.Archive::byteAt strategies ((prim multiply (Uorc.Wire.Word::strategyBytes) s : Nat) + (Uorc.Wire.Word::profileWordBytes))),
   axioms: [Quot.sound, propext]
 }
 
@@ -246,7 +247,7 @@ definition{
   result: Bool,
   body: (match scheduled
     | List.nil => false
-    | List.cons head tail => (match (prim slice table (prim multiply 5 head : Nat) 5 : (Option Bytes))
+    | List.cons head tail => (match (prim slice table (prim multiply (Uorc.Wire.Word::strategyBytes) head : Nat) (Uorc.Wire.Word::strategyBytes) : (Option Bytes))
       | Option.none => (covers table tail entry)
       | Option.some e => (if (prim equal e entry : Bool) then true else (covers table tail entry)))),
   axioms: [],
@@ -256,7 +257,7 @@ definition{
   name: pairMissing,
   parameters: [table : Bytes, scheduled : (List Nat), count : Nat, k : Nat],
   result: (List Nat),
-  body: (match (prim slice table (prim multiply 5 (count + k) : Nat) 5 : (Option Bytes))
+  body: (match (prim slice table (prim multiply (Uorc.Wire.Word::strategyBytes) (count + k) : Nat) (Uorc.Wire.Word::strategyBytes) : (Option Bytes))
     | Option.none => (nil Nat)
     | Option.some e => (if (covers table scheduled e) then (nil Nat) else (cons (count + k) (nil Nat)))),
   axioms: []
@@ -283,7 +284,7 @@ definition{
   name: profileInputs,
   parameters: [profile : Nat],
   result: Nat,
-  body: (((((((prim remainder (prim quotient profile 1 0 : Nat) 2 0 : Nat) + (prim remainder (prim quotient profile 2 0 : Nat) 2 0 : Nat)) + ((prim remainder (prim quotient profile 4 0 : Nat) 2 0 : Nat) + (prim remainder (prim quotient profile 8 0 : Nat) 2 0 : Nat))) + (((prim remainder (prim quotient profile 16 0 : Nat) 2 0 : Nat) + (prim remainder (prim quotient profile 32 0 : Nat) 2 0 : Nat)) + ((prim remainder (prim quotient profile 64 0 : Nat) 2 0 : Nat) + (prim remainder (prim quotient profile 128 0 : Nat) 2 0 : Nat)))) + ((((prim remainder (prim quotient profile 256 0 : Nat) 2 0 : Nat) + (prim remainder (prim quotient profile 512 0 : Nat) 2 0 : Nat)) + ((prim remainder (prim quotient profile 1024 0 : Nat) 2 0 : Nat) + (prim remainder (prim quotient profile 2048 0 : Nat) 2 0 : Nat))) + (((prim remainder (prim quotient profile 4096 0 : Nat) 2 0 : Nat) + (prim remainder (prim quotient profile 8192 0 : Nat) 2 0 : Nat)) + ((prim remainder (prim quotient profile 16384 0 : Nat) 2 0 : Nat) + ((prim remainder (prim quotient profile 32768 0 : Nat) 2 0 : Nat) + (prim remainder (prim quotient profile 65536 0 : Nat) 2 0 : Nat)))))) + 3) + ((prim multiply 2 (prim remainder (prim quotient profile 131072 0 : Nat) 2 0 : Nat) : Nat) + (prim multiply 2 (prim remainder (prim quotient profile 262144 0 : Nat) 2 0 : Nat) : Nat))),
+  body: (((Uorc.Wire.Word::ones (Uorc.Wire.Word::contextBits) (prim remainder profile (Uorc.Wire.Word::shortBit) 0 : Nat)) + (Uorc.Wire.Word::fixedInputs)) + ((prim multiply (Uorc.Wire.Word::featureInputs) (prim remainder (prim quotient profile (Uorc.Wire.Word::shortBit) 0 : Nat) (Uorc.Wire.Word::bitRange) 0 : Nat) : Nat) + (prim multiply (Uorc.Wire.Word::featureInputs) (prim remainder (prim quotient profile (Uorc.Wire.Word::repBit) 0 : Nat) (Uorc.Wire.Word::bitRange) 0 : Nat) : Nat))),
   axioms: []
 }
 
@@ -291,7 +292,7 @@ definition{
   name: trialSteps,
   parameters: [profile : Nat, n : Nat],
   result: Nat,
-  body: (prim multiply 8 (prim multiply (profileInputs profile) n : Nat) : Nat),
+  body: (prim multiply (Uorc.Wire.Word::byteBits) (prim multiply (profileInputs profile) n : Nat) : Nat),
   axioms: []
 }
 
@@ -329,9 +330,9 @@ definition{
   name: strategyTrial,
   parameters: [strategies : Bytes, states : (List Bytes), strategy : Nat, window : (List Bytes), input : Bytes],
   result: (Option (Bytes * (Nat * Nat))),
-  body: (let word : Nat := (strategyWord strategies strategy); (let x : Nat := (if (2147483648 <=? word) then 1 else 0); (let profile : Nat := (prim remainder word 2147483648 0 : Nat); (let st : Nat := (strategyState strategies strategy); (let n : Nat := (prim length input : Nat); (if ((Uorc.Codec.Archive::profileWord profile) && (not (excluded x input))) then (if (st =? 0) then (trial (Uorc.Codec.Archive::profileCandidate (x + 1) profile window input) (trialSteps profile n) (profile + (prim multiply 2147483648 x : Nat))) else (match (stateAt states (prim subtract st 1 : Nat))
+  body: (let word : Nat := (strategyWord strategies strategy); (let x : Nat := (if ((Uorc.Wire.Word::wideBase) <=? word) then 1 else 0); (let profile : Nat := (prim remainder word (Uorc.Wire.Word::wideBase) 0 : Nat); (let st : Nat := (strategyState strategies strategy); (let n : Nat := (prim length input : Nat); (if ((Uorc.Codec.Archive::profileWord profile) && (not (excluded x input))) then (if (st =? 0) then (trial (Uorc.Codec.Archive::profileCandidate (x + 1) profile window input) (trialSteps profile n) (profile + (prim multiply (Uorc.Wire.Word::wideBase) x : Nat))) else (match (stateAt states (prim subtract st 1 : Nat))
     | Option.none => (ctor Option.none [(Bytes * (Nat * Nat))])
-    | Option.some state => (trial (Uorc.Codec.Archive::stateCandidate x profile state input) (trialSteps profile (n + (prim length state : Nat))) ((profile + (prim multiply 2147483648 x : Nat)) + (prim multiply 4294967296 st : Nat))))) else (ctor Option.none [(Bytes * (Nat * Nat))]))))))),
+    | Option.some state => (trial (Uorc.Codec.Archive::stateCandidate x profile state input) (trialSteps profile (n + (prim length state : Nat))) ((profile + (prim multiply (Uorc.Wire.Word::wideBase) x : Nat)) + (prim multiply (Uorc.Wire.Word::profileBase) st : Nat))))) else (ctor Option.none [(Bytes * (Nat * Nat))]))))))),
   axioms: [Quot.sound, propext]
 }
 
@@ -339,7 +340,7 @@ definition{
   name: learnedTrial,
   parameters: [strategies : Bytes, states : (List Bytes), strategy : Nat, window : (List Bytes), input : Bytes],
   result: (Option (Bytes * (Nat * Nat))),
-  body: (let word : Nat := (strategyWord strategies strategy); (let x : Nat := (if (2147483648 <=? word) then 1 else 0); (let profile : Nat := (prim remainder word 2147483648 0 : Nat); (if (((strategyState strategies strategy) =? 0) && ((Uorc.Codec.Archive::profileWord profile) && (not (excluded x input)))) then (let n : Nat := (prim length input : Nat); (let plain : (Option (Bytes * (Nat * Nat))) := (trial (Uorc.Codec.Archive::profileCandidate (x + 1) profile window input) (trialSteps profile n) (profile + (prim multiply 2147483648 x : Nat))); (let learned : Nat := (Uorc.Codec.Archive::profiledLearner x (Uorc.Codec.Archive::windowHistory window) input profile); (if (learned =? profile) then plain else (pick (trial (Uorc.Codec.Archive::profileCandidate (x + 1) learned window input) (trialSteps learned n) (learned + (prim multiply 2147483648 x : Nat))) plain))))) else (strategyTrial strategies states strategy window input))))),
+  body: (let word : Nat := (strategyWord strategies strategy); (let x : Nat := (if ((Uorc.Wire.Word::wideBase) <=? word) then 1 else 0); (let profile : Nat := (prim remainder word (Uorc.Wire.Word::wideBase) 0 : Nat); (if (((strategyState strategies strategy) =? 0) && ((Uorc.Codec.Archive::profileWord profile) && (not (excluded x input)))) then (let n : Nat := (prim length input : Nat); (let plain : (Option (Bytes * (Nat * Nat))) := (trial (Uorc.Codec.Archive::profileCandidate (x + 1) profile window input) (trialSteps profile n) (profile + (prim multiply (Uorc.Wire.Word::wideBase) x : Nat))); (let learned : Nat := (Uorc.Codec.Archive::profiledLearner x (Uorc.Codec.Archive::windowHistory window) input profile); (if (learned =? profile) then plain else (pick (trial (Uorc.Codec.Archive::profileCandidate (x + 1) learned window input) (trialSteps learned n) (learned + (prim multiply (Uorc.Wire.Word::wideBase) x : Nat))) plain))))) else (strategyTrial strategies states strategy window input))))),
   axioms: [Quot.sound, propext]
 }
 
@@ -366,7 +367,7 @@ definition{
   name: tableBytes,
   parameters: [tb : Nat, mb : Nat, profile : Nat],
   result: Nat,
-  body: (let short : Nat := (prim remainder (prim quotient profile 131072 0 : Nat) 2 0 : Nat); ((prim multiply 4 (Uorc.Codec.NcmEncode::pow2 tb) : Nat) + (prim multiply (1 + short) (prim multiply 4 (Uorc.Codec.NcmEncode::pow2 mb) : Nat) : Nat))),
+  body: (let short : Nat := (prim remainder (prim quotient profile (Uorc.Wire.Word::shortBit) 0 : Nat) (Uorc.Wire.Word::bitRange) 0 : Nat); ((prim multiply (Uorc.Wire.Word::profileWordBytes) (Uorc.Codec.NcmEncode::pow2 tb) : Nat) + (prim multiply (1 + short) (prim multiply (Uorc.Wire.Word::profileWordBytes) (Uorc.Codec.NcmEncode::pow2 mb) : Nat) : Nat))),
   executable: true,
   axioms: []
 }
@@ -383,7 +384,7 @@ definition{
   name: tableCandidate,
   parameters: [states : (List Bytes), point : Nat, tb : Nat, window : (List Bytes), input : Bytes],
   result: (Option Bytes),
-  body: (let x : Nat := (pointX86 point); (let word : Nat := (pointProfile point); (let profile : Nat := ((prim subtract word (prim multiply 1048576 (prim remainder (prim quotient word 1048576 0 : Nat) 64 0 : Nat) : Nat) : Nat) + (prim multiply 1048576 tb : Nat)); (let st : Nat := (pointState point); (if (st =? 0) then (Uorc.Codec.Archive::profileCandidate (x + 1) profile window input) else (match (stateAt states (prim subtract st 1 : Nat))
+  body: (let x : Nat := (pointX86 point); (let word : Nat := (pointProfile point); (let profile : Nat := ((prim subtract word (prim multiply (Uorc.Wire.Word::tableUnit) (prim remainder (prim quotient word (Uorc.Wire.Word::tableUnit) 0 : Nat) (Uorc.Wire.Word::tableField) 0 : Nat) : Nat) : Nat) + (prim multiply (Uorc.Wire.Word::tableUnit) tb : Nat)); (let st : Nat := (pointState point); (if (st =? 0) then (Uorc.Codec.Archive::profileCandidate (x + 1) profile window input) else (match (stateAt states (prim subtract st 1 : Nat))
     | Option.none => (ctor Option.none [Bytes])
     | Option.some state => (Uorc.Codec.Archive::stateCandidate x profile state input))))))),
   axioms: [Quot.sound, propext]
@@ -393,7 +394,7 @@ definition{
   name: withTable,
   parameters: [point : Nat, tb : Nat],
   result: Nat,
-  body: ((prim subtract point (prim multiply 1048576 (prim remainder (prim quotient point 1048576 0 : Nat) 64 0 : Nat) : Nat) : Nat) + (prim multiply 1048576 tb : Nat)),
+  body: ((prim subtract point (prim multiply (Uorc.Wire.Word::tableUnit) (prim remainder (prim quotient point (Uorc.Wire.Word::tableUnit) 0 : Nat) (Uorc.Wire.Word::tableField) 0 : Nat) : Nat) : Nat) + (prim multiply (Uorc.Wire.Word::tableUnit) tb : Nat)),
   axioms: []
 }
 
@@ -403,7 +404,7 @@ definition{
   result: (Bytes * Nat),
   body: (match fuel
     | Nat.zero => (best, kept)
-    | Nat.succ m => (let t : Nat := (1 + tb); (if ((32 <? t) || ((hostMemory) <? (pageBytes (prim length input : Nat) held modelled point t))) then (best, kept) else (match (tableCandidate states point t window input)
+    | Nat.succ m => (let t : Nat := (1 + tb); (if (((Uorc.Wire.Word::profileWordBits) <? t) || ((hostMemory) <? (pageBytes (prim length input : Nat) held modelled point t))) then (best, kept) else (match (tableCandidate states point t window input)
       | Option.none => (best, kept)
       | Option.some a => (if ((prim length a : Nat) <? (prim length best : Nat)) then (stepLoop m states point t held modelled window input a (withTable point t)) else (best, kept)))))),
   axioms: [Quot.sound, propext],
@@ -416,7 +417,7 @@ definition{
   result: (Bytes * Nat),
   body: (let st : Nat := (pointState point); (let held : Nat := (if (st =? 0) then (prim length (Uorc.Codec.Archive::windowHistory window) : Nat) else (match (stateAt states (prim subtract st 1 : Nat))
     | Option.none => 0
-    | Option.some state => (prim length state : Nat))); (let modelled : Nat := (if (st =? 0) then (prim length input : Nat) else ((prim length input : Nat) + held)); (stepLoop 32 states point (Uorc.Codec.NcmEncode::tbOf modelled point) held modelled window input chosen point)))),
+    | Option.some state => (prim length state : Nat))); (let modelled : Nat := (if (st =? 0) then (prim length input : Nat) else ((prim length input : Nat) + held)); (stepLoop (Uorc.Wire.Word::profileWordBits) states point (Uorc.Codec.NcmEncode::tbOf modelled point) held modelled window input chosen point)))),
   axioms: [Quot.sound, propext]
 }
 
@@ -578,7 +579,7 @@ definition{
   name: withMatch,
   parameters: [word : Nat, mb : Nat],
   result: Nat,
-  body: ((prim subtract word (prim multiply 67108864 (prim remainder (prim quotient word 67108864 0 : Nat) 32 0 : Nat) : Nat) : Nat) + (prim multiply 67108864 mb : Nat)),
+  body: ((prim subtract word (prim multiply (Uorc.Wire.Word::matchUnit) (prim remainder (prim quotient word (Uorc.Wire.Word::matchUnit) 0 : Nat) (Uorc.Wire.Word::matchField) 0 : Nat) : Nat) : Nat) + (prim multiply (Uorc.Wire.Word::matchUnit) mb : Nat)),
   axioms: []
 }
 
@@ -611,7 +612,7 @@ definition{
   result: (Bytes * Nat),
   body: (match fuel
     | Nat.zero => (best, word)
-    | Nat.succ m => (if (31 <=? mb) then (best, word) else (let w : Nat := (withMatch word (1 + mb)); (match (windowTrial x w k window input best)
+    | Nat.succ m => (if ((Uorc.Wire.Word::matchField) <=? (1 + mb)) then (best, word) else (let w : Nat := (withMatch word (1 + mb)); (match (windowTrial x w k window input best)
       | Option.none => (best, word)
       | Option.some a => (matchLoop m x w (1 + mb) k window input a))))),
   axioms: [Quot.sound, propext],
@@ -622,7 +623,7 @@ definition{
   name: stepWindow,
   parameters: [point : Nat, window : (List Bytes), input : Bytes, chosen : Bytes],
   result: (Bytes * (Nat * (List Bytes))),
-  body: (let k0 : Nat := (Uorc.Codec.Archive::windowCount (recentWindow window)); (let st : Nat := (pointState point); (let x : Nat := (pointX86 point); (let word : Nat := (pointProfile point); (if (0 <? st) then (chosen, (point, (recentWindow window))) else (let d : (Bytes * Nat) := (depthLoop (Uorc.Codec.Archive::windowCount window) x word k0 window input chosen); (let m : (Bytes * Nat) := (matchLoop 32 x word (Uorc.Codec.NcmEncode::mbOf (prim length input : Nat) word) (second d) window input (first d)); ((first m), (((second m) + (prim multiply 2147483648 x : Nat)), (lastFrames (second d) window)))))))))),
+  body: (let k0 : Nat := (Uorc.Codec.Archive::windowCount (recentWindow window)); (let st : Nat := (pointState point); (let x : Nat := (pointX86 point); (let word : Nat := (pointProfile point); (if (0 <? st) then (chosen, (point, (recentWindow window))) else (let d : (Bytes * Nat) := (depthLoop (Uorc.Codec.Archive::windowCount window) x word k0 window input chosen); (let m : (Bytes * Nat) := (matchLoop (Uorc.Wire.Word::matchField) x word (Uorc.Codec.NcmEncode::mbOf (prim length input : Nat) word) (second d) window input (first d)); ((first m), (((second m) + (prim multiply (Uorc.Wire.Word::wideBase) x : Nat)), (lastFrames (second d) window)))))))))),
   axioms: [Quot.sound, propext]
 }
 
@@ -763,9 +764,9 @@ definition{
   name: compress,
   parameters: [strategies : Bytes, weights : Bytes, states : (List Bytes), input : Bytes, window : (List Bytes), steps : Nat],
   result: (Option Bytes),
-  body: (let fam : Nat := (family input); (let count : Nat := (strategyCount strategies); (let table : Bytes := (Uorc.Codec.Archive::cat (match (prim slice strategies 0 (prim multiply 5 count : Nat) : (Option Bytes))
+  body: (let fam : Nat := (family input); (let count : Nat := (strategyCount strategies); (let table : Bytes := (Uorc.Codec.Archive::cat (match (prim slice strategies 0 (prim multiply (Uorc.Wire.Word::strategyBytes) count : Nat) : (Option Bytes))
     | Option.none => strategies
-    | Option.some whole => whole) (v04Pair fam)); (let coded : (List Nat) := (planned table count (schedule strategies weights fam)); (let linked : (Option (Bytes * (Nat * Nat))) := (portfolio table states (count + 2) coded (recentWindow window) input); (let quick : (Option Bytes) := (match linked
+    | Option.some whole => whole) (v04Pair fam)); (let coded : (List Nat) := (planned table count (schedule strategies weights fam)); (let linked : (Option (Bytes * (Nat * Nat))) := (portfolio table states (count + (strategyCount (v04Pair fam))) coded (recentWindow window) input); (let quick : (Option Bytes) := (match linked
     | Option.none => (Uorc.Codec.Archive::rawArchive input)
     | Option.some kernel => (if ((prim length (first kernel) : Nat) <? (rawLength (prim length input : Nat))) then (let stepped : (Bytes * (Nat * (List Bytes))) := (stepWindow (second (second kernel)) window input (first kernel)); (let tabled : (Bytes * Nat) := (stepTable states (first (second stepped)) (second (second stepped)) input (first stepped)); (let wide : (Bytes * Nat) := (stepStreams (second tabled) (second (second stepped)) input (first tabled)); (let filtered : (Bytes * Nat) := (stepDelta (second tabled) (second wide) (second (second stepped)) input (first wide)); (ctor Option.some [Bytes] (stepConsolidation states (second tabled) (second filtered) (second (second stepped)) input (first filtered))))))) else (Uorc.Codec.Archive::rawArchive input))); (if (steps =? 0) then quick else (smaller quick (search input steps))))))))),
   axioms: [Quot.sound, propext]
