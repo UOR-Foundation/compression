@@ -426,8 +426,16 @@ mod tests {
     fn page_worker_is_the_pages_host_rule() {
         let per_gib = stated("../../src/Uorc/Page.lex.tex", "pageWorker", "workersPerGiB");
         assert_eq!(super::WORKERS_PER_GIB, per_gib);
-        let client = stated("../../client/src/Uorc/Client.lex.tex", "hostMemory", "");
-        assert_eq!(super::PAGE_WORKER.memory, client);
+        // the client reads the page worker the host declaration states
+        // (`Uorc.Host.Declared`): 1 GiB over the same workers per GiB
+        let declared = stated("../../src/Uorc/Host/Declared.lex.tex", "pageWorkersPerGiB", "");
+        assert_eq!(super::WORKERS_PER_GIB, declared);
+        let client = std::fs::read_to_string(
+            std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+                .join("../../client/src/Uorc/Client.lex.tex"),
+        )
+        .expect("the client model");
+        assert!(client.contains("body: (Uorc.Host.Declared::pageWorkerMemory),"));
         let gate = stated("../../src/Uorc/Page.lex.tex", "workerMemory", "threshold");
         assert_eq!(super::PAGE_WORKER.memory, gate << 20);
         let threads = stated("../../src/Uorc/Page.lex.tex", "pageWorker", "frameThreads");

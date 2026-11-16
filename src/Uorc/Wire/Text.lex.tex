@@ -1,0 +1,66 @@
+\begin{lexlean}{Uorc.Wire.Text}
+\importmodule{Uorc.Wire.Word}
+\title{Parameters}
+\begin{semanticmodule}
+definition{
+  name: asciiRows,
+  parameters: [],
+  result: Nat,
+  body: (Uorc.Wire.Word::power (Uorc.Wire.Word::bitRange) (Uorc.Wire.Word::profileWordBytes)),
+  axioms: [],
+  executable: true
+}
+
+definition{
+  name: asciiColumns,
+  parameters: [],
+  result: Nat,
+  body: (Uorc.Wire.Word::power (Uorc.Wire.Word::bitRange) (1 + (Uorc.Wire.Word::bitRange))),
+  axioms: [],
+  executable: true
+}
+
+definition{
+  name: graphicFirst,
+  parameters: [],
+  result: Nat,
+  body: (prim multiply (Uorc.Wire.Word::bitRange) (asciiRows) : Nat),
+  axioms: [],
+  executable: true
+}
+
+definition{
+  name: asciiDelete,
+  parameters: [],
+  result: Nat,
+  body: (prim subtract (prim multiply (asciiColumns) (asciiRows) : Nat) 1 : Nat),
+  axioms: [],
+  executable: true
+}
+
+definition{name: lineControls, parameters: [], result: Bytes, body: 0x090a0d, axioms: [], executable: true}
+
+definition{
+  name: within,
+  parameters: [fuel : Nat, members : Bytes, at : Nat, b : Nat],
+  result: Bool,
+  body: (match fuel
+    | Nat.zero => false
+    | Nat.succ m => (match (prim index members at : (Option UInt8))
+      | Option.none => false
+      | Option.some octet => (((prim to_nat octet : Nat) =? b) || (within m members (1 + at) b)))),
+  axioms: [Quot.sound, propext],
+  executable: true,
+  recursive_argument: fuel
+}
+
+definition{
+  name: printable,
+  parameters: [b : Nat],
+  result: Bool,
+  body: ((within (prim length (lineControls) : Nat) (lineControls) 0 b) || (((graphicFirst) <=? b) && (b <? (asciiDelete)))),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+\end{semanticmodule}
+\end{lexlean}
