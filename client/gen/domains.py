@@ -243,6 +243,45 @@ def derive(prog, domains, tables, globals_):
     return p
 
 
+class Widths:
+    """The globals' widths, typed by their declared domains: a global's width is the least rung of the
+    machine's word ladder (the widest cell, wordBytes, halved by the radix down to a byte) whose cell holds
+    its domain's extent. A global whose stated width is that rung takes the rung, so its width is derived
+    from what it holds; the IR machine then holds every value set to the domain (Machine.set). A global
+    whose width is not the least rung of its domain, or that has no declared domain, keeps its numeral and
+    is reported."""
+
+    def __init__(self, word):
+        rungs, w, n = [], word, 0
+        while int(w) > 1:
+            rungs.append(w)
+            n += 1
+            w = K(('wordHalfBytes', 'wordQuarterBytes', 'wordEighthBytes')[n - 1], ('div', w, RADIX)) if int(w) > 2 else 1
+        self.rungs = sorted(rungs, key=int)
+        self.derived, self.residue = {}, {}
+
+    def least(self, extent):
+        for r in self.rungs:
+            if int(BYTE) ** int(r) >= int(extent):
+                return r
+        return None
+
+    def type(self, prog, declared):
+        prog.bounds = getattr(prog, 'bounds', {})
+        for g, w in list(prog.globals.items()):
+            if int(w) <= 1 or isinstance(w, K):
+                continue
+            d = declared.get(g)
+            r = None if d is None else self.least(d.extent)
+            if r is not None and int(r) == int(w):
+                prog.globals[g] = r
+                prog.bounds[g] = d.extent
+                self.derived[g] = (r.name, d.name)
+            else:
+                self.residue[g] = (int(w), None if d is None else d.name, None if r is None else int(r))
+        return self
+
+
 def report(p, top=40):
     """The pass's outcome: the quantities it derived (uses each) and the literals it left, by value,
     with the domains in scope at each (the declarations the residue asks for)."""
