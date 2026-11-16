@@ -127,8 +127,8 @@ pub(crate) mod encoder {
             let bound = (self.range >> crate::model::lz::u32::probabilityBits) * v;
             if bit == 0 {
                 self.range = bound;
-                probs[at] = (v
-                    + ((crate::model::lz::u32::probabilityRange - v)
+                probs[at] =
+                    (v + ((crate::model::lz::u32::probabilityRange - v)
                         >> crate::model::lz::u32::bits::moveScale)) as u16;
             } else {
                 self.low += u64::from(bound);
