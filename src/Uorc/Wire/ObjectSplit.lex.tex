@@ -166,7 +166,7 @@ theorem{
   name: zero_objects,
   parameters: [],
   statement: ((runFixture (nil Nat) (nil Bytes) 2) = (ctor FixtureResult.done (nil Bytes))),
-  proof: reflexivity{},
+  proof: evaluation{},
   axioms: []
 }
 
@@ -174,7 +174,7 @@ theorem{
   name: one_empty,
   parameters: [],
   statement: ((runFixture (cons 0 (nil Nat)) (nil Bytes) 2) = (ctor FixtureResult.done (cons 0x (nil Bytes)))),
-  proof: reflexivity{},
+  proof: evaluation{},
   axioms: []
 }
 
@@ -182,7 +182,7 @@ theorem{
   name: three_empty,
   parameters: [],
   statement: ((runFixture (cons 0 (cons 0 (cons 0 (nil Nat)))) (cons 0x (cons 0x (nil Bytes))) 2) = (ctor FixtureResult.done (cons 0x (cons 0x (cons 0x (nil Bytes)))))),
-  proof: reflexivity{},
+  proof: evaluation{},
   axioms: []
 }
 
@@ -397,7 +397,7 @@ theorem{
   name: feed_requires_demand,
   parameters: [],
   statement: ((feed (start (cons 1 (nil Nat))) 0x00) = (ctor Event.failed (record Error {kind := (ctor SplitError.inputNotRequested), objectIndex := 0, objectOffset := 0}))),
-  proof: reflexivity{},
+  proof: evaluation{},
   axioms: []
 }
 
@@ -405,7 +405,7 @@ theorem{
   name: end_requires_demand,
   parameters: [],
   statement: ((finishInput (start (cons 1 (nil Nat)))) = (ctor Event.failed (record Error {kind := (ctor SplitError.inputNotRequested), objectIndex := 0, objectOffset := 0}))),
-  proof: reflexivity{},
+  proof: evaluation{},
   axioms: []
 }
 
@@ -413,7 +413,7 @@ theorem{
   name: positive_quantum_required,
   parameters: [],
   statement: ((step (start (cons 1 (nil Nat))) 0) = (ctor Event.failed (record Error {kind := (ctor SplitError.invalidQuantum), objectIndex := 0, objectOffset := 0}))),
-  proof: reflexivity{},
+  proof: evaluation{},
   axioms: []
 }
 
@@ -421,7 +421,7 @@ theorem{
   name: end_is_one_shot,
   parameters: [],
   statement: ((finishInput (record State {lengths := (nil Nat), phase := (ctor Phase.awaitingEnd), objectIndex := 0, objectLength := 0, remaining := 0, input := 0x, offset := 0, waiting := false, ended := true})) = (ctor Event.failed (record Error {kind := (ctor SplitError.endAlreadySeen), objectIndex := 0, objectOffset := 0}))),
-  proof: reflexivity{},
+  proof: evaluation{},
   axioms: []
 }
 
@@ -429,7 +429,7 @@ theorem{
   name: invalid_cursor_rejected,
   parameters: [],
   statement: ((step (record State {lengths := (nil Nat), phase := (ctor Phase.awaitingEnd), objectIndex := 0, objectLength := 0, remaining := 0, input := 0x, offset := 1, waiting := false, ended := false}) 1) = (ctor Event.failed (record Error {kind := (ctor SplitError.invalidCursor), objectIndex := 0, objectOffset := 0}))),
-  proof: reflexivity{},
+  proof: evaluation{},
   axioms: []
 }
 
@@ -437,7 +437,7 @@ theorem{
   name: object_counter_exhaustion_is_operational,
   parameters: [],
   statement: ((step (record State {lengths := (nil Nat), phase := (ctor Phase.closing), objectIndex := 18446744073709551615, objectLength := 0, remaining := 0, input := 0x, offset := 0, waiting := false, ended := false}) 1) = (ctor Event.failed (record Error {kind := (ctor SplitError.addressSpaceExhausted), objectIndex := 18446744073709551615, objectOffset := 0}))),
-  proof: reflexivity{},
+  proof: evaluation{},
   axioms: []
 }
 

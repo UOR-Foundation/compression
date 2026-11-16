@@ -8,6 +8,12 @@ export LEXLEAN_VERIFY_WIDTH := env_var_or_default("LEXLEAN_VERIFY_WIDTH", "4")
 export LEXLEAN_VERIFY_MEMORY_KIB := env_var_or_default("LEXLEAN_VERIFY_MEMORY_KIB", "9437184")
 export LEXLEAN_VERIFY_HINTS := env_var_or_default("LEXLEAN_VERIFY_HINTS", justfile_directory() + "/validation/lexlean-verify-hints.json")
 
+# Every recipe runs the one pinned LexLean (lexlean.pin.json), the compiler the
+# client is exported with, through scripts/lexlean-pin.mjs, which builds it once
+# per revision into .lexlean/tool. It is named, never put on PATH: the SDK
+# refuses a PATH that shadows the tools it declares.
+lexlean := "node scripts/lexlean-pin.mjs exec"
+
 default: vv
 
 # The whole gate.
@@ -18,9 +24,9 @@ vv: lexlean-authority template-check fmt-check model lint test features bdd deny
 # LexLean suffix. The locked compiler must accept the exact project before the
 # Rust projection/gate layer is allowed to consume it.
 lexlean-authority:
-    lexlean lock --check
-    lexlean fmt --check --all
-    lexlean check --all
+    {{lexlean}} lock --check
+    {{lexlean}} fmt --check --all
+    {{lexlean}} check --all
 
 # R1, R4, R5 --- the repository gates, each falsifiable.
 model:
@@ -103,8 +109,8 @@ deny:
 
 # Full formal construction/replay of the declared charter authority.
 lexlean-artifacts:
-    lexlean build --all
-    lexlean verify --all
+    {{lexlean}} build --all
+    {{lexlean}} verify --all
 
 # Execute every source-owned promotion and verify every restored control.
 claim-dispositions:

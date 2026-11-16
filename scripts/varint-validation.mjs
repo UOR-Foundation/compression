@@ -5,6 +5,7 @@ import path from 'node:path';
 import {spawnSync} from 'node:child_process';
 import {fileURLToPath} from 'node:url';
 import {copySource,sha,canonical} from './offline-validation.mjs';
+import {lexleanBinary} from './lexlean-pin.mjs';
 import {dataForm, notation} from './semantic-source.mjs';
 const script=fileURLToPath(import.meta.url);
 const sourcePath='src/Uorc/Varint.lex.tex';
@@ -59,7 +60,7 @@ export function run(root){
   const output=fs.mkdtempSync(path.join(root,'.prism/uorc/varint.'));
   const receipts=[];
   const execute=(project,label)=>{
-    const result=spawnSync('/usr/local/bin/lexlean',['--project',path.join(project,'lexlean.toml'),'--diagnostic-format','json','verify',sourcePath],{cwd:project,encoding:'utf8',timeout:300000,maxBuffer:32*1024*1024});
+    const result=spawnSync(lexleanBinary(),['--project',path.join(project,'lexlean.toml'),'--diagnostic-format','json','verify',sourcePath],{cwd:project,encoding:'utf8',timeout:300000,maxBuffer:32*1024*1024});
     fs.writeFileSync(path.join(output,`${label}.stdout`),result.stdout??'');fs.writeFileSync(path.join(output,`${label}.stderr`),result.stderr??'');return result;
   };
   try{

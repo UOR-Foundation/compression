@@ -305,7 +305,7 @@ theorem{
   name: empty_basis_lookup_is_typed,
   parameters: [],
   statement: ((atIndex (empty) 0) = (ctor Result.error [Uorc.Core.Bytes::Rope, TableError] (ctor TableError.invalidReference))),
-  proof: reflexivity{},
+  proof: evaluation{},
   axioms: [Quot.sound, propext]
 }
 
@@ -313,7 +313,7 @@ theorem{
   name: basis_second_root_resolves_by_index,
   parameters: [],
   statement: ((preparedByteAt (runWork 1000 (record Uorc.Core.Resources::Budget {maxSteps := 100000, maxLiveCells := 100000, maxOutputBytes := 100000, maxFrames := 100000}) (start (ctor Input.chunks (cons 0x00 (cons 0xff (nil Bytes)))) (Uorc.Core.Resources::zeroUsage))) 1) = (ctor Result.ok [UInt8, BasisFailure] (255 : UInt8))),
-  proof: reflexivity{},
+  proof: evaluation{},
   axioms: [Quot.sound, propext]
 }
 
@@ -329,7 +329,7 @@ theorem{
   name: basis_count_overflow_is_typed,
   parameters: [],
   statement: ((append (record Table {length := 18446744073709551615, root := (ctor Trie.empty)}) (ctor Uorc.Core.Bytes::Rope.empty)) = (ctor Result.error [Table, TableError] (ctor TableError.addressSpaceExhausted))),
-  proof: reflexivity{},
+  proof: evaluation{},
   axioms: [Quot.sound, propext]
 }
 \end{semanticmodule}
