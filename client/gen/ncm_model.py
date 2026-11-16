@@ -21,6 +21,7 @@ from ir import *
 from ir import K
 
 NC = 17               # hashed contexts
+NIN = NC + 7          # mixer inputs: contexts, match probability, match vote, bias, short match (2), repeat (2)
 F_SHORT = 1 << 17     # profile bit: the short match model
 F_REP = 1 << 18       # profile bit: the repeat-distance model (its inputs and context 13)
 F_SEL = 1 << 19       # profile bit: mixer 1 and the first APM selected by the match states too
@@ -38,16 +39,6 @@ KW = K('weightKey', ('sub', WRANGE, WINIT))
 WINIT0 = WORIGIN
 KW0 = K('weightKeyZero', ('sub', WRANGE, WORIGIN))
 EARNED = K('earnedInputs', ('add', K('contexts', NC), K('matchInputs', 3)))   # inputs that start at WINIT
-NIN = K('mixerInputs', ('add', EARNED, K('slotModelInputs', 4)))   # mixer inputs: contexts, match probability, match vote, bias, short match (2), repeat (2)
-# The domains of the coder's quantities (see domains.py): each declared once by its extent, and the
-# tables and globals that hold it; every literal that is a characteristic quantity of the domain it acts
-# on is then stated as that quantity, derived from the extent.
-import domains
-STRETCH = domains.Domain('stretch', K('stretchRange', 1 << 12), offset=True)   # the logistic domain
-SLOT = domains.Domain('slot', K('slotRange', 1 << 16))            # a probability slot, offset form
-WEIGHT = domains.Domain('weight', WRANGE, WORIGIN, unit=K('weightUnit', 1 << 16))   # a mixer weight, 1.0 = unit
-XW = domains.origins(NIN, STRETCH, WEIGHT)              # a mixer dot product's constant term
-XW1 = domains.origins(K('mixerInputsBut1', ('sub', NIN, 1)), STRETCH, WEIGHT)
 def winit(i): return sel(lt(i, EARNED), WINIT, WINIT0)
 def kw(i): return sel(lt(i, EARNED), KW, KW0)
 M32 = 1 << 32
@@ -289,8 +280,8 @@ pr += [('loop', NIN, 'i', dl)]
 
 def dot(out, accv, swv, body):
     a = fresh('da'); b = fresh('db')
-    body.append(('let', a, add(accv, XW)))
-    body.append(('let', b, add(mul(WEIGHT.origin, G('sso')), mul(STRETCH.origin, swv))))
+    body.append(('let', a, add(accv, NIN * 2048 * (1 << 22))))
+    body.append(('let', b, add(mul(1 << 22, G('sso')), mul(2048, swv))))
     body.append(('let', out, sel(le(V(b), V(a)), add(2048, mn(div(monus(V(a), V(b)), 65536), 2047)),
                                  sub(2048, mn(div(add(monus(V(b), V(a)), 65535), 65536), 2047)))))
 dot('d1', G('acc'), G('sw'), pr)
@@ -471,14 +462,14 @@ gk = [('let', 'gs1', mul(NIN, add(G('c0'), mul(256, G('msel'))))),
       ('let', 'gs2', mul(NIN, add(mul(8, mod(G('c4'), 256)), G('bit')))),
       ('let', 'gs3', mul(NIN, add(mul(8, mod(div(G('c4'), 256), 256)), G('bit'))))]
 for m, acc, sw in ((1, 'acc', 'sw'), (2, 'acc2', 'sw2'), (3, 'acc3', 'sw3')):
-    dot_of(f'gd{m}', add(G(acc), XW), add(mul(WEIGHT.origin, G('sso')), mul(STRETCH.origin, G(sw))), gk)
+    dot_of(f'gd{m}', add(G(acc), NIN * 2048 * (1 << 22)), add(mul(1 << 22, G('sso')), mul(2048, G(sw))), gk)
 squash_('gq', div(mul(21846, add(add(V('gd1'), V('gd2')), V('gd3'))), 65536), gk)
 gk += [('let', 'gbase', cost(mx(mn(V('gq'), 4095), 1)))]
 gl = [('let', 'gso', ld('ST', 2, V('k')))]
 for m, tab, acc, sw in ((1, 'W1', 'acc', 'sw'), (2, 'W2', 'acc2', 'sw2'), (3, 'W3', 'acc3', 'sw3')):
     gl += [('let', f'gw{m}', mod(add(ld(tab, 3, add(V(f'gs{m}'), V('k'))), winit(V('k'))), 1 << 24))]
-    dot_of(f'ge{m}', add(sub(G(acc), mul(V('gso'), V(f'gw{m}'))), XW1),
-           add(mul(WEIGHT.origin, sub(G('sso'), V('gso'))), mul(STRETCH.origin, sub(G(sw), V(f'gw{m}')))), gl)
+    dot_of(f'ge{m}', add(sub(G(acc), mul(V('gso'), V(f'gw{m}'))), (NIN - 1) * 2048 * (1 << 22)),
+           add(mul(1 << 22, sub(G('sso'), V('gso'))), mul(2048, sub(G(sw), V(f'gw{m}')))), gl)
 squash_('gp', div(mul(21846, add(add(V('ge1'), V('ge2')), V('ge3'))), 65536), gl)
 gl += [('let', 'gv', mod(add(ld('GN', 8, V('k')), GOFF), 1 << 48)),
        ('store', 'GN', 8, V('k'), mod(sub(add(monus(add(V('gv'), cost(mx(mn(V('gp'), 4095), 1))), V('gbase')), 1 << 48), GOFF), 1 << 48))]
@@ -519,12 +510,6 @@ P.func('encodeLearn', ['size', 'limit', 'h', 'pf'], [('set', 'learn', 1), ('loop
                                                     ('call', 'encodeProfile', [V('size'), V('limit'), V('h'), V('pf')]),
                                                     ('set', 'lmask', V('pf')), ('loop', NC, 'k', lm)])
 
-
-DERIVED = domains.derive(
-    P, [STRETCH, SLOT, WEIGHT],
-    tables={'STR': {'stretch'}, 'ST': {'stretch'}, 'A1': {'slot'}, 'A2': {'slot'}, 'T': {'slot'}, 'MS': {'slot'},
-            'M2S': {'slot'}, 'RS': {'slot'}, 'W1': {'weight'}, 'W2': {'weight'}, 'W3': {'weight'}},
-    globals_={'pm1': {'stretch'}, 'pm2': {'stretch'}, 'pm3': {'stretch'}, 'pr': {'stretch'}, 'pi': {'stretch'}})
 
 FULL = (1 << 20) - 1   # every context and every match feature
 V03 = (1 << NC) - 1    # the v0.3 coder: every context, neither match feature
