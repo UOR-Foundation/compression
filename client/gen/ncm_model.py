@@ -538,7 +538,23 @@ DERIVED = domains.derive(
     P, [STRETCH, SLOT, WEIGHT],
     tables={'STR': {'stretch'}, 'ST': {'stretch'}, 'A1': {'slot'}, 'A2': {'slot'}, 'T': {'slot'}, 'MS': {'slot'},
             'M2S': {'slot'}, 'RS': {'slot'}, 'W1': {'weight'}, 'W2': {'weight'}, 'W3': {'weight'}},
-    globals_={'pm1': {'stretch'}, 'pm2': {'stretch'}, 'pm3': {'stretch'}, 'pr': {'stretch'}, 'pi': {'stretch'}})
+    globals_={'pm1': {'stretch'}, 'pm2': {'stretch'}, 'pm3': {'stretch'}, 'pr': {'slot'}, 'pi': {'stretch'}})
+
+# The globals' widths, typed by the domains they hold (domains.Widths): a position or length within the
+# coded bytes is bounded by the payload length field, a context hash by the hash word, the coder's
+# interval by its range, the bits of a partial byte by a byte above its leading one, a dot product by its
+# inputs times a stretch times a weight, a sum of stretches by its inputs times a stretch.
+LENGTH = domains.Domain('length', domains.cell(K('lengthBytes', 4)).extent)
+HASHED = domains.Domain('hashed', ir.HASH_WORD)
+INTERVAL = domains.Domain('interval', K('coderRange', 1 << 32))
+PARTIAL = domains.Domain('partial', K('partialRange', ('mul', domains.BYTE, RADIX)))
+DOT = domains.Domain('dot', K('dotRange', ('mul', NIN, ('mul', STRETCH.extent, WRANGE))))
+STRETCHES = domains.Domain('stretches', K('stretchesRange', ('mul', NIN, STRETCH.extent)))
+WIDTHS = domains.Widths(K('wordBytes', 8)).type(P, dict(
+    [(g, LENGTH) for g in ('n', 'pos', 'mptr', 'mlen', 'ml', 'ip', 'op', 'cap', 'hoff', 'm2ptr', 'm2len', 'ml2', 'rd')]
+    + [(g, HASHED) for g in ('c4', 'c8', 'wordh', 'word1')] + [(g, INTERVAL) for g in ('x1', 'x2', 'x')]
+    + [('c0', PARTIAL), ('sso', STRETCHES)] + [(g, STRETCH) for g in ('pm1', 'pm2', 'pm3', 'pi')] + [('pr', SLOT)]
+    + [(g, DOT) for g in ('acc', 'acc2', 'acc3')]))
 
 FULL = (1 << 20) - 1   # every context and every match feature
 V03 = (1 << NC) - 1    # the v0.3 coder: every context, neither match feature

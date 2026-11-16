@@ -107,7 +107,7 @@ definition{
       | Phase.reversing => (match reversed
         | List.nil => (ctor Step.done (record Snapshot {objects := forward, objectCount := objectsCompleted, canonicalWork := canonicalWork, physicalWork := physicalWork, consumedCredits := (consumedCredits + 1)}))
         | List.cons headObject remainingObjects => (ctor Step.pending (ctor Cursor.state remaining remainingObjects (cons headObject forward) phase objectsCompleted canonicalWork physicalWork (consumedCredits + 1)))))),
-  axioms: [Quot.sound, propext]
+  axioms: []
 }
 
 definition{
@@ -131,7 +131,7 @@ definition{
       | Step.pending cursor => (runWork remainingWork policy (tick policy cursor))
       | Step.done snapshot => (ctor Step.done snapshot)
       | Step.failed failure cursor => (ctor Step.failed failure cursor))),
-  axioms: [Quot.sound, propext],
+  axioms: [],
   recursive_argument: work
 }
 
@@ -149,24 +149,24 @@ theorem{
   name: ordered_empty_basis_objects_are_preserved,
   parameters: [],
   statement: ((canonicalObjects (runWork 500 (record Uorc.Search.Normalize::Policy {blockBytes := 2}) (ctor Step.pending (start (cons (Uorc.Core.Bytes::fromBytes 0x) (cons (Uorc.Core.Bytes::fromBytes 0x00ff) (cons (Uorc.Core.Bytes::fromBytes 0x) (nil Uorc.Core.Bytes::Rope)))))))) = (ctor Option.some [(List Uorc.Core.Bytes::Rope)] (cons (Uorc.Core.Bytes::fromBytes 0x) (cons (Uorc.Core.Bytes::fromBytes 0x00ff) (cons (Uorc.Core.Bytes::fromBytes 0x) (nil Uorc.Core.Bytes::Rope)))))),
-  proof: reflexivity{},
-  axioms: [Quot.sound, propext]
+  proof: evaluation{},
+  axioms: []
 }
 
 theorem{
   name: basis_transport_partition_has_one_canonical_snapshot,
   parameters: [],
   statement: ((canonicalObjects (runWork 500 (record Uorc.Search.Normalize::Policy {blockBytes := 2}) (ctor Step.pending (start (cons (Uorc.Core.Bytes::fromBytes 0x0001ff80) (nil Uorc.Core.Bytes::Rope)))))) = (canonicalObjects (runWork 500 (record Uorc.Search.Normalize::Policy {blockBytes := 2}) (ctor Step.pending (start (cons (Uorc.Core.Bytes::join (Uorc.Core.Bytes::fromBytes 0x00) (Uorc.Core.Bytes::fromBytes 0x01ff80)) (nil Uorc.Core.Bytes::Rope))))))),
-  proof: reflexivity{},
-  axioms: [Quot.sound, propext]
+  proof: evaluation{},
+  axioms: []
 }
 
 theorem{
   name: basis_object_order_is_not_sorted,
   parameters: [],
   statement: ((canonicalObjects (runWork 500 (record Uorc.Search.Normalize::Policy {blockBytes := 2}) (ctor Step.pending (start (cons (Uorc.Core.Bytes::fromBytes 0xff) (cons (Uorc.Core.Bytes::fromBytes 0x00) (nil Uorc.Core.Bytes::Rope))))))) = (ctor Option.some [(List Uorc.Core.Bytes::Rope)] (cons (Uorc.Core.Bytes::fromBytes 0xff) (cons (Uorc.Core.Bytes::fromBytes 0x00) (nil Uorc.Core.Bytes::Rope))))),
-  proof: reflexivity{},
-  axioms: [Quot.sound, propext]
+  proof: evaluation{},
+  axioms: []
 }
 \end{semanticmodule}
 \end{lexlean}

@@ -5,6 +5,7 @@ import path from 'node:path';
 import {spawnSync} from 'node:child_process';
 import {fileURLToPath} from 'node:url';
 import {copySource, sha, canonical} from './offline-validation.mjs';
+import {lexleanBinary} from './lexlean-pin.mjs';
 import {dataForm, notation} from './semantic-source.mjs';
 
 const script = fileURLToPath(import.meta.url);
@@ -60,7 +61,12 @@ export function expectedFailure(result, mutation, generated) {
   requireFact(start>=0 && lines.filter(line=>line.startsWith(`public theorem ${mutation.owner} :`)).length===1, 'generated theorem owner is absent or ambiguous');
   let end=start+1;
   while(end<lines.length && !/^(public |end\b)/.test(lines[end]))end++;
-  requireFact((value.diagnostics??[]).some(d=>d.code==='LLV7002' && d.primary?.path===sourcePath && d.message.includes('Tactic `rfl` failed') && (d.notes??[]).some(note=>{
+  // The owner is refused by the proof its generated body runs: `rfl` reports
+  // through the elaborator; an evaluation proof reaches the kernel, which
+  // names the owning declaration in its type mismatch.
+  const refused=message=>message.includes('Tactic `rfl` failed')
+    || (message.includes("(kernel) declaration type mismatch, '") && message.includes(`.${mutation.owner}' has type`));
+  requireFact((value.diagnostics??[]).some(d=>d.code==='LLV7002' && d.primary?.path===sourcePath && refused(d.message) && (d.notes??[]).some(note=>{
     const match=note.message.match(/^generated location: \$STAGING\/lean-src\/Uorc\/Uorc\/Claims\.lean:(\d+):\d+$/);
     return match && Number(match[1])>start && Number(match[1])<=end;
   })), 'failure did not reach its owning kernel theorem');
@@ -75,7 +81,7 @@ export function run(root) {
   const receipts=[];
   const execute=(project,label,command='verify')=>{
     const args=['--project',path.join(project,'lexlean.toml'),'--diagnostic-format','json',command,sourcePath];
-    const result=spawnSync('/usr/local/bin/lexlean',args,{cwd:project,encoding:'utf8',timeout:300000,maxBuffer:32*1024*1024});
+    const result=spawnSync(lexleanBinary(),args,{cwd:project,encoding:'utf8',timeout:300000,maxBuffer:32*1024*1024});
     fs.writeFileSync(path.join(output,`${label}.stdout`),result.stdout??'');
     fs.writeFileSync(path.join(output,`${label}.stderr`),result.stderr??'');
     return result;
