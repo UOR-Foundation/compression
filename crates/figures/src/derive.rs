@@ -103,10 +103,21 @@ impl Model {
 /// The characteristic quantities a domain's name may carry, as the model's
 /// declarations name them: its extent (`Range`, `Base`), its unit, origin and
 /// top, a map's step, points and scale, a count's limit, and a rescale to
-/// another domain (`Per<Domain>`); each also as its last value, its half and
-/// the half's last value.
-const CHARACTERISTIC: [&str; 9] = [
-    "Range", "Base", "Unit", "Origin", "Top", "Step", "Points", "Scale", "Limit",
+/// another domain (`Per<Domain>`), and a hash's multipliers and folds (each
+/// numbered by its round); each also as its last value, its half and the
+/// half's last value.
+const CHARACTERISTIC: [&str; 11] = [
+    "Range",
+    "Base",
+    "Unit",
+    "Origin",
+    "Top",
+    "Step",
+    "Points",
+    "Scale",
+    "Limit",
+    "Multiplier",
+    "Fold",
 ];
 const DERIVED: [&str; 3] = ["Last", "Half", "HalfLast"];
 
@@ -119,6 +130,7 @@ fn prefixed(name: &str, d: &str) -> bool {
         .rev()
         .find_map(|x| rest.strip_suffix(x))
         .unwrap_or(rest);
+    let rest = rest.trim_end_matches(|c: char| c.is_ascii_digit());
     rest.is_empty()
         || CHARACTERISTIC.contains(&rest)
         || rest
@@ -401,7 +413,11 @@ fn is_scale(name: &str) -> bool {
         .rev()
         .find_map(|x| name.strip_suffix(x))
         .unwrap_or(name);
-    core.ends_with("Unit") || core.ends_with("Scale") || core.contains("Per")
+    let core = core.trim_end_matches(|c: char| c.is_ascii_digit());
+    core.ends_with("Unit")
+        || core.ends_with("Scale")
+        || core.ends_with("Multiplier")
+        || core.contains("Per")
 }
 
 fn is_test(attrs: &[syn::Attribute]) -> bool {
@@ -596,10 +612,17 @@ impl Pass<'_> {
                         scope.extend(self.peek(a));
                     }
                     scope.extend(want.iter().cloned());
-                    let r = self.ex(&m.receiver, &scope);
+                    // a product's operands stand where a scale may
+                    let saved = self.scaling;
+                    self.scaling = matches!(
+                        name.as_str(),
+                        "wrapping_mul" | "saturating_mul" | "checked_mul" | "rem_euclid"
+                    );
+                    let r = self.ex_operand(&m.receiver, &scope, saved);
                     for a in &m.args {
-                        self.ex(a, &scope);
+                        self.ex_operand(a, &scope, saved);
                     }
+                    self.scaling = saved;
                     let mut out = r;
                     for a in &m.args {
                         out.extend(self.peek(a));

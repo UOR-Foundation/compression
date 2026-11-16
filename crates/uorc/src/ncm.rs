@@ -413,14 +413,15 @@ impl Apm {
     }
 }
 
+/// Domain: body: hash
 #[inline]
 fn h(mut a: u32) -> u32 {
-    a = a.wrapping_mul(0x9E37_79B1);
-    a = a.wrapping_add(a >> 15);
-    a = a.wrapping_mul(0x2C1B_3C6D);
-    a = a.wrapping_add(a >> 12);
-    a = a.wrapping_mul(0x297A_2D39);
-    a.wrapping_add(a >> 15)
+    a = a.wrapping_mul(crate::model::ncm::u32::hashMultiplier0);
+    a = a.wrapping_add(a >> crate::model::ncm::i32::bits::hashFold0);
+    a = a.wrapping_mul(crate::model::ncm::u32::hashMultiplier1);
+    a = a.wrapping_add(a >> crate::model::ncm::i32::bits::hashFold1);
+    a = a.wrapping_mul(crate::model::ncm::u32::hashMultiplier2);
+    a.wrapping_add(a >> crate::model::ncm::i32::bits::hashFold2)
 }
 
 /// The match length bucket: exact below 16, then coarser.
@@ -1273,11 +1274,12 @@ impl Model {
     }
 
     /// The short match model's key of absolute position `p`: the hash of the 4 bytes before it.
+    /// Domain: body: roll
     fn short_key(&self, p: u32) -> usize {
         let mut k = 0x55u32;
         for i in 1..=4 {
             k = k
-                .wrapping_mul(0x2F0B_4C27)
+                .wrapping_mul(crate::model::ncm::u32::rollMultiplier)
                 .wrapping_add(self.abs(p - i))
                 .wrapping_add(1);
         }
@@ -1295,12 +1297,13 @@ impl Model {
     }
 
     /// [`Model::match_key`], reading absolute positions through `abs`.
+    /// Domain: body: roll
     #[inline(always)]
     fn match_key_by(&self, p: u32, abs: impl Fn(u32) -> u32) -> usize {
         let mut k = 0u32;
         for i in 1..=7 {
             k = k
-                .wrapping_mul(0x2F0B_4C27)
+                .wrapping_mul(crate::model::ncm::u32::rollMultiplier)
                 .wrapping_add(abs(p - i))
                 .wrapping_add(1);
         }
@@ -1543,6 +1546,7 @@ impl Model {
 
     /// The mixing side of [`Model::prefetch_next`]: the mixer rows and APM
     /// row the next bit reads, which sees last bytes `c4` and partial byte `c0`.
+    /// Domain: body: roll
     #[inline(always)]
     fn prefetch_mixers(&self, c4: u32, c0: u32) {
         let bit = (self.bit + 1) & 7;
@@ -1554,18 +1558,21 @@ impl Model {
             prefetch(&w[s * self.stride]);
             prefetch(&w[s * self.stride + self.stride - 1]);
         }
-        let cx2 =
-            h((c4 & 0xff_ffff).wrapping_mul(0x2F0B_4C27).wrapping_add(c0)) >> (32 - APM2_BITS);
+        let cx2 = h((c4 & 0xff_ffff)
+            .wrapping_mul(crate::model::ncm::u32::rollMultiplier)
+            .wrapping_add(c0))
+            >> (32 - APM2_BITS);
         let row = cx2 as usize * APM_ROW;
         prefetch(&self.a2.t[row]);
         prefetch(&self.a2.t[row + APM_ROW - 1]);
     }
 
+    /// Domain: body: roll
     #[inline(always)]
     fn prefetch_buckets(&self, hb: &[u32; NC], nc: u32) {
         for &k in &self.act[..self.na] {
             let hb = hb[k];
-            let hh = h(hb.wrapping_add(nc.wrapping_mul(0x2F0B_4C27)));
+            let hh = h(hb.wrapping_add(nc.wrapping_mul(crate::model::ncm::u32::rollMultiplier)));
             // a bucket and its neighbour share one 32-slot line pair
             let b = ((hh & self.mask) & !31) as usize;
             prefetch(&self.sl[b >> 4]);
@@ -1608,6 +1615,7 @@ impl Model {
     }
 
     /// The context slots' part of [`Model::sense`]: the inputs `st[..na]`.
+    /// Domain: body: roll
     #[inline(always)]
     fn sense_slots<K: Kernel>(&mut self) {
         if self.bit == 0 || self.bit == 4 {
@@ -1617,7 +1625,8 @@ impl Model {
                 (self.c0 & 15) | 16
             };
             for j in 0..self.na {
-                let hh = h(self.hb[self.act[j]].wrapping_add(nc.wrapping_mul(0x2F0B_4C27)));
+                let hh = h(self.hb[self.act[j]]
+                    .wrapping_add(nc.wrapping_mul(crate::model::ncm::u32::rollMultiplier)));
                 self.bb[j] = self.bucket(hh);
             }
             self.distinct = K::distinct(&self.bb, self.na);
@@ -1735,6 +1744,7 @@ impl Model {
     /// The mixing side of [`Model::predict`]: the three mixers over the
     /// inputs [`Model::sense`] read, the two APMs, and the shared pass's twin;
     /// the probability of a 1 for the bit, in 4096ths.
+    /// Domain: body: roll
     #[inline(always)]
     fn mix<K: Kernel, const W: usize>(&mut self, mstate: u32) -> u32 {
         let t = self.t;
@@ -1779,7 +1789,7 @@ impl Model {
         let bits = self.pbits;
         let q1 = self.a1.refine(&t.stretch, p, c1, bits);
         let cx2 = h((self.c4 & 0xff_ffff)
-            .wrapping_mul(0x2F0B_4C27)
+            .wrapping_mul(crate::model::ncm::u32::rollMultiplier)
             .wrapping_add(self.c0))
             >> (32 - APM2_BITS);
         let q2 = self.a2.refine(&t.stretch, p, cx2 as usize, bits);
@@ -3800,7 +3810,9 @@ pub fn encode_warm_learning_below(
 
 /// The output length a payload declares, if it has its 4-byte header.
 pub fn declared_length(payload: &[u8]) -> Option<u32> {
-    Some(u32::from_be_bytes(payload.get(..4)?.try_into().ok()?))
+    Some(u32::from_be_bytes(
+        payload.get(..std::mem::size_of::<u32>())?.try_into().ok()?,
+    ))
 }
 
 /// Decode an ncm payload. Every payload of at least 4 bytes has exactly one

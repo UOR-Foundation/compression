@@ -637,6 +637,7 @@ fn walk_sites(
 
 /// The byte-level side's batch for `chunk`: what [`walk_sites`] and the
 /// mixing side read, from the input side `m` with its slot table taken out.
+/// Domain: body: roll
 #[inline(always)]
 fn read_bytes<const W: usize>(m: &mut Model, chunk: &[u8], cut: Cut) -> Bytes {
     let (na, mask) = (m.na, m.mask);
@@ -650,7 +651,9 @@ fn read_bytes<const W: usize>(m: &mut Model, chunk: &[u8], cut: Cut) -> Bytes {
         // the two nibbles' hashes, as Model::sense_slots forms them
         for nc in [0, u32::from(byte >> 4) | 16] {
             for &k in &m.act[..na] {
-                let hh = h(m.hb[k].wrapping_add(nc.wrapping_mul(0x2F0B_4C27)));
+                let hh =
+                    h(m.hb[k]
+                        .wrapping_add(nc.wrapping_mul(crate::model::ncm::u32::rollMultiplier)));
                 b.hs.push(hh);
                 b.own.push(cut.range(hh, mask));
             }
