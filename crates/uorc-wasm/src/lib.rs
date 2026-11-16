@@ -376,9 +376,11 @@ pub extern "C" fn plan_end() -> i32 {
 /// frame, back to back. With `which` from 0 to [`strategies`] less one the
 /// output is that scheduled strategy's archive, or empty when the frame
 /// schedules no such strategy or it cannot beat the raw archive (pass them
-/// all to [`choose_frame`]); with any other `which`, the frame's archive,
-/// uncut ([`uorc::compress_trial`]): the page cuts a span by these trials
-/// as [`uorc::compress_span`] does, over its pool ([`span_reads`]).
+/// all to [`choose_frame`]); with `which` equal to [`strategies`], the
+/// frame's planning trial ([`uorc::compress_plan_trial`]); with any other
+/// `which`, the frame's archive, uncut ([`uorc::compress_trial`]): the page
+/// cuts a span by planning trials and codes each frame it keeps as
+/// [`uorc::compress_span`] does, over its pool ([`span_reads`]).
 #[no_mangle]
 pub extern "C" fn code_frame(which: i32, steps: u64) -> i32 {
     finish(INPUT.with(|input| {
@@ -404,6 +406,12 @@ pub extern "C" fn code_frame(which: i32, steps: u64) -> i32 {
                         .unwrap_or_default(),
                 )
             }
+            k if k == uorc::portfolio::MAX_PLAN as i32 => Ok(uorc::compress_plan_trial(
+                frame,
+                &pieces,
+                &window,
+                &uorc::portfolio::plan(frame),
+            )),
             _ => uorc::compress_trial(frame, &pieces, &window, steps),
         }
     }))
@@ -514,7 +522,7 @@ pub extern "C" fn step_frame() -> i32 {
         f.end()?;
         // every facet, as compress steps them
         let host = uorc::performance::PAGE_WORKER;
-        Ok(uorc::step_facets(frame, &pieces, &window, chosen, host))
+        Ok(uorc::step_facets(frame, &pieces, &window, chosen, host, 1))
     }))
 }
 
@@ -876,7 +884,7 @@ mod tests {
                     let pieces = f.pieces().unwrap();
                     // the span cut by trials, each one frame coded as a pool
                     // worker codes it (code_frame with no strategy)
-                    let trial = |frame: &[u8], pieces: &[u64], window: &[&[u8]]| {
+                    let code = |which: i32, frame: &[u8], pieces: &[u64], window: &[&[u8]]| {
                         let mut request = (pieces.len() as u32).to_le_bytes().to_vec();
                         for p in pieces {
                             request.extend(p.to_le_bytes());
@@ -889,11 +897,17 @@ mod tests {
                             request.extend(*w);
                         }
                         request.extend(frame);
-                        let (code, archive) = run(&request, || code_frame(-1, 0));
+                        let (code, archive) = run(&request, || code_frame(which, 0));
                         assert_eq!(code, OK);
                         archive
                     };
-                    let archive = uorc::compress_span_by(frame, &pieces, 1, &trial)
+                    let plan = |frame: &[u8], pieces: &[u64], window: &[&[u8]]| {
+                        code(strategies(), frame, pieces, window)
+                    };
+                    let trial = |frame: &[u8], pieces: &[u64], window: &[&[u8]]| {
+                        code(-1, frame, pieces, window)
+                    };
+                    let archive = uorc::compress_span_by(frame, &pieces, 1, &plan, &trial)
                         .expect("span")
                         .concat();
                     stream.extend(archive);
