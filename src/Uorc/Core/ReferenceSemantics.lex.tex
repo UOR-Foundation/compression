@@ -856,7 +856,7 @@ theorem{
   name: final_scan_update_failure_is_not_ignored,
   parameters: [],
   statement: ((scanLoop 1 0 (record BlockMeaning {parameters := (cons (ctor Uorc.Core.Types::ValueType.natural) (cons (ctor Uorc.Core.Types::ValueType.natural) (nil Uorc.Core.Types::ValueType))), result := (ctor Uorc.Core.Types::ValueType.byte), run := (fun (arguments : (List Value)) => (ctor Result.ok [Value, Failure] (ctor Value.byte 7)))}) (nil Value) (record BlockMeaning {parameters := (cons (ctor Uorc.Core.Types::ValueType.natural) (cons (ctor Uorc.Core.Types::ValueType.natural) (nil Uorc.Core.Types::ValueType))), result := (ctor Uorc.Core.Types::ValueType.natural), run := (fun (arguments : (List Value)) => (ctor Result.error [Value, Failure] (ctor Failure.semantic (ctor SemanticError.arithmeticOverflow))))}) (nil Value) (ctor Value.natural 18446744073709551615) (sequenceFromBytes 0x)) = (ctor Result.error [Value, Failure] (ctor Failure.semantic (ctor SemanticError.arithmeticOverflow)))),
-  proof: reflexivity{},
+  proof: evaluation{},
   axioms: [Quot.sound, propext]
 }
 
@@ -864,7 +864,7 @@ theorem{
   name: split_rejects_trailing_bytes,
   parameters: [],
   statement: ((splitObjects (cons 1 (nil Nat)) (sequenceFromBytes 0x00ff)) = (ctor Result.error [(List Sequence), Failure] (ctor Failure.semantic (ctor SemanticError.outputMismatch)))),
-  proof: reflexivity{},
+  proof: evaluation{},
   axioms: [Quot.sound, propext]
 }
 
@@ -872,7 +872,7 @@ theorem{
   name: split_rejects_short_output,
   parameters: [],
   statement: ((splitObjects (cons 3 (nil Nat)) (sequenceFromBytes 0x00ff)) = (ctor Result.error [(List Sequence), Failure] (ctor Failure.semantic (ctor SemanticError.outputMismatch)))),
-  proof: reflexivity{},
+  proof: evaluation{},
   axioms: [Quot.sound, propext]
 }
 
@@ -880,7 +880,7 @@ theorem{
   name: rope_reference_length_ignores_runtime_caches,
   parameters: [],
   statement: ((project (sequenceFromRope (ctor Uorc.Core.Bytes::Rope.branch 999 777 (ctor Uorc.Core.Bytes::Rope.leaf 0x11) (ctor Uorc.Core.Bytes::Rope.leaf 0x22))) length) = 2),
-  proof: reflexivity{},
+  proof: evaluation{},
   axioms: [Quot.sound, propext]
 }
 
@@ -888,7 +888,7 @@ theorem{
   name: rope_reference_contents_ignore_runtime_caches,
   parameters: [],
   statement: ((apply (project (sequenceFromRope (ctor Uorc.Core.Bytes::Rope.branch 999 777 (ctor Uorc.Core.Bytes::Rope.leaf 0x11) (ctor Uorc.Core.Bytes::Rope.leaf 0x22))) read) 1) = (ctor Option.some [Nat] 34)),
-  proof: reflexivity{},
+  proof: evaluation{},
   axioms: [Quot.sound, propext]
 }
 
@@ -896,7 +896,7 @@ theorem{
   name: rope_view_reference_reads_its_window,
   parameters: [],
   statement: ((apply (project (sequenceFromRope (ctor Uorc.Core.Bytes::Rope.view 0x00112233 1 2)) read) 1) = (ctor Option.some [Nat] 34)),
-  proof: reflexivity{},
+  proof: evaluation{},
   axioms: [Quot.sound, propext]
 }
 
@@ -904,7 +904,7 @@ theorem{
   name: rope_view_reference_hides_backing_suffix,
   parameters: [],
   statement: ((apply (project (sequenceFromRope (ctor Uorc.Core.Bytes::Rope.view 0x00112233 1 2)) read) 2) = (ctor Option.none [Nat])),
-  proof: reflexivity{},
+  proof: evaluation{},
   axioms: [Quot.sound, propext]
 }
 

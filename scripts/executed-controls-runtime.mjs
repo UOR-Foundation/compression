@@ -9,6 +9,7 @@ import path from 'node:path';
 import {spawnSync} from 'node:child_process';
 import {controlModules, driver} from './executed-controls.mjs';
 import {dataForm, stageRuntime} from './semantic-source.mjs';
+import {lexleanBinary} from './lexlean-pin.mjs';
 const requireFact=(b,m)=>{if(!b)throw new Error(m);};
 function run(command,args,cwd,env={}){
  const r=spawnSync(command,args,{cwd,env:{...process.env,...env},encoding:'utf8',timeout:3600000,maxBuffer:64*1024*1024});
@@ -29,7 +30,7 @@ try{
  requireFact(process.argv.length===2,'no arguments accepted');
  const root=process.cwd();
  const expected=new Map(controlModules.map(m=>[m,inventory(root,m)]));
- const built=JSON.parse(checked('lexlean',['--diagnostic-format','json','build',...controlModules.map(m=>`src/Uorc/${m}.lex.tex`)],root).stdout);
+ const built=JSON.parse(checked(lexleanBinary(),['--diagnostic-format','json','build',...controlModules.map(m=>`src/Uorc/${m}.lex.tex`)],root).stdout);
  requireFact(built.success&&built.artifacts.length===1,'one generated closure required');
  const generated=path.join(path.resolve(root,built.artifacts[0]),'modules');
  const runtime=fs.mkdtempSync(path.join(os.tmpdir(),'uorc-executed-controls-'));
