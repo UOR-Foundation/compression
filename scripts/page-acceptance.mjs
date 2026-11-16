@@ -154,7 +154,8 @@ const violations = [];
 const gates = {};
 const measured = {};
 let longTasksSeen = 0;
-const workerMiB = async () => Number((await evaluate("document.querySelector('#result .memory').textContent")).match(/([\d,]+) MiB/)[1].replace(/,/g, ''));
+// The page shows the worker's memory in bytes; the measure's unit is MiB.
+const workerMiB = async () => Math.round(Number(await evaluate("document.querySelector('#result .memory').dataset.bytes")) / 2 ** 20);
 const raise = (key, value) => { gates[key] = Math.max(gates[key] ?? 0, value); };
 
 async function harvest() {

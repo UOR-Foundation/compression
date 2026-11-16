@@ -20,7 +20,11 @@ let worker;
 let job;
 
 const fmt = (n) => n.toLocaleString("en-US");
-const seconds = (ms) => `${(ms / 1000).toFixed(2)} s`;
+// Times are the host clock's milliseconds, shown in seconds by the locale.
+const durations = new Intl.DurationFormat(undefined, { style: "short", milliseconds: "numeric", secondsDisplay: "always" });
+const wholeSeconds = new Intl.DurationFormat(undefined, { style: "short", milliseconds: "numeric", secondsDisplay: "always", fractionalDigits: 0 });
+const seconds = (ms) => durations.format({ milliseconds: Math.round(ms) });
+const percent = new Intl.NumberFormat("en-US", { style: "percent", maximumFractionDigits: 1 });
 const status = (text) => { $("status").textContent = text; };
 
 // Take the modeled transition for `trigger` from the current state.
@@ -143,7 +147,7 @@ function progress(done, total) {
   p.max = Math.max(total, 1);
   p.value = done;
   const elapsed = performance.now() - job.started;
-  const rest = done > 0 && done < total ? `, about ${Math.ceil((elapsed / done) * (total - done) / 1000)} s left` : "";
+  const rest = done > 0 && done < total ? `, about ${wholeSeconds.format({ milliseconds: Math.ceil((elapsed / done) * (total - done)) })} left` : "";
   status(`${job.label}: ${fmt(done)} of ${fmt(total)} bytes${rest}…`);
 }
 
@@ -195,7 +199,8 @@ function table(kind, rows) {
 function showResult(result, nodes) {
   const memory = document.createElement("p");
   memory.className = "memory";
-  memory.textContent = `${labels.memory}: ${fmt(Math.round(result.memory / 1048576))} MiB`;
+  memory.textContent = `${labels.memory}: ${fmt(result.memory)} bytes`;
+  memory.dataset.bytes = String(result.memory);
   memory.dataset.workers = String(result.workers ?? 0);
   $("result").replaceChildren(...nodes, memory);
   $("result").hidden = false;
@@ -211,7 +216,7 @@ function runOperation() {
   run(request, `${op.running} ${subject}`, (result, took) => {
     if (result.kind === "archive") {
       const [file] = result.files;
-      const share = result.input ? ` (${((100 * file.blob.size) / result.input).toFixed(1)}%)` : "";
+      const share = result.input ? ` (${percent.format(file.blob.size / result.input)})` : "";
       showResult(result, [download(file)]);
       return `${fmt(result.input)} → ${fmt(file.blob.size)} bytes${share} in ${seconds(took)}.`;
     }
@@ -288,7 +293,7 @@ function fillModel(m) {
 function runExample(example) {
   const seed = `${one("Workbench").purpose} ${one("Workbench").guidance.join(" ")} `;
   run({ op: "example", input: example.input, bytes: example.bytes, seed }, `${example.label}`, (result) => {
-    const row = { label: example.label, bytes: fmt(result.bytes), archive: fmt(result.archive), roundTrip: result.same ? example.expectedResponse : "differs", seconds: result.seconds.toFixed(2) };
+    const row = { label: example.label, bytes: fmt(result.bytes), archive: fmt(result.archive), roundTrip: result.same ? example.expectedResponse : "differs", seconds: seconds(result.milliseconds) };
     const tr = document.createElement("tr");
     for (const c of byOrder(model.Column.filter((x) => x.table === "examples"))) tr.insertCell().textContent = row[c.key];
     $("example-results").tBodies[0].prepend(tr);
