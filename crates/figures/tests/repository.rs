@@ -17,11 +17,24 @@ fn the_shipped_sources_hold_no_figure_beyond_the_register_uc_fig_01() {
     let out = figures::check(&root, Some(&register)).expect("the check runs");
     assert!(out.rejected.is_empty(), "{}", out.rejected.join("\n"));
     assert!(out.stale.is_empty(), "{}", out.stale.join("\n"));
-    let kinds = |suffix: &str| out.entries.iter().any(|e| e.file.ends_with(suffix));
+    // Every kind of shipped source is in the check's scope, whether or not
+    // it still holds a fixed figure: the crates' sources, the page's
+    // JavaScript and the exported model.
+    let graph: serde_json::Value =
+        serde_json::from_str(&std::fs::read_to_string(root.join(figures::GRAPH)).unwrap()).unwrap();
+    let reach = figures::sources::reach(&graph);
+    let mut scan = figures::Scan::default();
+    let page = figures::sources::page_files(&root, &reach.page_dirs, &mut scan).unwrap();
+    let model = figures::sources::model_modules(&root, &reach).unwrap();
     assert!(
-        kinds(".rs") && kinds(".js") && kinds(".lex.tex"),
-        "every kind of shipped source is read"
+        !figures::scope(&root).unwrap().is_empty(),
+        "the shipped crates are read"
     );
+    assert!(
+        page.iter().any(|f| f.ends_with(".js")),
+        "the page's JavaScript is read"
+    );
+    assert!(!model.is_empty(), "the exported model is read");
 }
 
 #[test]
