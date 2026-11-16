@@ -428,7 +428,11 @@ mod tests {
         assert_eq!(super::WORKERS_PER_GIB, per_gib);
         // the client states the same workers per GiB and gives a worker
         // 1 GiB over them (`Client.hostMemory`)
-        let client = stated("../../client/src/Uorc/Client.lex.tex", "pageWorkersPerGiB", "");
+        let client = stated(
+            "../../client/src/Uorc/Client.lex.tex",
+            "pageWorkersPerGiB",
+            "",
+        );
         assert_eq!(super::WORKERS_PER_GIB, client);
         let gate = stated("../../src/Uorc/Page.lex.tex", "workerMemory", "threshold");
         assert_eq!(super::PAGE_WORKER.memory, gate << 20);
