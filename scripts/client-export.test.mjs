@@ -2,7 +2,7 @@
 // fragments shaped as `xtask data-form` writes them.
 import assert from 'node:assert/strict';
 import {test} from 'node:test';
-import {literalFirst, literalSecondHazards, SECOND_LITERAL_BOUND} from './client-export.mjs';
+import {hintsFrom, literalFirst, literalSecondHazards, SECOND_LITERAL_BOUND} from './client-export.mjs';
 
 const nat = value => ({kind: 'nat', value: String(value)});
 const v = name => ({kind: 'var', name});
@@ -89,4 +89,19 @@ test('the check runs after the projection, so only what cannot be reordered rema
   assert.deepEqual(literalSecondHazards(data).map(h => h.operation), ['multiply']);
   literalFirst(data);
   assert.deepEqual(literalSecondHazards(data), []);
+});
+
+test('the next export is scheduled from what this one measured, certificates by their stable label', () => {
+  const line = (module, tool, wall_ms, peak_rss_kib) => JSON.stringify({event: 'process', module, tool, wall_ms, peak_rss_kib});
+  const lines = [
+    line('LexLeanPreserve.C0123456789abcdef0123456789abcdef.R1.RustStd', 'lean', 1948000, 8533000),
+    line('LexLeanPreserve.C0123456789abcdef0123456789abcdef.R1.RustStd', 'leanchecker', 170000, 3100000),
+    JSON.stringify({event: 'reused', module: 'Uorc.Uorc.Client', tool: 'lean'}),
+    JSON.stringify({event: 'stage', stage: 'replay', wall_ms: 5}),
+  ];
+  const hints = hintsFrom(lines, {'Uorc.Uorc.Client': {wall_ms: 784, peak_rss_kib: 475224}});
+  assert.deepEqual(hints, {
+    'LexLeanPreserve.R1.RustStd': {wall_ms: 2118000, peak_rss_kib: 8533000},
+    'Uorc.Uorc.Client': {wall_ms: 784, peak_rss_kib: 475224},
+  });
 });
