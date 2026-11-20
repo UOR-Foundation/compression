@@ -40,7 +40,13 @@
 // (scripts/lexlean-pin.mjs): the rust-std shared-box lowering (LexLean#441)
 // keeps search states behind reference-counted boxes instead of copying them on
 // every field read, and the in-place byte update primitive (LexLean#443) gives
-// the codec O(1) table writes. The pin moves to a LexLean release once these ship.
+// the codec O(1) table writes. The pin's branch claude/export-parallel-store-2
+// makes the export's cost follow what a change touches: the certificates
+// compile in parallel within the host's memory, every Lean process goes
+// through a store keyed by its content identity, and certificates are named by
+// their root's program and import only what the root reaches, so a root a
+// change does not reach is not proved again (its SPEC 22.11 item 6 and 22.13).
+// The pin moves to a LexLean release once these ship.
 // Set LEXLEAN to an already built binary of the same revision to skip the build.
 //
 // The export is the factory obligation `export` (factory/graph.json): its
@@ -62,8 +68,8 @@ const out = path.join(root, 'generated/rust');
 const entry = 'src/Uorc/Client.lex.tex'; // staged path
 const roots = [['uorc_compress', 'Uorc.Uorc.Client.compress'], ['uorc_decompress', 'Uorc.Uorc.Client.decompress'], ['uorc_search', 'Uorc.Uorc.Client.search']];
 const fail = m => { throw new Error(m); };
-const run = (cmd, args, cwd) => {
-  const r = spawnSync(cmd, args, {cwd, encoding: 'utf8', maxBuffer: 256 * 1024 * 1024});
+const run = (cmd, args, cwd, env = process.env) => {
+  const r = spawnSync(cmd, args, {cwd, env, encoding: 'utf8', maxBuffer: 256 * 1024 * 1024});
   if (r.error || r.status !== 0) fail(`${cmd} ${args.join(' ')}: ${r.error ?? ''}${r.stdout}${r.stderr}`);
   return r.stdout;
 };
@@ -252,6 +258,90 @@ export function literalSecondHazards(data, bound = SECOND_LITERAL_BOUND, certifi
 }
 const describeHazards = hazards => hazards.map(h => `  ${h.module}.${h.definition}: ${h.operation} x ${h.literal}`).join('\n');
 
+// How the build is scheduled: LexLean's operational profile (its SPEC
+// §22.11, §22.13), which changes no published byte. Every value is read from
+// the host the export runs on or from the previous export's measurements:
+//   - width: the processors this process may use;
+//   - memory budget: the memory the host has available now;
+//   - hints: each process's observed wall time and peak, from the last export
+//     (generated/rust/export-hints.json, rewritten after every export), so
+//     the heaviest certificates start first and never together past the budget;
+//   - store: the content-addressed process store, so a process whose module,
+//     imports and toolchain an earlier export established (on this host, or by
+//     any lane sharing UORC_EXPORT_STORE) is reused instead of run again.
+const hintsFile = path.join(out, 'export-hints.json');
+export const storeDirectory = () => process.env.UORC_EXPORT_STORE || path.join(root, '.lexlean/store');
+function availableMemoryKib() {
+  const line = fs.existsSync('/proc/meminfo') && fs.readFileSync('/proc/meminfo', 'utf8').match(/^MemAvailable:\s+(\d+) kB$/m);
+  return line ? line[1] : String(Math.floor(os.freemem() / 1024));
+}
+function buildEnvironment(telemetry) {
+  const env = {...process.env,
+    LEXLEAN_VERIFY_WIDTH: process.env.LEXLEAN_VERIFY_WIDTH || String(os.availableParallelism()),
+    LEXLEAN_VERIFY_MEMORY_KIB: process.env.LEXLEAN_VERIFY_MEMORY_KIB || availableMemoryKib(),
+    LEXLEAN_VERIFY_STORE: storeDirectory(),
+    LEXLEAN_CI_TELEMETRY: telemetry};
+  if (fs.existsSync(hintsFile)) env.LEXLEAN_VERIFY_HINTS = hintsFile;
+  return env;
+}
+
+// The hints of the next export: per process label (the module, with a
+// certificate's content segment dropped, as LexLean labels it), the summed
+// wall time of what ran in its slot and the largest peak. A process the store
+// supplied did not run and keeps its earlier measurement.
+export function hintsFrom(lines, previous = {}) {
+  const label = module => module.split('.').filter(s => !/^C[0-9a-f]{32}$/.test(s)).join('.');
+  const hints = {...previous};
+  const fresh = {};
+  for (const line of lines) {
+    if (!line.trim()) continue;
+    const e = JSON.parse(line);
+    if (e.event !== 'process' || !e.module || typeof e.wall_ms !== 'number') continue;
+    const h = fresh[label(e.module)] ??= {wall_ms: 0, peak_rss_kib: 0};
+    h.wall_ms += e.wall_ms;
+    h.peak_rss_kib = Math.max(h.peak_rss_kib, e.peak_rss_kib ?? 0);
+  }
+  Object.assign(hints, fresh);
+  return Object.fromEntries(Object.keys(hints).sort().map(k => [k, hints[k]]));
+}
+function hintsAfter(telemetry) {
+  const file = path.join(telemetry, 'verify-telemetry.jsonl');
+  if (!fs.existsSync(file)) return null;
+  const previous = fs.existsSync(hintsFile) ? JSON.parse(fs.readFileSync(hintsFile, 'utf8')) : {};
+  return JSON.stringify(hintsFrom(fs.readFileSync(file, 'utf8').split('\n'), previous), null, 1) + '\n';
+}
+
+// The store keeps what the latest exports used, least recently used first
+// out, so that it never holds more than the free space it leaves on its
+// filesystem: what it may grow to is the host's, not a figure of ours.
+function pruneStore() {
+  const dir = storeDirectory();
+  if (!fs.existsSync(dir)) return;
+  const entries = [];
+  // Other exports share the store and write or prune it while this walk
+  // runs: an entry that is not a directory, or that vanishes mid-walk, is
+  // theirs to finish and is left as it is.
+  const directories = (at) => {
+    try { return fs.readdirSync(at, {withFileTypes: true}).filter((d) => d.isDirectory()).map((d) => d.name); } catch { return []; }
+  };
+  for (const shard of directories(dir)) for (const key of directories(path.join(dir, shard))) {
+    const entry = path.join(dir, shard, key);
+    try {
+      let bytes = 0;
+      for (const f of fs.readdirSync(entry)) bytes += fs.statSync(path.join(entry, f)).size;
+      entries.push({entry, bytes, used: fs.statSync(path.join(entry, 'outputs.txt'), {throwIfNoEntry: false})?.mtimeMs ?? 0});
+    } catch (error) {
+      if (error.code !== 'ENOENT' && error.code !== 'ENOTDIR') throw error;
+    }
+  }
+  const free = Number(fs.statfsSync(dir).bavail) * Number(fs.statfsSync(dir).bsize);
+  let held = entries.reduce((a, e) => a + e.bytes, 0);
+  for (const e of entries.sort((a, b) => a.used - b.used)) {
+    if (held <= free) break;
+    fs.rmSync(e.entry, {recursive: true, force: true}); held -= e.bytes;
+  }
+}
+
 function main() {
   if (process.argv.includes('--check')) {
     const {modules, swaps, hazards} = checkWorkingTree();
@@ -292,10 +382,16 @@ function main() {
     const target = JSON.parse(run(lexlean, ['production', 'targets'], stage)).targets.find(t => t.id === 'rust-std') ?? fail('rust-std target missing');
     const request = {roots: roots.map(([name, rootName]) => ({package: {name, version: '0.1.0'}, root: rootName, targets: [{digest: target.digest, id: 'rust-std'}]})), spec: 'lexlean/production-request/1'};
     fs.writeFileSync(path.join(stage, 'request.json'), JSON.stringify(request));
-    const result = JSON.parse(run(lexlean, ['--diagnostic-format', 'json', 'production', 'build', '--request', 'request.json'], stage));
+    // The caller's telemetry directory when it names one (kept), else a scratch one.
+    const telemetry = process.env.LEXLEAN_CI_TELEMETRY || fs.mkdtempSync(path.join(os.tmpdir(), 'uorc-export-telemetry-'));
+    const result = JSON.parse(run(lexlean, ['--diagnostic-format', 'json', 'production', 'build', '--request', 'request.json'], stage, buildEnvironment(telemetry)));
+    const nextHints = hintsAfter(telemetry);
+    if (!process.env.LEXLEAN_CI_TELEMETRY) fs.rmSync(telemetry, {recursive: true, force: true});
+    pruneStore();
     if (!result.success) fail(`production build failed: ${JSON.stringify(result.diagnostics)}`);
     const bundle = path.resolve(stage, result.artifacts[0]);
     fs.rmSync(out, {recursive: true, force: true}); fs.mkdirSync(out, {recursive: true});
+    if (nextHints) fs.writeFileSync(hintsFile, nextHints);
     for (const [name] of roots) fs.cpSync(path.join(bundle, 'packages/rust-std', name), path.join(out, name), {recursive: true});
     fs.writeFileSync(path.join(out, 'request.json'), JSON.stringify(request, null, 1) + '\n');
     fs.copyFileSync(path.join(bundle, 'result.json'), path.join(out, 'result.json'));
