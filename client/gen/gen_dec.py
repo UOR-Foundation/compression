@@ -25,7 +25,7 @@ D('pow2', ['k : Nat'], 'Nat', "(match k\n    | Nat.zero => 1\n    | Nat.succ m =
 # before it (its base is the previous base plus that block's size); the base
 # counts are the format's own (states, context bits, tree depths).
 def K(name, body):
-    D(name, [], 'Nat', str(body))
+    D(name, [], 'Nat', str(body), ax=[])
     return f"({name})"  # a reference to a quantity is parenthesised
 STATES = K('states', 12)
 IS_REP = K('isRepBase', STATES)
