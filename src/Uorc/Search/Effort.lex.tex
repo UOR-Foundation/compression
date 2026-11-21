@@ -1,4 +1,5 @@
 \begin{lexlean}{Uorc.Search.Effort}
+\importmodule{Uorc.Wire.Domains}
 \title{Parameters}
 \begin{semanticmodule}
 inductive{
@@ -105,9 +106,9 @@ definition{
   result: (Result UInt64 Error),
   body: (match fuel
     | Nat.zero => (if (value =? 0) then (ctor Result.ok [UInt64, Error] (0 : UInt64)) else (ctor Result.error [UInt64, Error] (ctor Error.defaultOverflow)))
-    | Nat.succ restFuel => (match (natToU64Bits restFuel (prim quotient value 2 0 : Nat))
+    | Nat.succ restFuel => (match (natToU64Bits restFuel (prim quotient value (Uorc.Wire.Domains::radix) 0 : Nat))
       | Result.error error => (ctor Result.error [UInt64, Error] error)
-      | Result.ok higher => (appendBit higher (prim remainder value 2 0 : Nat)))),
+      | Result.ok higher => (appendBit higher (prim remainder value (Uorc.Wire.Domains::radix) 0 : Nat)))),
   axioms: [Quot.sound, propext],
   recursive_argument: fuel
 }
@@ -116,7 +117,7 @@ definition{
   name: checkedU64,
   parameters: [value : Nat],
   result: (Result UInt64 Error),
-  body: (if (value <=? 18446744073709551615) then (natToU64Bits 64 value) else (ctor Result.error [UInt64, Error] (ctor Error.defaultOverflow))),
+  body: (if (value <=? (Uorc.Wire.Domains::wordLast)) then (natToU64Bits (Uorc.Wire.Domains::wordBits) value) else (ctor Result.error [UInt64, Error] (ctor Error.defaultOverflow))),
   axioms: [Quot.sound, propext]
 }
 

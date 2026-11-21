@@ -1,4 +1,5 @@
 \begin{lexlean}{Uorc.Search.DictionaryFit}
+\importmodule{Uorc.Wire.Domains}
 \importmodule{Uorc.Core.Bytes}
 \importmodule{Uorc.Search.Dictionary}
 \importmodule{Uorc.Search.VerifyRope}
@@ -134,9 +135,9 @@ definition{
       | Phase.codes remainingAssignments => (match remainingAssignments
         | List.nil => (ctor Step.pending (ctor Cursor.state f_target f_width f_offset f_entries f_nextCode f_assignmentsReversed f_dictionary f_codeBuilder f_codeBytes (ctor Phase.buildCodes (Uorc.Search.RopeBuilder::finish f_codeBuilder)) (f_completedEvents + 1)))
         | List.cons code otherAssignments => (ctor Step.pending (ctor Cursor.state f_target f_width f_offset f_entries f_nextCode f_assignmentsReversed f_dictionary f_codeBuilder f_codeBytes (ctor Phase.codeDigits code f_codeBytes otherAssignments) (f_completedEvents + 1))))
-      | Phase.codeDigits code remainingDigits remainingAssignments => (if (remainingDigits =? 0) then (if (code =? 0) then (ctor Step.pending (ctor Cursor.state f_target f_width f_offset f_entries f_nextCode f_assignmentsReversed f_dictionary f_codeBuilder f_codeBytes (ctor Phase.codes remainingAssignments) (f_completedEvents + 1))) else (ctor Step.rejected (ctor Error.coordinateOverflow))) else (match (Uorc.Search.Enumerate::natByteSlice (prim remainder code 256 0 : Nat))
+      | Phase.codeDigits code remainingDigits remainingAssignments => (if (remainingDigits =? 0) then (if (code =? 0) then (ctor Step.pending (ctor Cursor.state f_target f_width f_offset f_entries f_nextCode f_assignmentsReversed f_dictionary f_codeBuilder f_codeBytes (ctor Phase.codes remainingAssignments) (f_completedEvents + 1))) else (ctor Step.rejected (ctor Error.coordinateOverflow))) else (match (Uorc.Search.Enumerate::natByteSlice (prim remainder code (Uorc.Wire.Domains::byteBase) 0 : Nat))
         | Option.none => (ctor Step.rejected (ctor Error.invalidState))
-        | Option.some encodedByte => (ctor Step.pending (ctor Cursor.state f_target f_width f_offset f_entries f_nextCode f_assignmentsReversed f_dictionary (Uorc.Search.RopeBuilder::appendChunk f_codeBuilder encodedByte) f_codeBytes (ctor Phase.codeDigits (prim quotient code 256 0 : Nat) (prim subtract remainingDigits 1 : Nat) remainingAssignments) (f_completedEvents + 1)))))
+        | Option.some encodedByte => (ctor Step.pending (ctor Cursor.state f_target f_width f_offset f_entries f_nextCode f_assignmentsReversed f_dictionary (Uorc.Search.RopeBuilder::appendChunk f_codeBuilder encodedByte) f_codeBytes (ctor Phase.codeDigits (prim quotient code (Uorc.Wire.Domains::byteBase) 0 : Nat) (prim subtract remainingDigits 1 : Nat) remainingAssignments) (f_completedEvents + 1)))))
       | Phase.buildCodes builderCursor => (match (Uorc.Search.Normalize::step (record Uorc.Search.Normalize::Policy {blockBytes := 1}) builderCursor)
         | Uorc.Search.Normalize::Step.pending next => (ctor Step.pending (ctor Cursor.state f_target f_width f_offset f_entries f_nextCode f_assignmentsReversed f_dictionary f_codeBuilder f_codeBytes (ctor Phase.buildCodes next) (f_completedEvents + 1)))
         | Uorc.Search.Normalize::Step.done normalized physical => (match (Uorc.Core.Bytes::startSlice f_target f_offset (prim subtract (Uorc.Core.Bytes::length f_target) f_offset : Nat))
