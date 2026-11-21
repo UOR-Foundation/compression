@@ -1,4 +1,5 @@
 \begin{lexlean}{Uorc.Core.Basis}
+\importmodule{Uorc.Wire.Domains}
 \importmodule{Uorc.Core.Types}
 \importmodule{Uorc.Core.Store}
 \importmodule{Uorc.Core.Bytes}
@@ -151,9 +152,9 @@ definition{
   name: append,
   parameters: [table : Table, rope : Uorc.Core.Bytes::Rope],
   result: (Result Table TableError),
-  body: (if (18446744073709551615 <=? (project table length)) then (ctor Result.error [Table, TableError] (ctor TableError.addressSpaceExhausted)) else (match (Uorc.Core.Types::wordOfNat (project table length))
+  body: (if ((Uorc.Wire.Domains::wordLast) <=? (project table length)) then (ctor Result.error [Table, TableError] (ctor TableError.addressSpaceExhausted)) else (match (Uorc.Core.Types::wordOfNat (project table length))
     | Option.none => (ctor Result.error [Table, TableError] (ctor TableError.addressSpaceExhausted))
-    | Option.some key => (ctor Result.ok [Table, TableError] (record Table {length := ((project table length) + 1), root := (writeTrie 64 (project table root) key rope)})))),
+    | Option.some key => (ctor Result.ok [Table, TableError] (record Table {length := ((project table length) + 1), root := (writeTrie (Uorc.Wire.Domains::wordBits) (project table root) key rope)})))),
   axioms: [Quot.sound, propext]
 }
 
@@ -163,7 +164,7 @@ definition{
   result: (Result Uorc.Core.Bytes::Rope TableError),
   body: (if (index <? (project table length)) then (match (Uorc.Core.Types::wordOfNat index)
     | Option.none => (ctor Result.error [Uorc.Core.Bytes::Rope, TableError] (ctor TableError.addressSpaceExhausted))
-    | Option.some key => (match (readTrie 64 (project table root) key)
+    | Option.some key => (match (readTrie (Uorc.Wire.Domains::wordBits) (project table root) key)
       | Option.none => (ctor Result.error [Uorc.Core.Bytes::Rope, TableError] (ctor TableError.missingEntry))
       | Option.some selectedRope => (ctor Result.ok [Uorc.Core.Bytes::Rope, TableError] selectedRope))) else (ctor Result.error [Uorc.Core.Bytes::Rope, TableError] (ctor TableError.invalidReference))),
   axioms: [Quot.sound, propext]

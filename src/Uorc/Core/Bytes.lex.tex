@@ -1,4 +1,5 @@
 \begin{lexlean}{Uorc.Core.Bytes}
+\importmodule{Uorc.Wire.Domains}
 \importmodule{Uorc.Core.Resources}
 \title{Parameters}
 \begin{semanticmodule}
@@ -162,7 +163,7 @@ definition{
   body: (match rope
     | Rope.empty => (if (validNode rope) then (ctor NodeStatus.valid) else (ctor NodeStatus.invalid))
     | Rope.leaf chunk => (if (validNode rope) then (ctor NodeStatus.valid) else (ctor NodeStatus.invalid))
-    | Rope.branch cachedLength cachedHeight leftNode rightNode => (if (Uorc.Core.Resources::fitsAddition 18446744073709551615 (length leftNode) (length rightNode)) then (if (Uorc.Core.Resources::fitsAddition 18446744073709551615 (if ((height leftNode) <=? (height rightNode)) then (height rightNode) else (height leftNode)) 1) then (if (validNode rope) then (ctor NodeStatus.valid) else (ctor NodeStatus.invalid)) else (ctor NodeStatus.addressSpaceExhausted)) else (ctor NodeStatus.addressSpaceExhausted))
+    | Rope.branch cachedLength cachedHeight leftNode rightNode => (if (Uorc.Core.Resources::fitsAddition (Uorc.Wire.Domains::wordLast) (length leftNode) (length rightNode)) then (if (Uorc.Core.Resources::fitsAddition (Uorc.Wire.Domains::wordLast) (if ((height leftNode) <=? (height rightNode)) then (height rightNode) else (height leftNode)) 1) then (if (validNode rope) then (ctor NodeStatus.valid) else (ctor NodeStatus.invalid)) else (ctor NodeStatus.addressSpaceExhausted)) else (ctor NodeStatus.addressSpaceExhausted))
     | Rope.view backing viewOffset viewLength => (if (validNode rope) then (ctor NodeStatus.valid) else (ctor NodeStatus.invalid)))
 }
 

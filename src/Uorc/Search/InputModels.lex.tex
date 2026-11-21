@@ -1,4 +1,5 @@
 \begin{lexlean}{Uorc.Search.InputModels}
+\importmodule{Uorc.Wire.Domains}
 \importmodule{Uorc.Core.Bytes}
 \importmodule{Uorc.Search.Charts}
 \importmodule{Uorc.Search.State}
@@ -89,7 +90,7 @@ definition{
             | Uorc.Search.GeneralFit::Step.pending fitCursor => (ctor Step.proposal (Uorc.Search.Charts::affineGraph parameters count) (record Cursor {target := (project cursor target), budget := (project cursor budget), kind := (project cursor kind), phase := (ctor Phase.fitting fitCursor observations (nextState + 1)), completedEvents := ((project cursor completedEvents) + 1)}))
             | Uorc.Search.GeneralFit::Step.proposal graph events => (ctor Step.proposal graph (record Cursor {target := (project cursor target), budget := (project cursor budget), kind := (project cursor kind), phase := (ctor Phase.choosing observations (nextState + 1)), completedEvents := ((project cursor completedEvents) + 1)}))
             | Uorc.Search.GeneralFit::Step.rejected error => (ctor Step.pending (record Cursor {target := (project cursor target), budget := (project cursor budget), kind := (project cursor kind), phase := (ctor Phase.choosing observations (nextState + 1)), completedEvents := ((project cursor completedEvents) + 1)})))) else (ctor Step.finished))
-        | Kind.state => (if (nextState <? 256) then (match (Uorc.Search.Effort::checkedU64 nextState)
+        | Kind.state => (if (nextState <? (Uorc.Wire.Domains::byteBase)) then (match (Uorc.Search.Effort::checkedU64 nextState)
           | Result.error error => (ctor Step.failed (ctor Error.coordinateOverflow))
           | Result.ok multiplier => (match (Uorc.Search.State::infer observations multiplier)
             | Result.error error => (ctor Step.finished)

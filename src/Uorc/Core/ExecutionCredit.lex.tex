@@ -1,4 +1,5 @@
 \begin{lexlean}{Uorc.Core.ExecutionCredit}
+\importmodule{Uorc.Wire.Domains}
 \importmodule{Uorc.Core.StepMachine}
 \importmodule{Uorc.Core.Resources}
 \importmodule{Uorc.Core.Graph}
@@ -260,7 +261,7 @@ definition{
   name: tick,
   parameters: [context : Uorc.Core.StepMachine::Context, cursorValue : Cursor],
   result: Tick,
-  body: (if (not (balanced cursorValue)) then (ctor Tick.rejected (ctor CreditError.invalidCursor) (ledger cursorValue)) else (if (18446744073709551615 <=? (project cursorValue consumedUnits)) then (ctor Tick.rejected (ctor CreditError.counterExhausted) (ledger cursorValue)) else (match (project cursorValue future)
+  body: (if (not (balanced cursorValue)) then (ctor Tick.rejected (ctor CreditError.invalidCursor) (ledger cursorValue)) else (if ((Uorc.Wire.Domains::wordLast) <=? (project cursorValue consumedUnits)) then (ctor Tick.rejected (ctor CreditError.counterExhausted) (ledger cursorValue)) else (match (project cursorValue future)
     | Future.initializing checkedGraph basisTable budget usage => (payOne cursorValue)
     | Future.running machine => (match (project cursorValue plannedBound)
       | Option.none => (let planningFunded : Cursor := (record Cursor {future := (project cursorValue future), committedUsage := (project cursorValue committedUsage), paidSteps := (project cursorValue paidSteps), remainingDebt := (project cursorValue remainingDebt), consumedUnits := ((project cursorValue consumedUnits) + 1), attemptUnits := (project cursorValue attemptUnits), decoderUnits := (project cursorValue decoderUnits), availableCredit := (project cursorValue availableCredit), prepaidUnits := (project cursorValue prepaidUnits), planningUnits := ((project cursorValue planningUnits) + 1), planningCredit := ((project cursorValue planningCredit) + 1), plannedBound := (project cursorValue plannedBound)}); (if ((project planningFunded planningCredit) <? (Uorc.Core.StepMachine::planningWork context machine)) then (ctor Tick.pending planningFunded) else (let bound : Nat := (Uorc.Core.StepMachine::plannedWorkBound context machine); (ctor Tick.pending (record Cursor {future := (project planningFunded future), committedUsage := (project planningFunded committedUsage), paidSteps := (project planningFunded paidSteps), remainingDebt := (project planningFunded remainingDebt), consumedUnits := (project planningFunded consumedUnits), attemptUnits := (project planningFunded attemptUnits), decoderUnits := (project planningFunded decoderUnits), availableCredit := (project planningFunded availableCredit), prepaidUnits := (project planningFunded prepaidUnits), planningUnits := (project planningFunded planningUnits), planningCredit := 0, plannedBound := (ctor Option.some [Nat] bound)})))))

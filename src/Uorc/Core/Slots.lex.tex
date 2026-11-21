@@ -1,4 +1,5 @@
 \begin{lexlean}{Uorc.Core.Slots}
+\importmodule{Uorc.Wire.Domains}
 \importmodule{Uorc.Core.Types}
 \importmodule{Uorc.Core.Store}
 \title{Parameters}
@@ -92,9 +93,9 @@ definition{
   name: appendSlot,
   parameters: [table : SlotTable, value : Uorc.Core.Types::Value],
   result: (Result SlotTable SlotError),
-  body: (if (18446744073709551615 <=? (project table length)) then (ctor Result.error [SlotTable, SlotError] (ctor SlotError.addressSpaceExhausted)) else (match (Uorc.Core.Types::wordOfNat (project table length))
+  body: (if ((Uorc.Wire.Domains::wordLast) <=? (project table length)) then (ctor Result.error [SlotTable, SlotError] (ctor SlotError.addressSpaceExhausted)) else (match (Uorc.Core.Types::wordOfNat (project table length))
     | Option.none => (ctor Result.error [SlotTable, SlotError] (ctor SlotError.addressSpaceExhausted))
-    | Option.some key => (ctor Result.ok [SlotTable, SlotError] (record SlotTable {length := ((project table length) + 1), root := (writeTrie 64 (project table root) key (ctor Option.some [Uorc.Core.Types::Value] value))})))),
+    | Option.some key => (ctor Result.ok [SlotTable, SlotError] (record SlotTable {length := ((project table length) + 1), root := (writeTrie (Uorc.Wire.Domains::wordBits) (project table root) key (ctor Option.some [Uorc.Core.Types::Value] value))})))),
   axioms: [Quot.sound, propext]
 }
 
@@ -125,7 +126,7 @@ definition{
   result: (Result Uorc.Core.Types::Value SlotError),
   body: (if (index <? (project table length)) then (match (Uorc.Core.Types::wordOfNat index)
     | Option.none => (ctor Result.error [Uorc.Core.Types::Value, SlotError] (ctor SlotError.addressSpaceExhausted))
-    | Option.some key => (match (readTrie 64 (project table root) key)
+    | Option.some key => (match (readTrie (Uorc.Wire.Domains::wordBits) (project table root) key)
       | Option.none => (ctor Result.error [Uorc.Core.Types::Value, SlotError] (ctor SlotError.releasedCell))
       | Option.some selected => (ctor Result.ok [Uorc.Core.Types::Value, SlotError] selected))) else (ctor Result.error [Uorc.Core.Types::Value, SlotError] (ctor SlotError.invalidReference))),
   axioms: [Quot.sound, propext],
@@ -147,7 +148,7 @@ definition{
   result: (Result SlotTable SlotError),
   body: (if (index <? (project table length)) then (match (Uorc.Core.Types::wordOfNat index)
     | Option.none => (ctor Result.error [SlotTable, SlotError] (ctor SlotError.addressSpaceExhausted))
-    | Option.some key => (ctor Result.ok [SlotTable, SlotError] (record SlotTable {length := (project table length), root := (writeTrie 64 (project table root) key (ctor Option.none [Uorc.Core.Types::Value]))}))) else (ctor Result.error [SlotTable, SlotError] (ctor SlotError.invalidReference))),
+    | Option.some key => (ctor Result.ok [SlotTable, SlotError] (record SlotTable {length := (project table length), root := (writeTrie (Uorc.Wire.Domains::wordBits) (project table root) key (ctor Option.none [Uorc.Core.Types::Value]))}))) else (ctor Result.error [SlotTable, SlotError] (ctor SlotError.invalidReference))),
   axioms: [Quot.sound, propext]
 }
 

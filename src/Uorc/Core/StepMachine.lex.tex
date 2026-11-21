@@ -1,4 +1,5 @@
 \begin{lexlean}{Uorc.Core.StepMachine}
+\importmodule{Uorc.Wire.Domains}
 \importmodule{Uorc.Core.Graph}
 \importmodule{Uorc.Core.Resources}
 \importmodule{Uorc.Core.Types}
@@ -995,7 +996,7 @@ definition{
         | Result.error leftError => (ctor StepResult.failed leftError readUsage)
         | Result.ok leftRope => (match (readSequence (project frame slots) rightReference)
           | Result.error rightError => (ctor StepResult.failed rightError readUsage)
-          | Result.ok rightRope => (if (Uorc.Core.Resources::fitsAddition 18446744073709551615 (Uorc.Core.Bytes::length leftRope) (Uorc.Core.Bytes::length rightRope)) then (startRopeWork frame continuations readUsage (Uorc.Core.Bytes::startJoin leftRope rightRope) (ctor RopeTarget.sequence)) else (ctor StepResult.failed (ctor Failure.operational (ctor Uorc.Core.Resources::OperationalError.addressSpaceExhausted)) readUsage))))
+          | Result.ok rightRope => (if (Uorc.Core.Resources::fitsAddition (Uorc.Wire.Domains::wordLast) (Uorc.Core.Bytes::length leftRope) (Uorc.Core.Bytes::length rightRope)) then (startRopeWork frame continuations readUsage (Uorc.Core.Bytes::startJoin leftRope rightRope) (ctor RopeTarget.sequence)) else (ctor StepResult.failed (ctor Failure.operational (ctor Uorc.Core.Resources::OperationalError.addressSpaceExhausted)) readUsage))))
       | Uorc.Core.Graph::Instruction.sequenceEqual leftReference rightReference => (match (readSequence (project frame slots) leftReference)
         | Result.error leftError => (ctor StepResult.failed leftError readUsage)
         | Result.ok leftRope => (match (readSequence (project frame slots) rightReference)

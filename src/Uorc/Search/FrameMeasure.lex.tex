@@ -1,4 +1,5 @@
 \begin{lexlean}{Uorc.Search.FrameMeasure}
+\importmodule{Uorc.Wire.Domains}
 \importmodule{Uorc.Wire.Frame}
 \importmodule{Uorc.Wire.GraphEmit}
 \importmodule{Uorc.Core.Resources}
@@ -67,7 +68,7 @@ definition{
     | Cursor.measuring prepared emitter => (match (Uorc.Wire.GraphEmit::measureStep emitter)
       | Uorc.Wire.GraphEmit::Event.advanced next => (ctor Step.pending (ctor Cursor.measuring prepared next))
       | Uorc.Wire.GraphEmit::Event.produced ignoredBytes next => (ctor Step.pending (ctor Cursor.measuring prepared next))
-      | Uorc.Wire.GraphEmit::Event.complete preimageLength work => (if (Uorc.Core.Resources::fitsAddition 18446744073709551615 preimageLength 32) then (ctor Step.complete (record Measurement {prepared := prepared, preimageLength := preimageLength, archiveLength := (preimageLength + 32)})) else (ctor Step.failed (ctor Error.addressSpaceExhausted)))
+      | Uorc.Wire.GraphEmit::Event.complete preimageLength work => (if (Uorc.Core.Resources::fitsAddition (Uorc.Wire.Domains::wordLast) preimageLength 32) then (ctor Step.complete (record Measurement {prepared := prepared, preimageLength := preimageLength, archiveLength := (preimageLength + 32)})) else (ctor Step.failed (ctor Error.addressSpaceExhausted)))
       | Uorc.Wire.GraphEmit::Event.failed failure position work => (ctor Step.failed (ctor Error.emit failure)))),
   axioms: [Quot.sound, propext]
 }
