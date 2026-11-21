@@ -108,8 +108,16 @@ def monus(a, b): return sub(a, mn(b, a))
 
 SQT = [1, 2, 3, 6, 10, 16, 27, 45, 73, 120, 194, 310, 488, 747, 1101, 1546, 2047,
        2549, 2994, 3348, 3607, 3785, 3901, 3975, 4022, 4050, 4068, 4079, 4085, 4089, 4092, 4093, 4094]
-HK = (0x9E3779B1, 0x2C1B3C6D, 0x297A2D39)
-HS = (15, 12, 15)
+# Identities of the format, named once: the binary radix; the squash table's spacing and cell width;
+# the context hash's word, and each round's multiplier and fold (a + a / fold). Archives depend on each.
+RADIX = K('radix', 2)
+SQUASH_STEP = K('squashStep', 128)
+SQUASH_HALF = K('squashHalfStep', ('div', SQUASH_STEP, RADIX))
+SQT_CELL = K('sqtCell', 2)
+HASH_WORD = K('hashWord', 1 << 32)
+HK = (K('hashMultiplier0', 0x9E3779B1), K('hashMultiplier1', 0x2C1B3C6D), K('hashMultiplier2', 0x297A2D39))
+HF = (K('hashFold0', 1 << 15), K('hashFold1', 1 << 12), K('hashFold2', 1 << 15))
+HS = tuple(int(f).bit_length() - 1 for f in HF)
 M32 = (1 << 32) - 1
 
 
@@ -242,6 +250,7 @@ class Machine:
             elif k == 'set':
                 v = int(self.ev(s[2], env))
                 assert v < 1 << (8 * self.p.globals[s[1]]), (s[1], v)
+                assert v < getattr(self.p, 'bounds', {}).get(s[1], v + 1), (s[1], v, 'outside its domain')
                 self.g[s[1]] = v
             elif k == 'store':
                 key = self.ev(s[3], env); v = int(self.ev(s[4], env)); w = s[2]

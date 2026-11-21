@@ -2,10 +2,10 @@
 //! exported from: their scope, read from the factory graph, and their
 //! numerals.
 
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 use std::path::Path;
 
-use crate::{Error, Scan, Site, WIRE_MODULES};
+use crate::{Error, Scan, Site};
 
 /// A `closure:ROOTS@DIRS` input of the factory graph (`scripts/factory.mjs`
 /// reads it the same way): ROOTS are module names, `Prefix.*` names every
@@ -352,23 +352,62 @@ pub fn scan_js(file: &str, text: &str, scan: &mut Scan) {
     }
 }
 
+/// The format identities the wire model states: each parameterless `Nat`
+/// definition of a `Uorc.Wire.*` module whose body is a numeral, by name.
+pub type Stated = BTreeMap<String, BTreeSet<u128>>;
+
+/// Read the identities the wire modules among `modules` state.
+pub fn stated(
+    modules: &[(String, String)],
+    read: impl Fn(&str) -> Result<String, Error>,
+) -> Result<Stated, Error> {
+    let mut out = Stated::new();
+    for (module, path) in modules {
+        if !module.starts_with("Uorc.Wire.") {
+            continue;
+        }
+        let text = read(path)?;
+        for decl in text.split("definition{").skip(1) {
+            let decl = decl.split("\n}").next().unwrap_or(decl);
+            let (Some(name), Some(v)) = (
+                crate::field(decl, "name"),
+                crate::field(decl, "body").and_then(|b| b.parse::<u128>().ok()),
+            ) else {
+                continue;
+            };
+            if decl.contains("parameters: [],") && crate::field(decl, "result") == Some("Nat") {
+                out.entry(name.to_string()).or_default().insert(v);
+            }
+        }
+    }
+    Ok(out)
+}
+
 /// Scan a LexLean module's numerals inside its definitions (theorems state
 /// what a figure does; they fix none). A parameterless `Nat` definition of
-/// a wire module whose body is a numeral is the model naming a format
-/// identity, and is not a fixed figure.
-pub fn scan_lean(file: &str, module: &str, text: &str, scan: &mut Scan) {
+/// a wire module (`Uorc.Wire.*`) whose body is a numeral is the model naming
+/// a format identity, and is not a fixed figure. A coder module
+/// (`Uorc.Codec.*`) is written by a generator, so its named numerals are
+/// identities only where the wire model states them ([`stated`]: a wire
+/// module defines the same name with the same value); any other is a fixed
+/// figure the generator named, counted once at its definition.
+pub fn scan_lean(file: &str, module: &str, text: &str, stated: &Stated, scan: &mut Scan) {
     scan.files += 1;
-    let wire = WIRE_MODULES.iter().any(|p| module.starts_with(p));
+    let wire = module.starts_with("Uorc.Wire.");
+    let coder = module.starts_with("Uorc.Codec.");
     for decl in text.split("definition{").skip(1) {
         let decl = decl.split("\n}").next().unwrap_or(decl);
         let name = crate::field(decl, "name")
             .unwrap_or("(definition)")
             .to_string();
-        let numeral_body = crate::field(decl, "body").is_some_and(|b| b.parse::<u128>().is_ok());
-        if wire
-            && numeral_body
+        let body = crate::field(decl, "body").and_then(|b| b.parse::<u128>().ok());
+        let named = body.is_some()
             && decl.contains("parameters: [],")
-            && crate::field(decl, "result") == Some("Nat")
+            && crate::field(decl, "result") == Some("Nat");
+        if named
+            && (wire
+                || (coder
+                    && body.is_some_and(|v| stated.get(&name).is_some_and(|vs| vs.contains(&v)))))
         {
             continue;
         }
@@ -462,7 +501,7 @@ mod tests {
     fn lean_numerals_inside_definitions_and_wire_names() {
         let src = "definition{name: v, parameters: [], result: Nat, body: 2}\n\ndefinition{\n  name: f,\n  parameters: [x : Nat],\n  result: Nat,\n  body: (prim add x 17 : Nat)\n}\n\ntheorem{\n  name: t,\n  statement: (f 3 = 20)\n}\n";
         let mut s = Scan::default();
-        scan_lean("w.lex.tex", "Uorc.Wire.Frame", src, &mut s);
+        scan_lean("w.lex.tex", "Uorc.Wire.Frame", src, &Stated::new(), &mut s);
         let got: Vec<_> = s
             .sites
             .iter()
@@ -470,11 +509,34 @@ mod tests {
             .collect();
         assert_eq!(got, [("f", "17")]);
         let mut s = Scan::default();
-        scan_lean("p.lex.tex", "Uorc.Performance", src, &mut s);
+        scan_lean("p.lex.tex", "Uorc.Performance", src, &Stated::new(), &mut s);
         assert_eq!(
             s.sites.len(),
             2,
             "outside a wire module a named numeral is a figure"
+        );
+    }
+
+    #[test]
+    fn a_coder_modules_named_numeral_is_an_identity_only_where_the_wire_model_states_it() {
+        let src = "definition{name: v, parameters: [], result: Nat, body: 2}\n\ndefinition{name: w, parameters: [], result: Nat, body: 9}\n";
+        let stated: Stated = [
+            ("v".to_string(), [2u128].into_iter().collect()),
+            ("w".to_string(), [8u128].into_iter().collect()),
+        ]
+        .into_iter()
+        .collect();
+        let mut s = Scan::default();
+        scan_lean("c.lex.tex", "Uorc.Codec.Ncm", src, &stated, &mut s);
+        let got: Vec<_> = s
+            .sites
+            .iter()
+            .map(|s| (s.item.as_str(), s.value.as_str()))
+            .collect();
+        assert_eq!(
+            got,
+            [("w", "9")],
+            "w is stated with another value, so it is the generator's figure"
         );
     }
 
