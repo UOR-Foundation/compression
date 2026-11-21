@@ -11,8 +11,8 @@
 //! encoder. The payload is the same bytes whichever path codes it.
 
 use super::{
-    adapt_slot, bucket_in, h, prefetch, tick, Bucket, Coder, Kernel, Model, Rates, Table, Tables,
-    NC,
+    adapt_slot, bucket_in, h, prefetch, stretch_index, tick, Bucket, Coder, Kernel, Model, Rates,
+    Table, Tables, NC,
 };
 use std::cell::RefCell;
 use std::sync::atomic::AtomicBool;
@@ -220,7 +220,8 @@ impl Model {
         if self.bit == 8 {
             self.pos += 1;
             self.seen += 1;
-            self.c4 = (self.c4 << 8) | (self.c0 & 255);
+            self.c4 = (self.c4 << crate::model::ncm::u32::bits::byteBase)
+                | (self.c0 & crate::model::ncm::u32::cell1Last);
             self.c0 = 1;
             self.bit = 0;
         }
@@ -241,7 +242,11 @@ fn mix_bit<K: Kernel, const W: usize>(
     let p = m.mix::<K, W>(ms);
     let c0 = (m.c0 << 1) | u32::from(y);
     if m.bit == 7 {
-        m.prefetch_mixers((m.c4 << 8) | (c0 & 255), 1);
+        m.prefetch_mixers(
+            (m.c4 << crate::model::ncm::u32::bits::byteBase)
+                | (c0 & crate::model::ncm::u32::cell1Last),
+            1,
+        );
     } else {
         m.prefetch_mixers(m.c4, c0);
     }
@@ -613,8 +618,7 @@ fn walk_sites(
                 };
                 for &b in &bb[..owned] {
                     let i = b + part - lo;
-                    let p = sl[i as usize >> 4].0[i as usize & 15] & 0xffff;
-                    out.push(t.stretch[(p >> 4) as usize]);
+                    out.push(t.stretch[stretch_index(sl[i as usize >> 4].0[i as usize & 15])]);
                 }
                 let y = (byte >> (7 - bit)) & 1 == 1;
                 for &b in &bb[..owned] {
@@ -632,6 +636,7 @@ fn walk_sites(
 
 /// The byte-level side's batch for `chunk`: what [`walk_sites`] and the
 /// mixing side read, from the input side `m` with its slot table taken out.
+/// Domain: body: roll
 #[inline(always)]
 fn read_bytes<const W: usize>(m: &mut Model, chunk: &[u8], cut: Cut) -> Bytes {
     let (na, mask) = (m.na, m.mask);
@@ -645,7 +650,9 @@ fn read_bytes<const W: usize>(m: &mut Model, chunk: &[u8], cut: Cut) -> Bytes {
         // the two nibbles' hashes, as Model::sense_slots forms them
         for nc in [0, u32::from(byte >> 4) | 16] {
             for &k in &m.act[..na] {
-                let hh = h(m.hb[k].wrapping_add(nc.wrapping_mul(0x2F0B_4C27)));
+                let hh =
+                    h(m.hb[k]
+                        .wrapping_add(nc.wrapping_mul(crate::model::ncm::u32::rollMultiplier)));
                 b.hs.push(hh);
                 b.own.push(cut.range(hh, mask));
             }

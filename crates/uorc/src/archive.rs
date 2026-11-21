@@ -32,7 +32,8 @@ const ULZ_SUFFIX_HEX: &str = include_str!("linked-ulz-suffix.hex");
 const NCM_SUFFIX_HEX: &str = include_str!("linked-ncm-suffix.hex");
 /// Identity of the built-in standard basis (`Archive.basisIdentity`): the
 /// UORC-BASIS-V1 chain over its one root, the ulz and ncm decoder libraries.
-pub const BASIS_ID: [u8; 32] = hex_literal(BASIS_ID_HEX);
+/// Domain: len: integrityBytes
+pub const BASIS_ID: [u8; crate::model::framing::usize::integrityBytes] = hex_literal(BASIS_ID_HEX);
 const LINKED_PREFIX: [u8; hex_len(LINKED_PREFIX_HEX)] = hex_literal(LINKED_PREFIX_HEX);
 const ULZ_SUFFIX: [u8; hex_len(ULZ_SUFFIX_HEX)] = hex_literal(ULZ_SUFFIX_HEX);
 const NCM_SUFFIX: [u8; hex_len(NCM_SUFFIX_HEX)] = hex_literal(NCM_SUFFIX_HEX);
@@ -157,7 +158,8 @@ impl Era {
         Era::ALL.into_iter().find(|e| e.identity() == identity)
     }
 
-    fn identity(self) -> &'static [u8; 32] {
+    /// Domain: len: integrityBytes
+    fn identity(self) -> &'static [u8; crate::model::framing::usize::integrityBytes] {
         match self {
             Era::Current => &BASIS_ID,
             Era::V04 => &V04_BASIS_ID,
@@ -325,6 +327,21 @@ fn profile_template(k: usize, x86: bool, era: Era) -> Option<Template> {
 /// it, so the history is basis roots 1..k in order; the call to the coder
 /// then reaches the payload and the profile word 3 nodes further back per
 /// frame.
+/// The instructions each frame after the first adds to a window graph: its
+/// index, the basis entry of its coder, and the concatenation onto the frames
+/// before (by the opcodes of `Uorc.Wire.GraphEmit::opcode`).
+const FRAME_INSTRUCTIONS: &[u8] = &[
+    crate::model::graph::opcode::u8::naturalConstant,
+    crate::model::graph::opcode::u8::basisGet,
+    crate::model::graph::opcode::u8::sequenceConcat,
+];
+
+/// The nodes each frame after the first adds; its concatenation reaches the
+/// frames before this far back.
+const fn frame_nodes() -> u64 {
+    FRAME_INSTRUCTIONS.len() as u64
+}
+
 pub(crate) fn window_profile_template(k: usize, x86: bool) -> (Vec<u8>, Vec<u8>) {
     debug_assert!(k >= 1);
     let (p1, t1): (&[u8], &[u8]) = if x86 {
@@ -332,7 +349,7 @@ pub(crate) fn window_profile_template(k: usize, x86: bool) -> (Vec<u8>, Vec<u8>)
     } else {
         (&NCMP1_PREFIX, &NCMP1_TAIL)
     };
-    let more = 3 * (k as u64 - 1);
+    let more = frame_nodes() * (k as u64 - 1);
     // `01 00 03 uleb(nodes) 03`: one block, its node count, its result type
     let mut prefix = p1[..3].to_vec();
     push_uleb(&mut prefix, u64::from(p1[3]) + more);
@@ -340,9 +357,14 @@ pub(crate) fn window_profile_template(k: usize, x86: bool) -> (Vec<u8>, Vec<u8>)
     // `03 00` (the empty history), frame 1 (`00 01 1e 01`), frames 2..k
     let mut tail = t1[..6].to_vec();
     for r in 2..=k as u64 {
-        tail.push(0);
+        let mut instruction = FRAME_INSTRUCTIONS.iter().copied();
+        tail.extend(instruction.next());
         push_uleb(&mut tail, r);
-        tail.extend_from_slice(&[0x1e, 0x01, 0x1b, 0x03, 0x01]);
+        tail.extend(instruction.next());
+        tail.push(0x01);
+        tail.extend(instruction.next());
+        push_uleb(&mut tail, frame_nodes());
+        tail.push(0x01);
     }
     // the coder's call: payload at distance d, history 1, profile d - 1
     let d = if x86 { 8 } else { 5 };
@@ -399,7 +421,9 @@ fn parse_body(body: &[u8], k: usize, era: Era) -> Option<(Codec, &[u8])> {
 const CHAIN_TAG: &[u8] = b"UORC-SHA256-CHAIN-v1\0";
 const MAGIC: &[u8] = b"UORC\x02\x01";
 /// Length of the integrity seal at the end of every archive.
-pub const SEAL: usize = 32;
+///
+/// Domain: integrityBytes
+pub const SEAL: usize = crate::model::framing::usize::integrityBytes;
 
 const fn hex_value(c: u8) -> u8 {
     match c {
@@ -477,11 +501,16 @@ pub(crate) fn read_uleb(data: &[u8], mut at: usize) -> Option<(u64, usize)> {
 }
 
 /// The UORC-SHA256-CHAIN-v1 digest of `preimage`.
-pub fn chain(preimage: &[u8]) -> [u8; 32] {
+/// Domain: len: integrityBytes
+pub fn chain(preimage: &[u8]) -> [u8; crate::model::framing::usize::integrityBytes] {
     chain_parts(&[preimage])
 }
 
-fn chain_block(c: &[u8; 32], block: &[u8]) -> [u8; 32] {
+/// Domain: len: integrityBytes
+fn chain_block(
+    c: &[u8; crate::model::framing::usize::integrityBytes],
+    block: &[u8],
+) -> [u8; crate::model::framing::usize::integrityBytes] {
     Sha256::new()
         .chain_update(CHAIN_TAG)
         .chain_update([1u8])
@@ -492,7 +521,8 @@ fn chain_block(c: &[u8; 32], block: &[u8]) -> [u8; 32] {
 }
 
 /// [`chain`] of the concatenation of `parts`, without joining them.
-pub fn chain_parts(parts: &[&[u8]]) -> [u8; 32] {
+/// Domain: len: integrityBytes
+pub fn chain_parts(parts: &[&[u8]]) -> [u8; crate::model::framing::usize::integrityBytes] {
     let mut chain = Chain::new();
     for part in parts {
         chain.update(part);
@@ -504,7 +534,8 @@ pub fn chain_parts(parts: &[&[u8]]) -> [u8; 32] {
 /// prefix (the basis library before every κ-label) is hashed once.
 #[derive(Clone)]
 struct Chain {
-    c: [u8; 32],
+    /// Domain: len: integrityBytes
+    c: [u8; crate::model::framing::usize::integrityBytes],
     carry: [u8; 64],
     held: usize,
 }
@@ -543,7 +574,8 @@ impl Chain {
         self.held = tail.len();
     }
 
-    fn finish(&self) -> [u8; 32] {
+    /// Domain: len: integrityBytes
+    fn finish(&self) -> [u8; crate::model::framing::usize::integrityBytes] {
         Sha256::new()
             .chain_update(CHAIN_TAG)
             .chain_update([2u8])
@@ -653,11 +685,12 @@ fn profiled_era(codec: Codec) -> Era {
 
 /// The archive over the basis named `identity` (`era`'s library and the `k`
 /// window frames) whose entry is `codec`'s template for `era`.
+/// Domain: len: integrityBytes
 fn entry_archive(
     codec: Codec,
     k: usize,
     era: Era,
-    identity: &[u8; 32],
+    identity: &[u8; crate::model::framing::usize::integrityBytes],
     lengths: &[u64],
     payload: &[u8],
 ) -> Option<Vec<u8>> {
@@ -709,11 +742,12 @@ pub fn linked_archive_profile(
 /// [`window_identity`] is `identity`). Profile [`crate::ncm::V03`] writes the v0.3
 /// window frame over the v0.3 library; every other profile the v0.4 window frame
 /// (`Archive.v04ProfiledArchive`), as [`linked_archive_profile`].
+/// Domain: len: integrityBytes
 pub fn window_archive_profile(
     codec: Codec,
     profile: Word,
     window: &[&[u8]],
-    identity: &[u8; 32],
+    identity: &[u8; crate::model::framing::usize::integrityBytes],
     lengths: &[u64],
     payload: &[u8],
 ) -> Option<Vec<u8>> {
@@ -739,24 +773,31 @@ pub fn window_archive_profile(
 }
 
 /// Exact length of [`linked_archive`] for objects of `lengths` and a `p`-byte payload.
+/// Domain: body: integrityBytes, fixedPrefixBytes
 pub fn linked_length(codec: Codec, lengths: &[u64], p: u64) -> u64 {
     let body = body_len(codec, 0, p).unwrap_or(u64::MAX / 4);
     let fields: u64 = lengths.iter().map(|&l| uleb_len(l) as u64).sum();
-    8 + uleb_len(lengths.len() as u64) as u64
+    crate::model::framing::u64::fixedPrefixBytes
+        + uleb_len(lengths.len() as u64) as u64
         + fields
         + uleb_len(body) as u64
-        + 32
+        + crate::model::framing::u64::integrityBytes
         + body
         + SEAL as u64
 }
 
 /// `Archive.windowIdentity`: the identity of the basis `[library, window..]`,
 /// the UORC-BASIS-V1 chain over its roots, oldest frame first.
-pub fn window_identity(window: &[&[u8]]) -> [u8; 32] {
+/// Domain: len: integrityBytes
+pub fn window_identity(window: &[&[u8]]) -> [u8; crate::model::framing::usize::integrityBytes] {
     window_identity_over(&LIBRARY, window)
 }
 
-fn window_identity_over(library: &[u8], window: &[&[u8]]) -> [u8; 32] {
+/// Domain: len: integrityBytes
+fn window_identity_over(
+    library: &[u8],
+    window: &[&[u8]],
+) -> [u8; crate::model::framing::usize::integrityBytes] {
     let mut head = BASIS_TAG.to_vec();
     push_uleb(&mut head, 1 + window.len() as u64);
     push_uleb(&mut head, library.len() as u64);
@@ -779,10 +820,11 @@ fn window_identity_over(library: &[u8], window: &[&[u8]]) -> [u8; 32] {
 /// `Archive.windowArchive`: a conditional archive over `[library, the k
 /// preceding frames]` (named by `identity`) whose entry decodes the `codec`
 /// `payload` with those frames as history, reconstructing objects of `lengths`.
+/// Domain: len: integrityBytes
 pub fn window_archive(
     codec: Codec,
     k: usize,
-    identity: &[u8; 32],
+    identity: &[u8; crate::model::framing::usize::integrityBytes],
     lengths: &[u64],
     payload: &[u8],
 ) -> Option<Vec<u8>> {
@@ -801,7 +843,8 @@ pub const REF_BODY: [u8; hex_len(REF_HEX)] = hex_literal(REF_HEX);
 /// The κ-label of a frame's content: the identity of the basis `[library,
 /// frame]` ([`window_identity`] of the one frame), which a reference frame
 /// names to reproduce it.
-pub fn frame_label(frame: &[u8]) -> [u8; 32] {
+/// Domain: len: integrityBytes
+pub fn frame_label(frame: &[u8]) -> [u8; crate::model::framing::usize::integrityBytes] {
     // The chain over the basis head and the library is the same for every
     // one-frame basis, so it is computed once.
     static PREFIX: std::sync::OnceLock<Chain> = std::sync::OnceLock::new();
@@ -826,7 +869,8 @@ pub fn frame_label(frame: &[u8]) -> [u8; 32] {
 /// The κ-labels a reference frame may name for `frame`: its label over the
 /// current library ([`frame_label`]) and over the v0.4 and v0.3 libraries,
 /// which earlier streams' reference frames name.
-pub fn frame_labels(frame: &[u8]) -> [[u8; 32]; 3] {
+/// Domain: len: integrityBytes
+pub fn frame_labels(frame: &[u8]) -> [[u8; crate::model::framing::usize::integrityBytes]; 3] {
     [
         frame_label(frame),
         window_identity_over(&V04_LIBRARY, &[frame]),
@@ -836,7 +880,11 @@ pub fn frame_labels(frame: &[u8]) -> [[u8; 32]; 3] {
 
 /// A reference frame: a conditional archive over `[library, F]`, named by `F`'s
 /// κ-label `label`, that reproduces `F` as objects of `lengths`.
-pub fn reference_archive(label: &[u8; 32], lengths: &[u64]) -> Vec<u8> {
+/// Domain: len: integrityBytes
+pub fn reference_archive(
+    label: &[u8; crate::model::framing::usize::integrityBytes],
+    lengths: &[u64],
+) -> Vec<u8> {
     let mut pre = header(1, lengths, REF_BODY.len() as u64);
     pre[6] = 1;
     pre.extend_from_slice(label);
@@ -845,24 +893,41 @@ pub fn reference_archive(label: &[u8; 32], lengths: &[u64]) -> Vec<u8> {
 }
 
 /// Exact length of [`reference_archive`] for objects of `lengths`.
+/// Domain: body: integrityBytes, fixedPrefixBytes
 pub fn reference_length(lengths: &[u64]) -> u64 {
     let fields: u64 = lengths.iter().map(|&l| uleb_len(l) as u64).sum();
     let body = REF_BODY.len() as u64;
-    8 + uleb_len(lengths.len() as u64) as u64
+    crate::model::framing::u64::fixedPrefixBytes
+        + uleb_len(lengths.len() as u64) as u64
         + fields
         + uleb_len(body) as u64
-        + 32
+        + crate::model::framing::u64::integrityBytes
         + body
         + SEAL as u64
 }
 
 /// Where the fields of a conditional program archive sit: the object lengths,
 /// the basis identity and the body. `None` for any other shape.
-fn conditional_fields(data: &[u8]) -> Option<(Vec<u64>, [u8; 32], &[u8])> {
-    if data.len() < 8 + 32 + SEAL || data[..6] != MAGIC[..] || data[6] != 1 || data[7] != 1 {
+/// Domain: len: integrityBytes
+/// Domain: body: integrityBytes, fixedPrefixBytes
+fn conditional_fields(
+    data: &[u8],
+) -> Option<(
+    Vec<u64>,
+    [u8; crate::model::framing::usize::integrityBytes],
+    &[u8],
+)> {
+    if data.len()
+        < crate::model::framing::usize::fixedPrefixBytes
+            + crate::model::framing::usize::integrityBytes
+            + SEAL
+        || data[..6] != MAGIC[..]
+        || data[6] != 1
+        || data[crate::model::framing::usize::fixedPrefixBytesLast] != 1
+    {
         return None;
     }
-    let (count, mut at) = read_uleb(data, 8)?;
+    let (count, mut at) = read_uleb(data, crate::model::framing::usize::fixedPrefixBytes)?;
     if count > data.len() as u64 {
         return None;
     }
@@ -873,7 +938,7 @@ fn conditional_fields(data: &[u8]) -> Option<(Vec<u64>, [u8; 32], &[u8])> {
         at = next;
     }
     let (body_len, at) = read_uleb(data, at)?;
-    let start = at.checked_add(32)?;
+    let start = at.checked_add(crate::model::framing::usize::integrityBytes)?;
     let end = start.checked_add(usize::try_from(body_len).ok()?)?;
     if data.len() != end.checked_add(SEAL)? {
         return None;
@@ -883,14 +948,18 @@ fn conditional_fields(data: &[u8]) -> Option<(Vec<u64>, [u8; 32], &[u8])> {
 
 /// The κ-label a reference frame names, read from its fields (the seal is
 /// checked when it is decoded); `None` when `data` is not one.
-pub fn reference_of(data: &[u8]) -> Option<[u8; 32]> {
+/// Domain: len: integrityBytes
+pub fn reference_of(data: &[u8]) -> Option<[u8; crate::model::framing::usize::integrityBytes]> {
     let (_, label, body) = conditional_fields(data)?;
     (body == REF_BODY).then_some(label)
 }
 
 /// [`reference_of`] with the length of the bytes the reference names (the
 /// sum of its object lengths), which the decoder matches before it labels.
-pub fn reference_target(data: &[u8]) -> Option<([u8; 32], u64)> {
+/// Domain: len: integrityBytes
+pub fn reference_target(
+    data: &[u8],
+) -> Option<([u8; crate::model::framing::usize::integrityBytes], u64)> {
     let (lengths, label, body) = conditional_fields(data)?;
     let n = lengths.iter().try_fold(0u64, |a, &l| a.checked_add(l))?;
     (body == REF_BODY).then_some((label, n))
@@ -919,11 +988,12 @@ pub fn reference_decode(data: &[u8], frame: &[u8]) -> Option<Vec<u8>> {
 /// The payload is coded learning under `learning`: the entry's word is the
 /// profile with the learning fields above it ([`crate::ncm::streams::word`]),
 /// the profile itself for the standard model.
+/// Domain: len: integrityBytes
 pub fn state_archive(
     x86: bool,
     profile: u32,
     learning: crate::ncm::Learning,
-    identity: &[u8; 32],
+    identity: &[u8; crate::model::framing::usize::integrityBytes],
     lengths: &[u64],
     payload: &[u8],
 ) -> Option<Vec<u8>> {
@@ -1088,16 +1158,23 @@ pub fn state_decode(data: &[u8]) -> Option<Vec<u8>> {
 }
 
 /// The basis identity a conditional archive names, if it is one.
-pub fn basis_of(data: &[u8]) -> Option<[u8; 32]> {
-    if data.len() < 8 || data[..6] != MAGIC[..] || data[6] != 1 {
+/// Domain: len: integrityBytes
+/// Domain: body: integrityBytes, fixedPrefixBytes
+pub fn basis_of(data: &[u8]) -> Option<[u8; crate::model::framing::usize::integrityBytes]> {
+    if data.len() < crate::model::framing::usize::fixedPrefixBytes
+        || data[..6] != MAGIC[..]
+        || data[6] != 1
+    {
         return None;
     }
-    let (count, mut at) = read_uleb(data, 8)?;
+    let (count, mut at) = read_uleb(data, crate::model::framing::usize::fixedPrefixBytes)?;
     for _ in 0..count {
         at = read_uleb(data, at)?.1;
     }
     let at = read_uleb(data, at)?.1;
-    data.get(at..at + 32)?.try_into().ok()
+    data.get(at..at + crate::model::framing::usize::integrityBytes)?
+        .try_into()
+        .ok()
 }
 
 /// How many frames before it a frame reads: 0 for an archive that is not a
@@ -1106,6 +1183,7 @@ pub fn basis_of(data: &[u8]) -> Option<[u8; 32]> {
 /// reads up to [`WINDOW`] frames as the v0.2 encoder wrote them. The decoder
 /// schedules from this alone: a frame that reads no window starts a block,
 /// and blocks decode independently.
+/// Domain: body: integrityBytes, fixedPrefixBytes
 pub fn window_len(data: &[u8]) -> Option<usize> {
     let Some(basis) = basis_of(data) else {
         return Some(0);
@@ -1113,11 +1191,11 @@ pub fn window_len(data: &[u8]) -> Option<usize> {
     if Era::of(&basis).is_some() || reference_of(data).is_some() || state_frame(data).is_some() {
         return Some(0);
     }
-    let (count, mut at) = read_uleb(data, 8)?;
+    let (count, mut at) = read_uleb(data, crate::model::framing::usize::fixedPrefixBytes)?;
     for _ in 0..count {
         at = read_uleb(data, at)?.1;
     }
-    let body = data.get(read_uleb(data, at)?.1 + 32..)?;
+    let body = data.get(read_uleb(data, at)?.1 + crate::model::framing::usize::integrityBytes..)?;
     let deep = deep_window_len(body.get(..body.len().checked_sub(SEAL)?)?);
     [
         (&WINDOW1_PREFIX[..], 1),
@@ -1151,8 +1229,8 @@ fn deep_window_len(body: &[u8]) -> Option<usize> {
     .into_iter()
     .find_map(|(one, x86)| {
         let more = nodes.checked_sub(one)?;
-        let k = usize::try_from(more / 3 + 1).ok()?;
-        if more % 3 != 0 || k < 3 {
+        let k = usize::try_from(more / frame_nodes() + 1).ok()?;
+        if more % frame_nodes() != 0 || k < 3 {
             return None;
         }
         let (codec, _) = parse_body(body, k, Era::Current)?;
@@ -1182,15 +1260,24 @@ pub fn window_codec(data: &[u8]) -> Option<(Codec, usize)> {
 /// `window` laid out exactly as [`window_archive`] writes it, with a payload
 /// the native decoder vouches for. The basis identity is checked on another
 /// core while the payload decodes.
+/// Domain: len: integrityBytes
+/// Domain: body: integrityBytes, fixedPrefixBytes
 pub fn window_decode(data: &[u8], window: &[&[u8]]) -> Option<Vec<u8>> {
     let k = window.len();
     if k == 0 {
         return None;
     }
-    if data.len() < 8 + 32 + SEAL || data[..6] != MAGIC[..] || data[6] != 1 || data[7] != 1 {
+    if data.len()
+        < crate::model::framing::usize::fixedPrefixBytes
+            + crate::model::framing::usize::integrityBytes
+            + SEAL
+        || data[..6] != MAGIC[..]
+        || data[6] != 1
+        || data[crate::model::framing::usize::fixedPrefixBytesLast] != 1
+    {
         return None;
     }
-    let (count, mut at) = read_uleb(data, 8)?;
+    let (count, mut at) = read_uleb(data, crate::model::framing::usize::fixedPrefixBytes)?;
     if count > data.len() as u64 {
         return None;
     }
@@ -1203,12 +1290,13 @@ pub fn window_decode(data: &[u8], window: &[&[u8]]) -> Option<Vec<u8>> {
     let n = lengths.iter().try_fold(0u64, |a, &l| a.checked_add(l))?;
     let (body_len, at) = read_uleb(data, at)?;
     let body_len = usize::try_from(body_len).ok()?;
-    let start = at.checked_add(32)?;
+    let start = at.checked_add(crate::model::framing::usize::integrityBytes)?;
     if data.len() != start.checked_add(body_len)?.checked_add(SEAL)? {
         return None;
     }
     let (pre, seal) = data.split_at(data.len() - SEAL);
-    let identity: [u8; 32] = pre[at..start].try_into().ok()?;
+    let identity: [u8; crate::model::framing::usize::integrityBytes] =
+        pre[at..start].try_into().ok()?;
     let mut expected = header(1, &lengths, body_len as u64);
     expected[6] = 1;
     if pre[..at] != expected[..] {
@@ -1283,15 +1371,20 @@ fn ncm_decode(
 /// (raw, ulz kernel, or linked ulz/ncm, with a payload the native decoder vouches for), sealed
 /// and laid out exactly as the client writes it, with any object lengths. `None` sends the archive to
 /// the exported reference decoder.
+/// Domain: body: integrityBytes, fixedPrefixBytes
 pub fn fast_decode(data: &[u8]) -> Option<Vec<u8>> {
-    if data.len() < 8 + SEAL || data[..6] != MAGIC[..] || data[6] > 1 || data[7] > 1 {
+    if data.len() < crate::model::framing::usize::fixedPrefixBytes + SEAL
+        || data[..6] != MAGIC[..]
+        || data[6] > 1
+        || data[crate::model::framing::usize::fixedPrefixBytesLast] > 1
+    {
         return None;
     }
     let linked = data[6] == 1;
-    if linked && data[7] != 1 {
+    if linked && data[crate::model::framing::usize::fixedPrefixBytesLast] != 1 {
         return None;
     }
-    let (count, mut at) = read_uleb(data, 8)?;
+    let (count, mut at) = read_uleb(data, crate::model::framing::usize::fixedPrefixBytes)?;
     // Each length takes a byte, which bounds the allocation.
     if count > data.len() as u64 {
         return None;
@@ -1305,7 +1398,11 @@ pub fn fast_decode(data: &[u8]) -> Option<Vec<u8>> {
     let n = lengths.iter().try_fold(0u64, |a, &l| a.checked_add(l))?;
     let (body_len, at) = read_uleb(data, at)?;
     let body_len = usize::try_from(body_len).ok()?;
-    let at = if linked { at.checked_add(32)? } else { at };
+    let at = if linked {
+        at.checked_add(crate::model::framing::usize::integrityBytes)?
+    } else {
+        at
+    };
     if data.len() != at.checked_add(body_len)?.checked_add(SEAL)? {
         return None;
     }
@@ -1315,10 +1412,18 @@ pub fn fast_decode(data: &[u8]) -> Option<Vec<u8>> {
     let expected = if linked {
         linked_header(&lengths, body_len as u64)
     } else {
-        header(data[7], &lengths, body_len as u64)
+        header(
+            data[crate::model::framing::usize::fixedPrefixBytesLast],
+            &lengths,
+            body_len as u64,
+        )
     };
     // a linked archive names this basis or an earlier one
-    let named = if linked { at - 32 } else { at };
+    let named = if linked {
+        at - crate::model::framing::usize::integrityBytes
+    } else {
+        at
+    };
     if pre[..named] != expected[..named] || seal != chain(pre) {
         return None;
     }
@@ -1326,7 +1431,7 @@ pub fn fast_decode(data: &[u8]) -> Option<Vec<u8>> {
     if linked {
         return linked_decode(body, n, Era::of(&pre[named..at])?);
     }
-    if data[7] == 0 {
+    if data[crate::model::framing::usize::fixedPrefixBytesLast] == 0 {
         return (n == body_len as u64).then(|| body.to_vec());
     }
     let rest = body.strip_prefix(KERNEL_PREFIX)?;

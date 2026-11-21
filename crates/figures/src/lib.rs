@@ -57,6 +57,8 @@ use std::path::{Path, PathBuf};
 
 use syn::visit::{self, Visit};
 
+pub mod derive;
+pub mod native;
 pub mod sources;
 
 /// The register's path from the repository root.
@@ -830,6 +832,7 @@ pub fn check(root: &Path, register: Option<&Register>) -> Result<Outcome, Error>
         scan,
         ..Outcome::default()
     };
+    out.rejected.extend(native::stale(root));
     let performance = read(root, PERFORMANCE)?;
     let known = facets(&performance);
     if let Some(from) = parametric_release(&performance) {
