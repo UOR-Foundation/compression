@@ -19,8 +19,10 @@ use crate::Error;
 
 const MAGIC: &[u8] = b"uorc-tree\x01";
 
-/// What a tree entry is.
+/// What a tree entry is. A manifest records it as its position in this
+/// list ([`Kind::code`]).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[repr(u8)]
 pub enum Kind {
     /// A regular file.
     File,
@@ -28,6 +30,20 @@ pub enum Kind {
     Executable,
     /// A directory (listed so empty directories survive).
     Directory,
+}
+
+impl Kind {
+    /// The manifest's code for this kind: its position among the kinds.
+    pub const fn code(self) -> u8 {
+        self as u8
+    }
+
+    /// The kind a manifest code names, if any.
+    pub fn of_code(code: u8) -> Option<Kind> {
+        [Kind::File, Kind::Executable, Kind::Directory]
+            .into_iter()
+            .find(|k| k.code() == code)
+    }
 }
 
 /// One entry of a tree: a safe relative path and, for files, its bytes.
@@ -103,11 +119,7 @@ pub fn layout<'a>(items: impl IntoIterator<Item = (&'a str, Kind, u64)>) -> Resu
         if !is_safe_path(path) || !seen.insert(path) {
             return Err(Error::Decode);
         }
-        manifest.push(match kind {
-            Kind::File => 0,
-            Kind::Executable => 1,
-            Kind::Directory => 2,
-        });
+        manifest.push(kind.code());
         push_uleb(&mut manifest, path.len() as u64);
         manifest.extend_from_slice(path.as_bytes());
         if kind != Kind::Directory {
@@ -166,12 +178,7 @@ pub fn read_manifest(manifest: &[u8]) -> Result<Vec<(String, Kind)>, Error> {
     let mut entries = Vec::new();
     let mut seen = std::collections::HashSet::new();
     for _ in 0..count {
-        let kind = match rest.get(at).ok_or(Error::Decode)? {
-            0 => Kind::File,
-            1 => Kind::Executable,
-            2 => Kind::Directory,
-            _ => return Err(Error::Decode),
-        };
+        let kind = Kind::of_code(*rest.get(at).ok_or(Error::Decode)?).ok_or(Error::Decode)?;
         at += 1;
         let len = usize::try_from(read_uleb(rest, &mut at)?).map_err(|_| Error::Decode)?;
         let end = at.checked_add(len).ok_or(Error::Decode)?;

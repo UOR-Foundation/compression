@@ -34,7 +34,8 @@ pub use staged::{Cores, Held, Idle};
 /// constant here equal to the model's, and the coder reads them from here.
 pub mod standard {
     /// The mixers.
-    pub const MIXERS: usize = 3;
+    /// Domain: mixerCount
+    pub const MIXERS: usize = crate::model::neuromorphic::usize::mixerCount;
     /// Inputs per mixer: the hashed contexts, the match model's two, a bias,
     /// the short match model's two and the repeat model's two (a profile
     /// word may leave any of them out).
@@ -42,35 +43,47 @@ pub mod standard {
     /// Hashed contexts, each a slot that adapts toward the coded bit.
     pub const CONTEXTS: usize = super::NC;
     /// Every mixer weight stays within this bound (`hebbianBoundsHold`).
-    pub const WEIGHT_LIMIT: i32 = 1 << 22;
+    /// Domain: weightLimit
+    pub const WEIGHT_LIMIT: i32 = crate::model::neuromorphic::i32::weightLimit;
     /// A fresh weight on the contexts, the match model's inputs and the bias:
     /// 1/4 in 16-bit fixed point. The short match and repeat inputs start at
     /// 0 (`weightInitialAdded`).
-    pub const WEIGHT_INITIAL: i32 = 1 << 14;
+    /// Domain: weightInitial
+    pub const WEIGHT_INITIAL: i32 = crate::model::neuromorphic::i32::weightInitial;
     /// A mixer input's magnitude bound (stretched probabilities, vote, bias).
-    pub const INPUT_LIMIT: i32 = 2047;
+    /// Domain: inputLimit
+    pub const INPUT_LIMIT: i32 = crate::model::neuromorphic::i32::inputLimit;
     /// A mixer error's magnitude bound (12-bit probabilities).
-    pub const ERROR_LIMIT: i32 = 4096;
+    /// Domain: errorLimit
+    pub const ERROR_LIMIT: i32 = crate::model::neuromorphic::i32::errorLimit;
     /// A weight learns `x * err * plasticity / 2^PLASTICITY_SHIFT` per bit.
-    pub const PLASTICITY_SHIFT: u32 = 16;
+    /// Domain: log2 plasticityScale
+    pub const PLASTICITY_SHIFT: u32 = crate::model::neuromorphic::u32::bits::plasticityScale;
     /// The plasticity's floor, approached as the input is seen.
-    pub const PLASTICITY_FLOOR: i64 = 24;
+    /// Domain: plasticityFloor
+    pub const PLASTICITY_FLOOR: i64 = crate::model::neuromorphic::i64::plasticityFloor;
     /// The plasticity above the floor at the first byte.
-    pub const PLASTICITY_GAIN: i64 = 104;
+    /// Domain: plasticityGain
+    pub const PLASTICITY_GAIN: i64 = crate::model::neuromorphic::i64::plasticityGain;
     /// Bytes after which the plasticity above the floor has halved.
     ///
     /// Facet: plasticityHalfLife
-    pub const PLASTICITY_HALF_LIFE: i64 = 4096;
+    /// Domain: plasticityHalfLife
+    pub const PLASTICITY_HALF_LIFE: i64 = crate::model::neuromorphic::i64::plasticityHalfLife;
     /// A weight's largest change in one bit (`laneFitHolds`).
-    pub const STEP_LIMIT: i32 = 16376;
+    /// Domain: stepLimit
+    pub const STEP_LIMIT: i32 = crate::model::neuromorphic::i32::stepLimit;
     /// A slot's count saturates here: the slot is consolidated.
     ///
     /// Facet: observationCountLimit
-    pub const COUNT_LIMIT: u8 = 127;
+    /// Domain: countLimit
+    pub const COUNT_LIMIT: u8 = crate::model::neuromorphic::u8::countLimit;
     /// A slot adapts by `RATE_NUMERATOR / (2 * count + 3)` / 65536 of its gap.
-    pub const RATE_NUMERATOR: i32 = 131_072;
+    /// Domain: rateNumerator
+    pub const RATE_NUMERATOR: i32 = crate::model::neuromorphic::i32::rateNumerator;
     /// A probability map point moves 1/2^REFINEMENT_SHIFT of its gap.
-    pub const REFINEMENT_SHIFT: i32 = 6;
+    /// Domain: refinementShift
+    pub const REFINEMENT_SHIFT: i32 = crate::model::neuromorphic::i32::refinementShift;
 
     /// The mixers' plasticity after `pos` coded bytes, in 1/65536 per unit
     /// of `x * err`: 128 at the start, decaying toward 24 (`plasticity`).
@@ -164,7 +177,8 @@ fn profile_of(point: Point) -> u32 {
 /// Hashed contexts of the full profile.
 ///
 /// Facet: contextCount
-const NC: usize = 17;
+/// Domain: contexts
+const NC: usize = crate::model::ncm::usize::contexts;
 /// Profile bit: the short match model (keyed on 4 bytes, found from 4).
 pub const F_SHORT: u32 = 1 << 17;
 /// Profile bit: the repeat-distance model (its inputs and context 13).
@@ -181,7 +195,8 @@ pub const FULL: u32 = (1 << 20) - 1;
 pub const POSITIONS: u64 = 1 << u32::BITS;
 /// A mixer's row stride: its at most `NC + 7` inputs padded with zero inputs to three
 /// 8-lane vectors, so the vector kernels need no tail.
-const NINP: usize = 24;
+/// Domain: mixerInputs
+const NINP: usize = crate::model::ncm::usize::mixerInputs;
 /// The narrow row stride, one 64-byte line per mixer row, for a profile with
 /// at most 16 inputs.
 const NINP_NARROW: usize = 16;
@@ -206,36 +221,42 @@ pub const MATCH_FIELD: u32 = 31;
 pub const TABLE_MIN: u32 = 5;
 /// Most table bits a frame may record: a slot index is a 32-bit hash's low bits.
 pub const TABLE_MAX: u32 = 32;
-const SQT: [i32; 33] = [
-    1, 2, 3, 6, 10, 16, 27, 45, 73, 120, 194, 310, 488, 747, 1101, 1546, 2047, 2549, 2994, 3348,
-    3607, 3785, 3901, 3975, 4022, 4050, 4068, 4079, 4085, 4089, 4092, 4093, 4094,
-];
+/// Domain: len: mapPoints
+const SQT: [i32; crate::model::ncm::usize::mapPoints] = crate::model::ncm::i32::sqtCells2;
 const WEIGHT_LIMIT: i32 = standard::WEIGHT_LIMIT;
 /// Adaptive probability map rows: 33 interpolation points over the stretch domain.
-const APM_ROW: usize = 33;
+/// Domain: mapPoints
+const APM_ROW: usize = crate::model::ncm::usize::mapPoints;
 const APM_RATE: i32 = standard::REFINEMENT_SHIFT;
 /// Index bits of the second probability map.
 ///
 /// Facet: refinementMapRows
 const APM2_BITS: u32 = 16;
 
+/// Domain: stretch
+/// Domain: d: stretch, map
 fn squash(d: i32) -> i32 {
-    if d > 2047 {
-        return 4095;
+    if d > crate::model::ncm::i32::stretchHalfLast {
+        return crate::model::ncm::i32::stretchLast;
     }
-    if d < -2047 {
+    if d < -crate::model::ncm::i32::stretchHalfLast {
         return 0;
     }
-    let w = d & 127;
-    let i = ((d >> 7) + 16) as usize;
-    (SQT[i] * (128 - w) + SQT[i + 1] * w + 64) >> 7
+    let w = d & crate::model::ncm::i32::mapStepLast;
+    let i = ((d >> crate::model::ncm::i32::bits::mapStep) + 16) as usize;
+    (SQT[i] * (crate::model::ncm::i32::mapStep - w)
+        + SQT[i + 1] * w
+        + crate::model::ncm::i32::mapStepHalf)
+        >> crate::model::ncm::i32::bits::mapStep
 }
 
 struct Tables {
-    stretch: [i16; 4096],
+    /// Domain: stretch
+    stretch: [i16; crate::model::ncm::usize::stretchRange],
     /// `squash(d)` at `d + 2048`, for `d` in -2048..=2047: the integer LUT the
     /// coder reads in place of interpolating, with the same values.
-    squash: [i16; 4096],
+    /// Domain: stretch
+    squash: [i16; crate::model::ncm::usize::stretchRange],
     rate: Rates,
     /// `cost[p]` = 256 log2(4096 / p), the cost in 1/256 bit of coding a bit
     /// at probability p / 4096 (`cost_table`).
@@ -243,7 +264,8 @@ struct Tables {
     /// [`Tables::squash`] and [`Tables::cost`] widened to 32 bits, for the
     /// kernels that gather them.
     #[cfg_attr(not(target_arch = "x86_64"), allow(dead_code))]
-    squash32: [i32; 4096],
+    /// Domain: stretch
+    squash32: [i32; crate::model::ncm::usize::stretchRange],
     #[cfg_attr(not(target_arch = "x86_64"), allow(dead_code))]
     cost32: [i32; 4096],
 }
@@ -253,11 +275,30 @@ impl Tables {
     /// products are `d` (the mean [`Model::predict`] takes): what
     /// [`Kernel::gains`] counts in.
     #[inline(always)]
+    /// Domain: d: weight, stretch
     fn mean_cost(&self, d: [i64; 3], y: bool) -> i32 {
-        let c = |d: i64| (d >> 16).clamp(-2047, 2047);
-        let m = ((((c(d[0]) + c(d[1]) + c(d[2]) + 6144) * 21846) >> 16) - 2048).clamp(-2047, 2047);
-        let p = i32::from(self.squash[(m + 2048) as usize]).clamp(1, 4095);
-        i32::from(self.cost[if y { p } else { 4096 - p } as usize])
+        let c = |d: i64| {
+            (d >> crate::model::ncm::i64::bits::weightUnit).clamp(
+                -crate::model::ncm::i64::stretchHalfLast,
+                crate::model::ncm::i64::stretchHalfLast,
+            )
+        };
+        let m = ((((c(d[0]) + c(d[1]) + c(d[2]) + 6144) * 21846)
+            >> crate::model::ncm::i64::bits::weightUnit)
+            - crate::model::ncm::i64::stretchHalf)
+            .clamp(
+                -crate::model::ncm::i64::stretchHalfLast,
+                crate::model::ncm::i64::stretchHalfLast,
+            );
+        let p = i32::from(self.squash[(m + crate::model::ncm::i64::stretchHalf) as usize])
+            .clamp(1, crate::model::ncm::i32::stretchLast);
+        i32::from(
+            self.cost[if y {
+                p
+            } else {
+                crate::model::ncm::i32::stretchRange - p
+            } as usize],
+        )
     }
 }
 
@@ -289,7 +330,8 @@ fn cost_table() -> [u16; 4096] {
 fn tables() -> &'static Tables {
     static T: std::sync::OnceLock<Tables> = std::sync::OnceLock::new();
     T.get_or_init(|| {
-        let mut stretch = [2047i16; 4096];
+        let mut stretch =
+            [crate::model::ncm::i16::stretchHalfLast; crate::model::ncm::usize::stretchRange];
         let mut pi = 0usize;
         for x in -2047..=2047 {
             let v = squash(x) as usize;
@@ -305,9 +347,9 @@ fn tables() -> &'static Tables {
         for (c, r) in rate.rate.iter_mut().enumerate() {
             *r = standard::RATE_NUMERATOR / (2 * c as i32 + 3);
         }
-        let mut sq = [0i16; 4096];
+        let mut sq = [0i16; crate::model::ncm::usize::stretchRange];
         for (i, v) in sq.iter_mut().enumerate() {
-            *v = squash(i as i32 - 2048) as i16;
+            *v = squash(i as i32 - crate::model::ncm::i32::stretchHalf) as i16;
         }
         let cost = cost_table();
         Tables {
@@ -325,6 +367,7 @@ fn tables() -> &'static Tables {
 /// between learned points of its row for the context.
 #[derive(Clone)]
 struct Apm {
+    /// Domain: slot, map
     t: Table<u16>,
     idx: usize,
 }
@@ -332,7 +375,7 @@ struct Apm {
 impl Apm {
     fn new(rows: usize) -> Apm {
         let row: Vec<u16> = (0..APM_ROW as i32)
-            .map(|j| (squash((j - 16) * 128) * 16) as u16)
+            .map(|j| (squash((j - 16) * crate::model::ncm::i32::mapStep) * 16) as u16)
             .collect();
         Apm {
             t: Table::repeat(&row, rows),
@@ -343,31 +386,42 @@ impl Apm {
     #[inline]
     /// The map's refinement of 12-bit `p` in context `cx`, as a probability
     /// of `bits` bits (the map's entries are 16-bit, interpolated in 128ths).
-    fn refine(&mut self, stretch: &[i16; 4096], p: u32, cx: usize, bits: u32) -> i32 {
-        let s = (i32::from(stretch[p as usize]) + 2048) as usize;
+    /// Domain: stretch: stretch
+    /// Domain: p: stretch
+    fn refine(
+        &mut self,
+        stretch: &[i16; crate::model::ncm::usize::stretchRange],
+        p: u32,
+        cx: usize,
+        bits: u32,
+    ) -> i32 {
+        let s = (i32::from(stretch[p as usize]) + crate::model::ncm::i32::stretchHalf) as usize;
         let (lo, w) = (s >> 7, (s & 127) as i32);
         let base = cx * APM_ROW + lo;
         self.idx = base + (w >> 6) as usize;
-        (i32::from(self.t[base]) * (128 - w) + i32::from(self.t[base + 1]) * w) >> (23 - bits)
+        (i32::from(self.t[base]) * (crate::model::ncm::i32::mapStep - w)
+            + i32::from(self.t[base + 1]) * w)
+            >> (23 - bits)
     }
 
     #[inline]
     fn learn(&mut self, y: bool) {
         let yi = i32::from(y);
-        let g = (yi << 16) + (yi << APM_RATE) - 2 * yi;
+        let g = (yi << crate::model::ncm::i32::bits::slotRange) + (yi << APM_RATE) - 2 * yi;
         let t = &mut self.t[self.idx];
         *t = (i32::from(*t) + ((g - i32::from(*t)) >> APM_RATE)) as u16;
     }
 }
 
+/// Domain: body: hash
 #[inline]
 fn h(mut a: u32) -> u32 {
-    a = a.wrapping_mul(0x9E37_79B1);
-    a = a.wrapping_add(a >> 15);
-    a = a.wrapping_mul(0x2C1B_3C6D);
-    a = a.wrapping_add(a >> 12);
-    a = a.wrapping_mul(0x297A_2D39);
-    a.wrapping_add(a >> 15)
+    a = a.wrapping_mul(crate::model::ncm::u32::hashMultiplier0);
+    a = a.wrapping_add(a >> crate::model::ncm::i32::bits::hashFold0);
+    a = a.wrapping_mul(crate::model::ncm::u32::hashMultiplier1);
+    a = a.wrapping_add(a >> crate::model::ncm::i32::bits::hashFold1);
+    a = a.wrapping_mul(crate::model::ncm::u32::hashMultiplier2);
+    a.wrapping_add(a >> crate::model::ncm::i32::bits::hashFold2)
 }
 
 /// The match length bucket: exact below 16, then coarser.
@@ -408,7 +462,7 @@ struct Ctx<F: Fn(u32) -> u32> {
 #[inline(always)]
 fn context_hashes<F: Fn(u32) -> u32>(x: &Ctx<F>) -> [u32; NC] {
     let (pos, c4, c8, r) = (x.pos, x.c4, x.c8, x.r);
-    let b1 = c4 & 255;
+    let b1 = c4 & crate::model::ncm::u32::cell1Last;
     let p3 = pos & 3;
     let ab = if r > 0 && pos >= r {
         (x.at)(pos - r)
@@ -428,26 +482,28 @@ fn context_hashes<F: Fn(u32) -> u32>(x: &Ctx<F>) -> [u32; NC] {
     let hc4 = h(c4);
     let v: [u32; NC] = [
         0,
-        b1 + 0x100,
-        c4 & 0xffff,
-        (c4 & 0xff_ffff) + 0x100_0000,
+        b1 + crate::model::ncm::u32::byteBase,
+        c4 & crate::model::ncm::u32::cell2Last,
+        (c4 & 0xff_ffff) + crate::model::ncm::u32::cell3Base,
         c4.wrapping_add(0x300_0000),
-        hc4.wrapping_add(c8 & 0xffff),
+        hc4.wrapping_add(c8 & crate::model::ncm::u32::cell2Last),
         hc4.wrapping_add(c8),
         x.wordh.wrapping_add(h(x.word1)),
         x.wordh,
-        (c4 & 0xff00) + (p3 << 16),
+        (c4 & 0xff00) + (p3 << crate::model::ncm::i32::bits::cell2Base),
         (c4 & 0xffff_0000) + p3,
-        b1 + (p3 << 8) + 0x80_0000,
-        (c4 & 0xffff) + (p3 << 16) + 0x400_0000,
+        b1 + (p3 << crate::model::ncm::u32::bits::byteBase) + crate::model::ncm::u32::cell3Half,
+        (c4 & crate::model::ncm::u32::cell2Last)
+            + (p3 << crate::model::ncm::u32::bits::cell2Base)
+            + 0x400_0000,
         x.c13,
-        ab.wrapping_add(b1 << 8)
-            .wrapping_add(r << 16)
+        ab.wrapping_add(b1 << crate::model::ncm::i32::bits::byteBase)
+            .wrapping_add(r << crate::model::ncm::i32::bits::cell2Base)
             .wrapping_add(0x1000_0000),
-        ab.wrapping_add(ab1 << 8)
-            .wrapping_add(ab2 << 16)
-            .wrapping_add(r << 24)
-            .wrapping_add(0x8000_0000),
+        ab.wrapping_add(ab1 << crate::model::ncm::i32::bits::byteBase)
+            .wrapping_add(ab2 << crate::model::ncm::i32::bits::cell2Base)
+            .wrapping_add(r << crate::model::ncm::i32::bits::cell3Base)
+            .wrapping_add(crate::model::ncm::u32::cell4Half),
         x.mexp
             .wrapping_add(x.mbucket << 9)
             .wrapping_add(0x7700_0000),
@@ -480,11 +536,18 @@ fn prefetch<T>(p: &T) {
 }
 
 #[inline]
+/// Domain: p: slot
 fn adapt(p: &mut u16, n: &mut u8, y: bool, rate: &Rates) {
     let r = rate.rate[usize::from(*n)];
     let pv = i32::from(*p);
-    let t = if y { 65535 } else { 0 };
-    *p = (pv + (((i64::from(t - pv)) * i64::from(r)) >> 16) as i32) as u16;
+    let t = if y {
+        crate::model::ncm::i32::slotLast
+    } else {
+        0
+    };
+    *p = (pv
+        + (((i64::from(t - pv)) * i64::from(r)) >> crate::model::ncm::i32::bits::slotRange) as i32)
+        as u16;
     if u32::from(*n) < rate.top {
         *n += 1;
     }
@@ -492,7 +555,8 @@ fn adapt(p: &mut u16, n: &mut u8, y: bool, rate: &Rates) {
 
 #[derive(Clone, Copy, Default)]
 #[repr(C, align(64))]
-struct Bucket([u32; 16]);
+/// Domain: len: bucketSlots
+struct Bucket([u32; crate::model::ncm::usize::bucketSlots]);
 
 /// The buckets as one run of slots: slot `i` is `sl[i >> 4].0[i & 15]`.
 #[inline(always)]
@@ -656,16 +720,25 @@ impl<T: Spare> std::ops::DerefMut for Table<T> {
     }
 }
 
-const SLOT_FRESH: u32 = 32768;
+/// Domain: slot
+const SLOT_FRESH: u32 = crate::model::ncm::u32::slotHalf;
 
 /// [`adapt`] on a packed slot (probability low, count above it).
 #[inline]
+/// Domain: s: slot
 fn adapt_slot(s: &mut u32, y: bool, rate: &Rates) {
-    let n = *s >> 16;
-    let pv = (*s & 0xffff) as i32;
-    let t = if y { 65535 } else { 0 };
-    let p = (pv + ((i64::from(t - pv) * i64::from(rate.rate[n as usize])) >> 16) as i32) as u32;
-    *s = (p & 0xffff) | ((n + u32::from(n < rate.top)) << 16);
+    let n = *s >> crate::model::ncm::i32::bits::slotRange;
+    let pv = (*s & crate::model::ncm::u32::slotLast) as i32;
+    let t = if y {
+        crate::model::ncm::i32::slotLast
+    } else {
+        0
+    };
+    let p = (pv
+        + ((i64::from(t - pv) * i64::from(rate.rate[n as usize]))
+            >> crate::model::ncm::i32::bits::slotRange) as i32) as u32;
+    *s = (p & crate::model::ncm::u32::slotLast)
+        | ((n + u32::from(n < rate.top)) << crate::model::ncm::u32::bits::slotRange);
 }
 
 /// The buckets `bb[..na]` in `P` lanes (whole rows of a kernel's vector)
@@ -687,8 +760,11 @@ fn padded<const P: usize>(bb: &[u32; NC], na: usize) -> [u32; P] {
 /// The probability of slot word `w` (its low half) as an index into
 /// [`Tables::stretch`].
 #[inline(always)]
+/// Domain: stretch
+/// Domain: w: slot
 fn stretch_index(w: u32) -> usize {
-    ((w & 0xffff) >> 4) as usize
+    ((w & crate::model::ncm::u32::slotLast) >> crate::model::ncm::u32::bits::slotPerStretch)
+        as usize
 }
 
 /// Counts a slot's count byte holds: one rate for each.
@@ -762,7 +838,7 @@ fn bucket_in(sl: &mut [Bucket], base: u32, mask: u32, hh: u32) -> u32 {
     }
     let b = if count(x0[1]) > count(xa[1]) { alt } else { b0 };
     let mut fresh = [SLOT_FRESH; 16];
-    fresh[0] |= u32::from(ck) << 16;
+    fresh[0] |= u32::from(ck) << crate::model::ncm::i32::bits::slotRange;
     sl[(b - base) as usize >> 4].0 = fresh;
     b
 }
@@ -790,6 +866,7 @@ struct Model {
     /// line and a lookup touches one line (slot 0's count is the bucket's
     /// check byte).
     sl: Table<Bucket>,
+    /// Domain: cell1
     hist: Vec<u8>,
     /// History bytes ahead of the coded ones in `hist` (a window frame's
     /// preceding outputs): the match model reaches into them.
@@ -802,10 +879,13 @@ struct Model {
     /// A stream of a laned frame: the shared state it reads and its own
     /// changes since the epoch began (`None` for one stream).
     lane: Option<Box<streams::Lane>>,
+    /// Domain: cell4, cell3, cell2, cell1
     c4: u32,
+    /// Domain: cell4, cell3, cell2, cell1
     c8: u32,
     wordh: u32,
     word1: u32,
+    /// Domain: cell1
     c0: u32,
     bit: u32,
     mtab: Table<u32>,
@@ -814,31 +894,39 @@ struct Model {
     slots: Rates,
     /// Bits of the probability the coder codes a bit at: 12, or 16 under a
     /// frame word's probability field ([`streams::Plan::prob`]).
+    /// Domain: log2 stretchRange, log2 slotRange
     pbits: u32,
     m2tab: Table<u32>,
     m2ptr: u32,
     m2len: u32,
     m2exp: u32,
     m2b: u32,
-    m2sp: [u16; 64],
-    m2sn: [u8; 64],
+    /// Domain: slot
+    /// Domain: len: extentM2S
+    m2sp: [u16; crate::model::ncm::usize::extentM2S],
+    /// Domain: len: extentM2S
+    m2sn: [u8; crate::model::ncm::usize::extentM2S],
     m2i: usize,
     rd: u32,
     rrun: u32,
     rexp: u32,
     rok: bool,
     ra: bool,
-    rsp: [u16; 128],
-    rsn: [u8; 128],
+    /// Domain: slot
+    /// Domain: len: extentRS
+    rsp: [u16; crate::model::ncm::usize::extentRS],
+    /// Domain: len: extentRS
+    rsn: [u8; crate::model::ncm::usize::extentRS],
     ri: usize,
     mptr: u32,
     mlen: u32,
     mexp: u32,
     mbucket: u32,
+    /// Domain: slot
     msp: [u16; 64],
     msn: [u8; 64],
-    lastp: [u32; 256],
-    lastd: [u32; 256],
+    lastp: [u32; crate::model::ncm::usize::byteBase],
+    lastd: [u32; crate::model::ncm::usize::byteBase],
     rcnt: Vec<u16>,
     r: u32,
     hb: [u32; NC],
@@ -853,18 +941,26 @@ struct Model {
     distinct: bool,
     sv: [u32; NC],
     ix: [u32; NC],
+    /// Domain: stretch
     st: [i32; NINP],
     mi: usize,
+    /// Domain: weight
     w1: Vec<i32>,
+    /// Domain: weight
     w2: Vec<i32>,
+    /// Domain: weight
     w3: Vec<i32>,
     s1: usize,
     s2: usize,
     s3: usize,
+    /// Domain: stretch
     pm1: i32,
+    /// Domain: stretch
     pm2: i32,
+    /// Domain: stretch
     pm3: i32,
     /// the three mixers' dot products for the bit being coded
+    /// Domain: weight, stretch
     dots: [i64; 3],
     /// With the encoder learning: what each context saved, in 1/256 bit, over
     /// the bits coded so far (see [`Model::learn`]).
@@ -902,7 +998,11 @@ impl Model {
         let profile = profile_of(point);
         let t = tables();
         // the coder's probability bits ride the profile's free top bit ([`WIDE`])
-        let pbits = if profile & WIDE == 0 { 12 } else { 16 };
+        let pbits = if profile & WIDE == 0 {
+            crate::model::ncm::u32::bits::stretchRange
+        } else {
+            crate::model::ncm::u32::bits::slotRange
+        };
         let profile = profile & !WIDE;
         let before: usize = history.iter().map(|h| h.len()).sum();
         let (mask, mb) = Model::dims(n, profile);
@@ -958,15 +1058,15 @@ impl Model {
             m2exp: 0,
             m2b: 0,
             m2sp: msp,
-            m2sn: [0; 64],
+            m2sn: [0; crate::model::ncm::usize::extentM2S],
             m2i: 0,
             rd: 0,
             rrun: 0,
             rexp: 0,
             rok: false,
             ra: false,
-            rsp: [32768; 128],
-            rsn: [0; 128],
+            rsp: [crate::model::ncm::u16::slotHalf; crate::model::ncm::usize::extentRS],
+            rsn: [0; crate::model::ncm::usize::extentRS],
             ri: 0,
             mptr: 0,
             mlen: 0,
@@ -974,8 +1074,8 @@ impl Model {
             mbucket: 0,
             msp,
             msn: [0; 64],
-            lastp: [0; 256],
-            lastd: [0; 256],
+            lastp: [0; crate::model::ncm::usize::byteBase],
+            lastd: [0; crate::model::ncm::usize::byteBase],
             rcnt: vec![0; 65536],
             r: 0,
             hb: [0; NC],
@@ -1174,11 +1274,12 @@ impl Model {
     }
 
     /// The short match model's key of absolute position `p`: the hash of the 4 bytes before it.
+    /// Domain: body: roll
     fn short_key(&self, p: u32) -> usize {
         let mut k = 0x55u32;
         for i in 1..=4 {
             k = k
-                .wrapping_mul(0x2F0B_4C27)
+                .wrapping_mul(crate::model::ncm::u32::rollMultiplier)
                 .wrapping_add(self.abs(p - i))
                 .wrapping_add(1);
         }
@@ -1196,12 +1297,13 @@ impl Model {
     }
 
     /// [`Model::match_key`], reading absolute positions through `abs`.
+    /// Domain: body: roll
     #[inline(always)]
     fn match_key_by(&self, p: u32, abs: impl Fn(u32) -> u32) -> usize {
         let mut k = 0u32;
         for i in 1..=7 {
             k = k
-                .wrapping_mul(0x2F0B_4C27)
+                .wrapping_mul(crate::model::ncm::u32::rollMultiplier)
                 .wrapping_add(abs(p - i))
                 .wrapping_add(1);
         }
@@ -1298,7 +1400,11 @@ impl Model {
             self.wordh,
             self.word1,
             self.r,
-            if self.mlen > 0 { self.mexp + 0x100 } else { 0 },
+            if self.mlen > 0 {
+                self.mexp + crate::model::ncm::u32::byteBase
+            } else {
+                0
+            },
             self.mbucket,
             self.c13(self.c4),
         ];
@@ -1330,11 +1436,14 @@ impl Model {
             c4 & 0x00ff_00ff
         } else {
             let rx = if self.rok {
-                (self.rexp + 256) + (self.rrun.min(15) << 9)
+                (self.rexp + crate::model::ncm::u32::byteBase) + (self.rrun.min(15) << 9)
             } else {
                 0
             };
-            rx.wrapping_add((c4 & 255) << 16).wrapping_add(0x5500_0000)
+            rx.wrapping_add(
+                (c4 & crate::model::ncm::u32::cell1Last) << crate::model::ncm::u32::bits::cell2Base,
+            )
+            .wrapping_add(0x5500_0000)
         }
     }
 
@@ -1358,9 +1467,9 @@ impl Model {
     fn prefetch_inputs(&mut self, y: u32) -> (u32, u32) {
         let c0 = (self.c0 << 1) | y;
         if self.bit == 7 {
-            let b = c0 & 255;
+            let b = c0 & crate::model::ncm::u32::cell1Last;
             let (mut wordh, mut word1) = (self.wordh, self.word1);
-            if (b as u8).is_ascii_alphabetic() || b >= 128 {
+            if (b as u8).is_ascii_alphabetic() || b >= crate::model::ncm::u32::cell1Half {
                 wordh = h(wordh.wrapping_add(b | 32));
             } else if wordh != 0 {
                 word1 = wordh;
@@ -1372,7 +1481,7 @@ impl Model {
             let abs = |i: u32| if i == pa { b } else { self.abs(i) };
             let (mexp, mbucket) = if self.mlen > 0 && self.mexp == b && self.mptr < pa {
                 (
-                    abs(self.mptr + 1) + 0x100,
+                    abs(self.mptr + 1) + crate::model::ncm::u32::byteBase,
                     len_bucket((self.mlen + 1).min(65535)),
                 )
             } else {
@@ -1380,24 +1489,28 @@ impl Model {
             };
             let key = [
                 pos + 1,
-                (self.c4 << 8) | b,
-                (self.c8 << 8) | (self.c4 >> 24),
+                (self.c4 << crate::model::ncm::i32::bits::byteBase) | b,
+                (self.c8 << crate::model::ncm::i32::bits::byteBase)
+                    | (self.c4 >> crate::model::ncm::i32::bits::cell3Base),
                 wordh,
                 word1,
                 self.r,
                 mexp,
                 mbucket,
                 if self.profile & F_REP == 0 {
-                    ((self.c4 << 8) | b) & 0x00ff_00ff
+                    ((self.c4 << crate::model::ncm::i32::bits::byteBase) | b) & 0x00ff_00ff
                 } else {
                     // the repeat state the next byte has if no new match is found
                     let rx = if self.rok && self.rd <= pa + 1 {
                         let run = if self.rexp == b { self.rrun + 1 } else { 0 };
-                        abs(pa + 1 - self.rd) + 256 + (run.min(15) << 9)
+                        abs(pa + 1 - self.rd)
+                            + crate::model::ncm::u32::byteBase
+                            + (run.min(15) << 9)
                     } else {
                         0
                     };
-                    rx.wrapping_add(b << 16).wrapping_add(0x5500_0000)
+                    rx.wrapping_add(b << crate::model::ncm::i32::bits::cell2Base)
+                        .wrapping_add(0x5500_0000)
                 },
             ];
             let hb = context_hashes(&Ctx {
@@ -1422,7 +1535,7 @@ impl Model {
             }
             self.spec_key = key;
             self.spec_hb = hb;
-            ((self.c4 << 8) | b, 1)
+            ((self.c4 << crate::model::ncm::i32::bits::byteBase) | b, 1)
         } else {
             if self.bit == 3 {
                 self.prefetch_buckets(&self.hb, (c0 & 15) | 16);
@@ -1433,6 +1546,7 @@ impl Model {
 
     /// The mixing side of [`Model::prefetch_next`]: the mixer rows and APM
     /// row the next bit reads, which sees last bytes `c4` and partial byte `c0`.
+    /// Domain: body: roll
     #[inline(always)]
     fn prefetch_mixers(&self, c4: u32, c0: u32) {
         let bit = (self.bit + 1) & 7;
@@ -1444,18 +1558,21 @@ impl Model {
             prefetch(&w[s * self.stride]);
             prefetch(&w[s * self.stride + self.stride - 1]);
         }
-        let cx2 =
-            h((c4 & 0xff_ffff).wrapping_mul(0x2F0B_4C27).wrapping_add(c0)) >> (32 - APM2_BITS);
+        let cx2 = h((c4 & 0xff_ffff)
+            .wrapping_mul(crate::model::ncm::u32::rollMultiplier)
+            .wrapping_add(c0))
+            >> (32 - APM2_BITS);
         let row = cx2 as usize * APM_ROW;
         prefetch(&self.a2.t[row]);
         prefetch(&self.a2.t[row + APM_ROW - 1]);
     }
 
+    /// Domain: body: roll
     #[inline(always)]
     fn prefetch_buckets(&self, hb: &[u32; NC], nc: u32) {
         for &k in &self.act[..self.na] {
             let hb = hb[k];
-            let hh = h(hb.wrapping_add(nc.wrapping_mul(0x2F0B_4C27)));
+            let hh = h(hb.wrapping_add(nc.wrapping_mul(crate::model::ncm::u32::rollMultiplier)));
             // a bucket and its neighbour share one 32-slot line pair
             let b = ((hh & self.mask) & !31) as usize;
             prefetch(&self.sl[b >> 4]);
@@ -1498,6 +1615,7 @@ impl Model {
     }
 
     /// The context slots' part of [`Model::sense`]: the inputs `st[..na]`.
+    /// Domain: body: roll
     #[inline(always)]
     fn sense_slots<K: Kernel>(&mut self) {
         if self.bit == 0 || self.bit == 4 {
@@ -1507,7 +1625,8 @@ impl Model {
                 (self.c0 & 15) | 16
             };
             for j in 0..self.na {
-                let hh = h(self.hb[self.act[j]].wrapping_add(nc.wrapping_mul(0x2F0B_4C27)));
+                let hh = h(self.hb[self.act[j]]
+                    .wrapping_add(nc.wrapping_mul(crate::model::ncm::u32::rollMultiplier)));
                 self.bb[j] = self.bucket(hh);
             }
             self.distinct = K::distinct(&self.bb, self.na);
@@ -1538,7 +1657,7 @@ impl Model {
         let mut eb = 0;
         if self.mlen > 0 {
             let bp = 7 - self.bit;
-            if ((self.mexp | 256) >> (bp + 1)) == self.c0 {
+            if ((self.mexp | crate::model::ncm::u32::byteBase) >> (bp + 1)) == self.c0 {
                 eb = (self.mexp >> bp) & 1;
             } else {
                 self.mlen = 0;
@@ -1547,7 +1666,11 @@ impl Model {
         }
         self.mi = (self.mbucket * 2 + eb) as usize;
         self.st[na] = if self.mlen > 0 {
-            i32::from(t.stretch[usize::from(self.msp[self.mi] >> 4)])
+            i32::from(
+                t.stretch[usize::from(
+                    self.msp[self.mi] >> crate::model::ncm::i32::bits::slotPerStretch,
+                )],
+            )
         } else {
             0
         };
@@ -1563,20 +1686,25 @@ impl Model {
         let bp = 7 - self.bit;
         let mut eb2 = 0;
         if self.m2len > 0 {
-            if ((self.m2exp | 256) >> (bp + 1)) == self.c0 {
+            if ((self.m2exp | crate::model::ncm::u32::byteBase) >> (bp + 1)) == self.c0 {
                 eb2 = (self.m2exp >> bp) & 1;
             } else {
                 self.m2len = 0;
                 self.m2b = 0;
             }
         }
-        self.ra = self.rok && ((self.rexp | 256) >> (bp + 1)) == self.c0;
+        self.ra =
+            self.rok && ((self.rexp | crate::model::ncm::u32::byteBase) >> (bp + 1)) == self.c0;
         let ebr = if self.ra { (self.rexp >> bp) & 1 } else { 0 };
         let mut at = na + 3;
         if self.profile & F_SHORT != 0 {
             self.m2i = (self.m2b * 2 + eb2) as usize;
             self.st[at] = if self.m2len > 0 {
-                i32::from(t.stretch[usize::from(self.m2sp[self.m2i] >> 4)])
+                i32::from(
+                    t.stretch[usize::from(
+                        self.m2sp[self.m2i] >> crate::model::ncm::i32::bits::slotPerStretch,
+                    )],
+                )
             } else {
                 0
             };
@@ -1593,7 +1721,11 @@ impl Model {
         if self.profile & F_REP != 0 {
             self.ri = (self.rrun * 2 + ebr) as usize;
             self.st[at] = if self.ra {
-                i32::from(t.stretch[usize::from(self.rsp[self.ri] >> 4)])
+                i32::from(
+                    t.stretch[usize::from(
+                        self.rsp[self.ri] >> crate::model::ncm::i32::bits::slotPerStretch,
+                    )],
+                )
             } else {
                 0
             };
@@ -1612,14 +1744,19 @@ impl Model {
     /// The mixing side of [`Model::predict`]: the three mixers over the
     /// inputs [`Model::sense`] read, the two APMs, and the shared pass's twin;
     /// the probability of a 1 for the bit, in 4096ths.
+    /// Domain: body: roll
     #[inline(always)]
     fn mix<K: Kernel, const W: usize>(&mut self, mstate: u32) -> u32 {
         let t = self.t;
         let msel = if self.profile & F_SEL == 0 { 0 } else { mstate };
-        let c1 = (self.c0 + 256 * msel) as usize;
+        let c1 = (self.c0 + crate::model::ncm::u32::byteBase * msel) as usize;
         self.s1 = c1 * W;
-        self.s2 = ((self.c4 & 255) * 8 + self.bit) as usize * W;
-        self.s3 = (((self.c4 >> 8) & 255) * 8 + self.bit) as usize * W;
+        self.s2 = ((self.c4 & crate::model::ncm::u32::cell1Last) * 8 + self.bit) as usize * W;
+        self.s3 = (((self.c4 >> crate::model::ncm::u32::bits::byteBase)
+            & crate::model::ncm::u32::cell1Last)
+            * 8
+            + self.bit) as usize
+            * W;
         let [a, b, c] = K::dot::<W>(
             row(&self.st, 0),
             row(&self.w1, self.s1),
@@ -1627,35 +1764,60 @@ impl Model {
             row(&self.w3, self.s3),
         );
         self.dots = [a, b, c];
-        let d1 = (a >> 16).clamp(-2047, 2047) as i32;
-        let d2 = (b >> 16).clamp(-2047, 2047) as i32;
-        let d3 = (c >> 16).clamp(-2047, 2047) as i32;
+        let d1 = (a >> crate::model::ncm::i64::bits::weightUnit).clamp(
+            -crate::model::ncm::i64::stretchHalfLast,
+            crate::model::ncm::i64::stretchHalfLast,
+        ) as i32;
+        let d2 = (b >> crate::model::ncm::i64::bits::weightUnit).clamp(
+            -crate::model::ncm::i64::stretchHalfLast,
+            crate::model::ncm::i64::stretchHalfLast,
+        ) as i32;
+        let d3 = (c >> crate::model::ncm::i64::bits::weightUnit).clamp(
+            -crate::model::ncm::i64::stretchHalfLast,
+            crate::model::ncm::i64::stretchHalfLast,
+        ) as i32;
         let sq = |d: i32| i32::from(t.squash[(d + 2048) as usize]);
         self.pm1 = sq(d1);
         self.pm2 = sq(d2);
         self.pm3 = sq(d3);
         // the mean of the three, in -2048..=2047
-        let p = sq((((d1 + d2 + d3 + 6144) * 21846) >> 16) - 2048).clamp(1, 4095) as u32;
+        let p = sq(
+            (((d1 + d2 + d3 + 6144) * 21846) >> crate::model::ncm::i32::bits::weightUnit)
+                - crate::model::ncm::i32::stretchHalf,
+        )
+        .clamp(1, crate::model::ncm::i32::stretchLast) as u32;
         let bits = self.pbits;
         let q1 = self.a1.refine(&t.stretch, p, c1, bits);
         let cx2 = h((self.c4 & 0xff_ffff)
-            .wrapping_mul(0x2F0B_4C27)
+            .wrapping_mul(crate::model::ncm::u32::rollMultiplier)
             .wrapping_add(self.c0))
             >> (32 - APM2_BITS);
         let q2 = self.a2.refine(&t.stretch, p, cx2 as usize, bits);
         let top = (1 << bits) - 1;
-        let pr = (((p << (bits - 12)) as i32 + q1 + 2 * q2) / 4).clamp(1, top) as u32;
+        let pr = (((p << (bits - crate::model::ncm::u32::bits::stretchRange)) as i32 + q1 + 2 * q2)
+            / 4)
+        .clamp(1, top) as u32;
         if let Some(tw) = self.twin.as_deref_mut() {
-            let c1 = (self.c0 + 256 * if tw.sel { mstate } else { 0 }) as usize;
+            let c1 = (self.c0 + crate::model::ncm::u32::byteBase * if tw.sel { mstate } else { 0 })
+                as usize;
             tw.s1 = c1 * W;
             let a = K::dot1::<W>(row(&self.st, 0), row(&tw.w1, tw.s1));
             tw.dot1 = a;
-            let d1 = (a >> 16).clamp(-2047, 2047) as i32;
+            let d1 = (a >> crate::model::ncm::i64::bits::weightUnit).clamp(
+                -crate::model::ncm::i64::stretchHalfLast,
+                crate::model::ncm::i64::stretchHalfLast,
+            ) as i32;
             tw.pm1 = sq(d1);
-            let p = sq((((d1 + d2 + d3 + 6144) * 21846) >> 16) - 2048).clamp(1, 4095) as u32;
+            let p = sq((((d1 + d2 + d3 + 6144) * 21846)
+                >> crate::model::ncm::i32::bits::weightUnit)
+                - crate::model::ncm::i32::stretchHalf)
+            .clamp(1, crate::model::ncm::i32::stretchLast) as u32;
             let q1 = tw.a1.refine(&t.stretch, p, c1, bits);
             let q2 = tw.a2.refine(&t.stretch, p, cx2 as usize, bits);
-            tw.pr = (((p << (bits - 12)) as i32 + q1 + 2 * q2) / 4).clamp(1, top) as u32;
+            tw.pr =
+                (((p << (bits - crate::model::ncm::u32::bits::stretchRange)) as i32 + q1 + 2 * q2)
+                    / 4)
+                .clamp(1, top) as u32;
         }
         pr
     }
@@ -1751,7 +1913,7 @@ impl Model {
         self.a1.learn(y);
         self.a2.learn(y);
         let lr = standard::plasticity(self.seen);
-        let yb = i32::from(y) << 12;
+        let yb = i32::from(y) << crate::model::ncm::i32::bits::stretchRange;
         // |err| <= 4096 and lr <= 128, so err * lr <= 2^19 and x * err * lr
         // (|x| <= 2047) stays inside i32 (`laneFitHolds`): the kernels learn
         // in 32-bit lanes.
@@ -1794,7 +1956,7 @@ impl Model {
     #[inline(always)]
     fn end_byte(&mut self) {
         {
-            let b = self.c0 & 255;
+            let b = self.c0 & crate::model::ncm::u32::cell1Last;
             // a laned stream writes its range of the frame in place; a model
             // that codes past the length it was sized for (a warm state's
             // continuation) grows its history
@@ -1804,9 +1966,10 @@ impl Model {
             }
             self.pos += 1;
             self.seen += 1;
-            self.c8 = (self.c8 << 8) | (self.c4 >> 24);
-            self.c4 = (self.c4 << 8) | b;
-            if (b as u8).is_ascii_alphabetic() || b >= 128 {
+            self.c8 = (self.c8 << crate::model::ncm::i32::bits::byteBase)
+                | (self.c4 >> crate::model::ncm::i32::bits::cell3Base);
+            self.c4 = (self.c4 << crate::model::ncm::i32::bits::byteBase) | b;
+            if (b as u8).is_ascii_alphabetic() || b >= crate::model::ncm::u32::cell1Half {
                 self.wordh = h(self.wordh.wrapping_add(b | 32));
             } else if self.wordh != 0 {
                 self.word1 = self.wordh;
@@ -1814,7 +1977,11 @@ impl Model {
             }
             let bi = b as usize;
             let d = self.pos - self.lastp[bi];
-            if self.lastp[bi] > 0 && d > 1 && d < 65536 && d == self.lastd[bi] {
+            if self.lastp[bi] > 0
+                && d > 1
+                && d < crate::model::ncm::u32::cell2Base
+                && d == self.lastd[bi]
+            {
                 let c = &mut self.rcnt[d as usize];
                 *c = c.saturating_add(1);
                 if self.rcnt[d as usize] > self.rcnt[self.r as usize] {
@@ -1878,7 +2045,17 @@ trait Kernel {
     /// `vectorBits`).
     const BITS: u32;
 
+    /// Domain: weight, stretch
+    /// Domain: x: stretch
+    /// Domain: w1: weight
+    /// Domain: w2: weight
+    /// Domain: w3: weight
     fn dot<const W: usize>(x: &[i32; W], w1: &[i32; W], w2: &[i32; W], w3: &[i32; W]) -> [i64; 3];
+    /// Domain: x: stretch
+    /// Domain: w1: weight
+    /// Domain: w2: weight
+    /// Domain: w3: weight
+    /// Domain: e: stretch, slot
     fn train<const W: usize>(
         x: &[i32; W],
         w1: &mut [i32; W],
@@ -1890,6 +2067,9 @@ trait Kernel {
     /// The exact dot product of the inputs with one weight row (a shared
     /// pass's twin mixer 1): the same integers as the first of [`Kernel::dot`].
     #[inline(always)]
+    /// Domain: weight, stretch
+    /// Domain: x: stretch
+    /// Domain: w: weight
     fn dot1<const W: usize>(x: &[i32; W], w: &[i32; W]) -> i64 {
         let mut a = 0i64;
         for i in 0..W {
@@ -1903,6 +2083,9 @@ trait Kernel {
     /// ([`Tables::mean_cost`] over the dot products `dots` of the inputs `x`
     /// with the rows `w`). An input that is 0 (past the profile's) saves 0.
     #[inline(always)]
+    /// Domain: x: stretch
+    /// Domain: w: weight
+    /// Domain: dots: weight, stretch
     fn gains<const W: usize>(
         t: &Tables,
         x: &[i32; W],
@@ -1926,9 +2109,13 @@ trait Kernel {
 
     /// The bounded Hebbian step on one weight row, as [`Kernel::train`].
     #[inline(always)]
+    /// Domain: x: stretch
+    /// Domain: w: weight
+    /// Domain: e: stretch, slot
     fn train1<const W: usize>(x: &[i32; W], w: &mut [i32; W], e: i32) {
         for i in 0..W {
-            w[i] = (w[i] + ((x[i] * e) >> 16)).clamp(-WEIGHT_LIMIT, WEIGHT_LIMIT);
+            w[i] = (w[i] + ((x[i] * e) >> crate::model::ncm::i32::bits::weightUnit))
+                .clamp(-WEIGHT_LIMIT, WEIGHT_LIMIT);
         }
     }
 
@@ -2062,7 +2249,8 @@ impl Kernel for Scalar {
     ) {
         for i in 0..W {
             let learn = |w: &mut i32, e: i32| {
-                *w = (*w + ((x[i] * e) >> 16)).clamp(-WEIGHT_LIMIT, WEIGHT_LIMIT);
+                *w = (*w + ((x[i] * e) >> crate::model::ncm::i32::bits::slotRange))
+                    .clamp(-WEIGHT_LIMIT, WEIGHT_LIMIT);
             };
             learn(&mut w1[i], e[0]);
             learn(&mut w2[i], e[1]);
@@ -3124,7 +3312,7 @@ fn at_plan(profile: u32, plan: streams::Plan) -> Option<Point> {
         return None;
     }
     let marked = match plan.bits {
-        12 => profile,
+        crate::model::ncm::u32::bits::stretchRange => profile,
         WIDEST_BITS => profile | WIDE,
         _ => return None,
     };
@@ -3335,7 +3523,7 @@ fn encoder_pair<K: Kernel>(
         a2: Apm::new(1 << APM2_BITS),
         s1: 0,
         pm1: 0,
-        pr: 2048,
+        pr: crate::model::ncm::u32::stretchHalf,
         dot1: 0,
         gain: learn[1].then(|| Box::new([0; NC])),
     }));
@@ -3366,7 +3554,9 @@ fn run_encoder<K: Kernel>(mut m: Model, data: &[u8], learn: bool, stops: [usize;
 /// One binary arithmetic coder: its interval, its output and the cap past
 /// which its payload is abandoned.
 struct Coder {
+    /// Domain: coder, cell4, cell3, cell1
     x1: u32,
+    /// Domain: coder, cell4, cell3, cell1
     x2: u32,
     out: Vec<u8>,
     cap: usize,
@@ -3416,14 +3606,15 @@ impl Coder {
         } else {
             x1 = xm + 1;
         }
-        while (x1 ^ x2) >> 24 == 0 {
+        while (x1 ^ x2) >> crate::model::ncm::i32::bits::cell3Base == 0 {
             if self.out.len() - 4 >= self.cap {
                 self.live = false;
                 return;
             }
-            self.out.push((x2 >> 24) as u8);
-            x1 <<= 8;
-            x2 = (x2 << 8) | 255;
+            self.out
+                .push((x2 >> crate::model::ncm::i32::bits::cell3Base) as u8);
+            x1 <<= crate::model::ncm::i32::bits::byteBase;
+            x2 = (x2 << crate::model::ncm::u32::bits::byteBase) | crate::model::ncm::u32::cell1Last;
         }
         self.x1 = x1;
         self.x2 = x2;
@@ -3433,7 +3624,8 @@ impl Coder {
         if !self.live || self.out.len() - 4 >= self.cap {
             return None;
         }
-        self.out.push((self.x1 >> 24) as u8);
+        self.out
+            .push((self.x1 >> crate::model::ncm::i32::bits::cell3Base) as u8);
         Some(self.out)
     }
 }
@@ -3618,7 +3810,9 @@ pub fn encode_warm_learning_below(
 
 /// The output length a payload declares, if it has its 4-byte header.
 pub fn declared_length(payload: &[u8]) -> Option<u32> {
-    Some(u32::from_be_bytes(payload.get(..4)?.try_into().ok()?))
+    Some(u32::from_be_bytes(
+        payload.get(..std::mem::size_of::<u32>())?.try_into().ok()?,
+    ))
 }
 
 /// Decode an ncm payload. Every payload of at least 4 bytes has exactly one

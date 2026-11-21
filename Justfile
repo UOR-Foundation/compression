@@ -134,6 +134,11 @@ varint-proofs:
 figures:
     cargo run --locked -q -p figures -- check
 
+# Generate the native modules that state the wire model's quantities
+# (crates/uorc/src/model/*.rs) from its sources; `just figures` rejects a stale one.
+figures-native:
+    cargo run --locked -q -p figures -- native
+
 # Record figures a change derived or removed (never admits a new one).
 figures-write:
     cargo run --locked -q -p figures -- write

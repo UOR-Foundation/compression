@@ -13,21 +13,21 @@
 //! decoder, which applies the model's semantics to it. Every payload the
 //! encoder writes is accepted (checked in the tests).
 
-/// Probability model size (`Table::fill 2 13 1024`).
-const PROBS: usize = 1 << 13;
-const TOP: u32 = 1 << 24;
+/// Probability model size (`Uorc.Codec.LzDecode::probabilityCountBits`).
+const PROBS: usize = 1 << crate::model::lz::usize::probabilityCountBits;
+const TOP: u32 = crate::model::lz::u32::rangeTop;
 type Probs = [u16; PROBS];
-const IS_REP: usize = 12;
-const IS_REP_G0: usize = 24;
-const IS_REP_G1: usize = 36;
-const IS_REP_G2: usize = 48;
-const IS_REP0_LONG: usize = 60;
-const LITERAL: usize = 72;
-const SLOT: usize = 6216;
-const SPEC: usize = 6472;
-const ALIGN: usize = 6587;
-const LEN: usize = 6603;
-const REP_LEN: usize = 7149;
+const IS_REP: usize = crate::model::lz::usize::isRepBase;
+const IS_REP_G0: usize = crate::model::lz::usize::isRepG0Base;
+const IS_REP_G1: usize = crate::model::lz::usize::isRepG1Base;
+const IS_REP_G2: usize = crate::model::lz::usize::isRepG2Base;
+const IS_REP0_LONG: usize = crate::model::lz::usize::isRep0LongBase;
+const LITERAL: usize = crate::model::lz::usize::literalBase;
+const SLOT: usize = crate::model::lz::usize::slotBase;
+const SPEC: usize = crate::model::lz::usize::specBase;
+const ALIGN: usize = crate::model::lz::usize::alignBase;
+const LEN: usize = crate::model::lz::usize::lengthBase;
+const REP_LEN: usize = crate::model::lz::usize::repLengthBase;
 
 fn after_literal(s: usize) -> usize {
     if s < 4 {
@@ -116,7 +116,7 @@ pub(crate) mod encoder {
         #[inline(always)]
         fn normalize(&mut self) {
             if self.range < TOP {
-                self.range <<= 8;
+                self.range <<= crate::model::lz::u32::byteBits;
                 self.shift_low();
             }
         }
@@ -124,14 +124,16 @@ pub(crate) mod encoder {
         #[inline(always)]
         fn bit(&mut self, probs: &mut [u16], at: usize, bit: u32) {
             let v = u32::from(probs[at]);
-            let bound = (self.range >> 11) * v;
+            let bound = (self.range >> crate::model::lz::u32::probabilityBits) * v;
             if bit == 0 {
                 self.range = bound;
-                probs[at] = (v + ((2048 - v) >> 5)) as u16;
+                probs[at] =
+                    (v + ((crate::model::lz::u32::probabilityRange - v)
+                        >> crate::model::lz::u32::bits::moveScale)) as u16;
             } else {
                 self.low += u64::from(bound);
                 self.range -= bound;
-                probs[at] = (v - (v >> 5)) as u16;
+                probs[at] = (v - (v >> crate::model::lz::u32::bits::moveScale)) as u16;
             }
             self.normalize();
         }
@@ -182,23 +184,36 @@ pub(crate) mod encoder {
         }
 
         fn distance(&mut self, probs: &mut [u16], dist: u32, len_code: u32) {
-            let ls = len_code.min(3) as usize;
-            let slot = if dist < 4 {
+            let ls = len_code.min(crate::model::lz::u32::lengthStatesLast) as usize;
+            let slot = if dist < crate::model::lz::u32::startSlot {
                 dist
             } else {
-                let top = 31 - dist.leading_zeros();
-                2 * top + ((dist >> (top - 1)) & 1)
+                let top = u32::BITS - 1 - dist.leading_zeros();
+                crate::model::lz::u32::radix * top + ((dist >> (top - 1)) & 1)
             };
-            self.tree(probs, SLOT + 64 * ls, 6, slot);
-            if slot >= 4 {
+            self.tree(
+                probs,
+                SLOT + crate::model::lz::usize::slotTree * ls,
+                crate::model::lz::u32::slotBits,
+                slot,
+            );
+            if slot >= crate::model::lz::u32::startSlot {
                 let fb = (slot >> 1) - 1;
-                let base = (2 + (slot & 1)) << fb;
+                let base = (crate::model::lz::u32::radix + (slot & 1)) << fb;
                 let reduced = dist - base;
-                if slot < 14 {
+                if slot < crate::model::lz::u32::endSlot {
                     self.reverse(probs, SPEC + base as usize - slot as usize, fb, reduced);
                 } else {
-                    self.direct(reduced >> 4, fb - 4);
-                    self.reverse(probs, ALIGN, 4, reduced & 15);
+                    self.direct(
+                        reduced >> crate::model::lz::u32::alignBits,
+                        fb - crate::model::lz::u32::alignBits,
+                    );
+                    self.reverse(
+                        probs,
+                        ALIGN,
+                        crate::model::lz::u32::alignBits,
+                        reduced & (crate::model::lz::u32::alignTree - 1),
+                    );
                 }
             }
         }
@@ -206,15 +221,19 @@ pub(crate) mod encoder {
         fn literal(&mut self, probs: &mut [u16], base: usize, value: u8, match_byte: Option<u8>) {
             let value = u32::from(value);
             let Some(mb) = match_byte else {
-                self.tree(probs, base, 8, value);
+                self.tree(probs, base, crate::model::lz::u32::byteBits, value);
                 return;
             };
             let mb = u32::from(mb);
             let mut sym = 1usize;
-            for k in (0..8).rev() {
+            for k in (0..crate::model::lz::u32::byteBits).rev() {
                 let mbit = (mb >> k) & 1;
                 let b = (value >> k) & 1;
-                self.bit(probs, base + 256 * (1 + mbit as usize) + sym, b);
+                self.bit(
+                    probs,
+                    base + crate::model::lz::usize::byteBase * (1 + mbit as usize) + sym,
+                    b,
+                );
                 sym = (sym << 1) | b as usize;
                 if b != mbit {
                     for j in (0..k).rev() {
@@ -228,7 +247,7 @@ pub(crate) mod encoder {
         }
 
         fn finish(mut self) -> Vec<u8> {
-            for _ in 0..5 {
+            for _ in 0..=crate::model::lz::usize::codeBytes {
                 self.shift_low();
             }
             self.out
@@ -374,7 +393,8 @@ pub(crate) mod encoder {
         let n = data.len();
         let start = history.len();
         let mut rc = RangeEncoder::new(input.len() / 2 + 64);
-        let mut probs = vec![1024u16; PROBS];
+        let mut probs =
+            vec![crate::model::lz::u16::probabilityRange / crate::model::lz::u16::radix; PROBS];
         let mut f = Finder {
             data,
             head3: vec![0; 1 << HASH3_BITS],
@@ -494,8 +514,8 @@ impl RangeDecoder<'_> {
     #[inline(always)]
     fn normalize(&mut self) {
         if self.range < TOP {
-            self.range <<= 8;
-            self.code = (self.code << 8) | self.next();
+            self.range <<= crate::model::lz::u32::byteBits;
+            self.code = (self.code << crate::model::lz::u32::byteBits) | self.next();
         }
     }
 
@@ -503,15 +523,17 @@ impl RangeDecoder<'_> {
     fn bit(&mut self, probs: &mut Probs, at: usize) -> u32 {
         let p = &mut probs[at & (PROBS - 1)];
         let v = u32::from(*p);
-        let bound = (self.range >> 11) * v;
+        let bound = (self.range >> crate::model::lz::u32::probabilityBits) * v;
         let b = if self.code < bound {
             self.range = bound;
-            *p = (v + ((2048 - v) >> 5)) as u16;
+            *p = (v
+                + ((crate::model::lz::u32::probabilityRange - v)
+                    >> crate::model::lz::u32::bits::moveScale)) as u16;
             0
         } else {
             self.code -= bound;
             self.range -= bound;
-            *p = (v - (v >> 5)) as u16;
+            *p = (v - (v >> crate::model::lz::u32::bits::moveScale)) as u16;
             1
         };
         self.normalize();
@@ -559,29 +581,47 @@ impl RangeDecoder<'_> {
 
     fn length(&mut self, probs: &mut Probs, base: usize) -> u32 {
         if self.bit(probs, base) == 0 {
-            self.tree(probs, base + 2, 3)
+            self.tree(
+                probs,
+                base + crate::model::lz::usize::lowAt,
+                crate::model::lz::u32::lowBits,
+            )
         } else if self.bit(probs, base + 1) == 0 {
-            8 + self.tree(probs, base + 18, 3)
+            crate::model::lz::u32::lowSymbols
+                + self.tree(
+                    probs,
+                    base + crate::model::lz::usize::midAt,
+                    crate::model::lz::u32::lowBits,
+                )
         } else {
-            16 + self.tree(probs, base + 34, 8)
+            crate::model::lz::u32::radix * crate::model::lz::u32::lowSymbols
+                + self.tree(
+                    probs,
+                    base + crate::model::lz::usize::highAt,
+                    crate::model::lz::u32::highBits,
+                )
         }
     }
 
     fn distance(&mut self, probs: &mut Probs, len_code: u32) -> Option<u64> {
-        let ls = len_code.min(3) as usize;
-        let slot = self.tree(probs, SLOT + 64 * ls, 6);
-        if slot < 4 {
+        let ls = len_code.min(crate::model::lz::u32::lengthStatesLast) as usize;
+        let slot = self.tree(
+            probs,
+            SLOT + crate::model::lz::usize::slotTree * ls,
+            crate::model::lz::u32::slotBits,
+        );
+        if slot < crate::model::lz::u32::startSlot {
             return Some(u64::from(slot));
         }
         let fb = (slot >> 1) - 1;
-        let base = u64::from(2 + (slot & 1)) << fb;
-        if slot < 14 {
+        let base = u64::from(crate::model::lz::u32::radix + (slot & 1)) << fb;
+        if slot < crate::model::lz::u32::endSlot {
             let r = self.reverse(probs, SPEC + base as usize - slot as usize, fb);
             Some(base + u64::from(r))
         } else {
-            let hi = self.direct(fb - 4)?;
-            let lo = self.reverse(probs, ALIGN, 4);
-            Some(base + 16 * u64::from(hi) + u64::from(lo))
+            let hi = self.direct(fb - crate::model::lz::u32::alignBits)?;
+            let lo = self.reverse(probs, ALIGN, crate::model::lz::u32::alignBits);
+            Some(base + crate::model::lz::u64::alignTree * u64::from(hi) + u64::from(lo))
         }
     }
 }
@@ -598,26 +638,31 @@ pub fn decode(payload: &[u8], expected: u64) -> Option<Vec<u8>> {
 /// (the encoder's `encode_with`): the output starts as `history`, matches may reach into
 /// it, and only the bytes after it are returned.
 pub fn decode_with(history: &[u8], payload: &[u8], expected: u64) -> Option<Vec<u8>> {
-    if payload.len() < 13 {
+    if payload.len() < crate::model::lz::usize::startPosition {
         return None;
     }
-    let total = u64::from_le_bytes(payload[..8].try_into().ok()?);
+    let total = u64::from_le_bytes(payload[..std::mem::size_of::<u64>()].try_into().ok()?);
     if total != expected {
         return None;
     }
     let h = history.len();
     let total = usize::try_from(total).ok()?.checked_add(h)?;
-    let code = u32::from_be_bytes(payload[9..13].try_into().ok()?);
+    let code = u32::from_be_bytes(
+        payload[crate::model::lz::usize::codeAt..crate::model::lz::usize::startPosition]
+            .try_into()
+            .ok()?,
+    );
     if code == u32::MAX {
         return None;
     }
     let mut rc = RangeDecoder {
         input: payload,
-        pos: 13,
+        pos: crate::model::lz::usize::startPosition,
         range: u32::MAX,
         code,
     };
-    let mut probs: Box<Probs> = Box::new([1024u16; PROBS]);
+    let mut probs: Box<Probs> =
+        Box::new([crate::model::lz::u16::probabilityRange / crate::model::lz::u16::radix; PROBS]);
     // A hostile header cannot make this allocate more than the payload could
     // possibly describe up front; the vector grows as output is produced.
     let mut out: Vec<u8> = Vec::with_capacity(total.min(h + payload.len().saturating_mul(64)));
@@ -630,7 +675,7 @@ pub fn decode_with(history: &[u8], payload: &[u8], expected: u64) -> Option<Vec<
             let prev = out.last().copied().unwrap_or(0);
             let base = literal_base(prev);
             let sym = if s < 7 {
-                rc.tree(&mut probs, base, 8)
+                rc.tree(&mut probs, base, crate::model::lz::u32::byteBits)
             } else {
                 let rep0 = reps[0];
                 let mb = if rep0 < size as u64 {
@@ -639,20 +684,23 @@ pub fn decode_with(history: &[u8], payload: &[u8], expected: u64) -> Option<Vec<
                     0
                 };
                 let mut sym = 1usize;
-                let mut k = 8u32;
+                let mut k = crate::model::lz::u32::byteBits;
                 while k > 0 {
                     k -= 1;
                     let mbit = (mb >> k) & 1;
-                    let b = rc.bit(&mut probs, base + 256 * (1 + mbit as usize) + sym);
+                    let b = rc.bit(
+                        &mut probs,
+                        base + crate::model::lz::usize::byteBase * (1 + mbit as usize) + sym,
+                    );
                     sym = (sym << 1) | b as usize;
                     if b != mbit {
                         break;
                     }
                 }
-                while sym < 0x100 {
+                while sym < crate::model::lz::usize::byteBase {
                     sym = (sym << 1) | rc.bit(&mut probs, base + sym) as usize;
                 }
-                (sym - 0x100) as u32
+                (sym - crate::model::lz::usize::byteBase) as u32
             };
             out.push(sym as u8);
             state = after_literal(s);
@@ -663,7 +711,7 @@ pub fn decode_with(history: &[u8], payload: &[u8], expected: u64) -> Option<Vec<
             let dist = rc.distance(&mut probs, len_code)?;
             reps = [dist, reps[0], reps[1], reps[2]];
             state = after_match(s);
-            len_code as usize + 2
+            len_code as usize + crate::model::lz::usize::minMatch
         } else {
             if rc.bit(&mut probs, IS_REP_G0 + s) == 0 {
                 if rc.bit(&mut probs, IS_REP0_LONG + s) == 0 {
@@ -687,7 +735,7 @@ pub fn decode_with(history: &[u8], payload: &[u8], expected: u64) -> Option<Vec<
             }
             let len_code = rc.length(&mut probs, REP_LEN);
             state = after_rep(s);
-            len_code as usize + 2
+            len_code as usize + crate::model::lz::usize::minMatch
         };
         let rep0 = reps[0];
         if rep0 >= size as u64 || size + len > total {
