@@ -6,57 +6,72 @@ const ERRORS = ["", "no checked archive was found within the step budget",
 // The code of each failure, as the page's product model names them.
 export const CODES = ["", "budget", "overflow", "decode", "mismatch"];
 const failure = (code) => Object.assign(new Error(ERRORS[code] ?? `uorc error ${code}`), { code: CODES[code] ?? "decode" });
+// The position uorc-wasm answers a failure at (its `Code`), by the name.
+const DECODE = CODES.indexOf("decode");
 const KINDS = ["file", "executable", "directory"];
-const fail = () => { throw failure(3); };
+const fail = () => { throw failure(DECODE); };
 
-// Entries cross into wasm as u32 count, then per entry u8 kind, u32 path length,
-// path, u32 data length, data (little-endian).
-function packEntries(entries) {
-  const enc = new TextEncoder();
-  const paths = entries.map((e) => enc.encode(e.path));
-  const size = 4 + entries.reduce((n, e, i) => n + 9 + paths[i].length + (e.data?.length ?? 0), 0);
+// Requests and answers cross the wasm boundary as little-endian integers,
+// each as wide as its typed array (uorc-wasm reads them by its types' sizes),
+// and byte strings. `encode` runs `write` twice: once to measure, once to fill.
+const FIELDS = {
+  u8: [Uint8Array.BYTES_PER_ELEMENT, "Uint8"],
+  u32: [Uint32Array.BYTES_PER_ELEMENT, "Uint32"],
+  u64: [BigUint64Array.BYTES_PER_ELEMENT, "BigUint64"],
+};
+function encode(write) {
+  let size = 0;
+  const measure = Object.fromEntries(Object.entries(FIELDS).map(([k, [n]]) => [k, () => { size += n; }]));
+  write({ ...measure, bytes: (b) => { size += b.length; } });
   const out = new Uint8Array(size);
   const view = new DataView(out.buffer);
   let at = 0;
-  view.setUint32(at, entries.length, true); at += 4;
-  entries.forEach((e, i) => {
-    const data = e.data ?? new Uint8Array(0);
-    out[at++] = Math.max(0, KINDS.indexOf(e.kind ?? "file"));
-    view.setUint32(at, paths[i].length, true); at += 4; out.set(paths[i], at); at += paths[i].length;
-    view.setUint32(at, data.length, true); at += 4; out.set(data, at); at += data.length;
-  });
+  const fill = Object.fromEntries(Object.entries(FIELDS).map(([k, [n, t]]) => [k, (v) => { view[`set${t}`](at, v, true); at += n; }]));
+  write({ ...fill, bytes: (b) => { out.set(b, at); at += b.length; } });
   return out;
+}
+function decoder(bytes) {
+  const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+  let at = 0;
+  const r = Object.fromEntries(Object.entries(FIELDS).map(([k, [n, t]]) => [k, () => { const v = view[`get${t}`](at, true); at += n; return v; }]));
+  r.bytes = (n) => { const b = bytes.subarray(at, at + n); at += n; return b; };
+  return r;
+}
+const kindByte = (e) => Math.max(0, KINDS.indexOf(e.kind ?? "file"));
+
+// Entries cross into wasm as u32 count, then per entry u8 kind, u32 path length,
+// path, u32 data length, data.
+function packEntries(entries) {
+  const enc = new TextEncoder();
+  const paths = entries.map((e) => enc.encode(e.path));
+  return encode((w) => {
+    w.u32(entries.length);
+    entries.forEach((e, i) => {
+      const data = e.data ?? new Uint8Array(0);
+      w.u8(kindByte(e)); w.u32(paths[i].length); w.bytes(paths[i]); w.u32(data.length); w.bytes(data);
+    });
+  });
 }
 
 // A tree's listing crosses as u32 count, then per entry u8 kind, u32 path
-// length, path, u64 length (little-endian): no file bytes.
+// length, path, u64 length: no file bytes.
 function packListing(items) {
   const enc = new TextEncoder();
   const paths = items.map((e) => enc.encode(e.path));
-  const out = new Uint8Array(4 + items.reduce((n, e, i) => n + 13 + paths[i].length, 0));
-  const view = new DataView(out.buffer);
-  let at = 0;
-  view.setUint32(at, items.length, true); at += 4;
-  items.forEach((e, i) => {
-    out[at++] = Math.max(0, KINDS.indexOf(e.kind ?? "file"));
-    view.setUint32(at, paths[i].length, true); at += 4; out.set(paths[i], at); at += paths[i].length;
-    view.setBigUint64(at, BigInt(e.blob?.size ?? 0), true); at += 8;
+  return encode((w) => {
+    w.u32(items.length);
+    items.forEach((e, i) => { w.u8(kindByte(e)); w.u32(paths[i].length); w.bytes(paths[i]); w.u64(BigInt(e.blob?.size ?? 0)); });
   });
-  return out;
 }
 
 function unpackEntries(bytes) {
   const dec = new TextDecoder();
-  const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
-  let at = 0;
-  const count = view.getUint32(at, true); at += 4;
+  const r = decoder(bytes);
   const entries = [];
-  for (let i = 0; i < count; i++) {
-    const kind = KINDS[bytes[at++]];
-    const pathLength = view.getUint32(at, true); at += 4;
-    const path = dec.decode(bytes.subarray(at, at + pathLength)); at += pathLength;
-    const dataLength = view.getUint32(at, true); at += 4;
-    entries.push({ path, kind, data: bytes.slice(at, at + dataLength) }); at += dataLength;
+  for (let i = 0, count = r.u32(); i < count; i++) {
+    const kind = KINDS[r.u8()];
+    const path = dec.decode(r.bytes(r.u32()));
+    entries.push({ path, kind, data: r.bytes(r.u32()).slice() });
   }
   return entries;
 }
@@ -65,33 +80,37 @@ function unpackEntries(bytes) {
 // u32 pieceCount, u64 piece*, u32 window, u64 windowLength*, then the window
 // frames and the frame.
 function frameRequest(pieces, window, frame) {
-  const size = 8 + 8 * pieces.length + 8 * window.length + window.reduce((n, w) => n + w.length, 0) + frame.length;
-  const out = new Uint8Array(size);
-  const view = new DataView(out.buffer);
-  let at = 0;
-  view.setUint32(at, pieces.length, true); at += 4;
-  for (const p of pieces) { view.setBigUint64(at, p, true); at += 8; }
-  view.setUint32(at, window.length, true); at += 4;
-  for (const w of window) { view.setBigUint64(at, BigInt(w.length), true); at += 8; }
-  for (const w of [...window, frame]) { out.set(w, at); at += w.length; }
-  return out;
+  return encode((w) => {
+    w.u32(pieces.length);
+    for (const p of pieces) w.u64(p);
+    w.u32(window.length);
+    for (const f of window) w.u64(BigInt(f.length));
+    for (const f of [...window, frame]) w.bytes(f);
+  });
 }
 
 // A frame's coding runs a few passes (the scheduled strategies, a learned
 // re-encode, and in small schedules the v0.3 entry), how many is known only
-// as they run. After x passes (whole and part) the share done is
+// as they run. `passes` is how many the last coding of the same kind ran
+// (one before any has). After x passes (whole and part) the share done is
 // 1 - (passes / (passes + 1))^x: under 1/passes per pass, then smaller
-// steps, so the bar keeps moving through any extra pass and never moves back.
-export function frameShare(passes = 3) {
+// steps, so the bar keeps moving through any extra pass, never moves back,
+// and reaches 1 only when the coding answers. `ran()` is the passes seen.
+export function frameShare(passes = 1) {
   let begun = 0, last = 0, best = 0;
   const left = passes / (passes + 1);
-  return (done, total) => {
+  const share = (done, total) => {
     if (done < last) begun++;
     last = done;
-    best = Math.max(best, Math.min(0.99, 1 - left ** (begun + done / Math.max(total, 1))));
+    best = Math.max(best, 1 - left ** (begun + done / Math.max(total, 1)));
     return best;
   };
+  share.ran = () => begun + 1;
+  return share;
 }
+// Passes the last coding of each `which` ran, for the next one's bar.
+const ran = new Map();
+const passesOf = (which) => ran.get(which) ?? 1;
 
 // `source` is the module's URL, or a WebAssembly.Module already compiled (a
 // pool worker receives the page worker's).
@@ -120,12 +139,15 @@ export async function load(source) {
   const bytesOf = async (blob) => new Uint8Array(await blob.arrayBuffer());
   // Length of the archive starting at `at` in `blob`, read from its header.
   const archiveLength = async (blob, at) => {
-    for (let want = Number(x.header_size()); ; want *= 2) {
+    // NaN while the header needs more bytes: read another hint's worth.
+    const hint = Number(x.header_size());
+    for (let want = hint; ; want += hint) {
       const head = await bytesOf(blob.slice(at, at + want));
       put(x.input_buffer, head);
       const length = x.frame_length();
       if (length >= 0 && at + length <= blob.size) return length;
-      if (length === -1 || head.length < want) throw failure(3);
+      if (length < 0) throw failure(-length);
+      if (head.length < want) throw failure(DECODE);
     }
   };
   // Start decoding a stream: note every archive first (a reference frame
@@ -147,17 +169,19 @@ export async function load(source) {
   // library's.
   const codeStream = async (blob, steps, progress, pool) => {
     const total = blob.size;
-    // Until two pool workers have loaded, the page's worker codes alone, so
-    // the first file does not wait behind their start: the same plan and
-    // cuts, each trial coded here, one after another.
-    const coder = pool && pool.ready >= 2 ? pool : {
+    // Until the pool has more cores loaded than this worker's one (while it
+    // codes, this worker waits), the page's worker codes alone, so the first
+    // file does not wait behind their start: the same plan and cuts, each
+    // trial coded here, one after another.
+    const coder = pool && pool.ready > 1 ? pool : {
       async code(job, onShare) {
         const parts = await Promise.all([...job.window, job.frame].map(bytesOf));
-        const share = frameShare();
+        const share = frameShare(passesOf(job.which));
         onPass = (done, of) => onShare(share(done, of));
         try {
           return call(frameRequest(job.pieces, parts.slice(0, -1), parts.at(-1)), () => x.code_frame(job.which, BigInt(job.steps)));
         } finally {
+          ran.set(job.which, share.ran());
           onPass = () => {};
         }
       },
@@ -301,22 +325,21 @@ export async function load(source) {
     };
     let index = 0;
     let position = 0;
+    // Planned frames (see plan_frame in uorc-wasm): u32 count, then per
+    // frame u8 0, u64 length, u64 archiveLength, archive (a finished
+    // repeat) or u8 1, u64 length, u32 pieceCount, u64 piece* (a span).
     const plan = (records) => {
-      const view = new DataView(records.buffer, records.byteOffset, records.byteLength);
-      let p = 0;
-      const n = view.getUint32(p, true); p += 4;
-      for (let i = 0; i < n; i++) {
-        const kind = records[p++];
-        const length = Number(view.getBigUint64(p, true)); p += 8;
+      const r = decoder(records);
+      for (let i = 0, n = r.u32(); i < n; i++) {
+        const done = r.u8() === 0;
+        const length = Number(r.u64());
         const f = { index: index++, start: position, length };
-        if (kind === 0) {
-          const size = Number(view.getBigUint64(p, true)); p += 8;
-          archives[f.index] = Promise.resolve(records.slice(p, p + size)); p += size;
+        if (done) {
+          archives[f.index] = Promise.resolve(r.bytes(Number(r.u64())).slice());
           finished += length;
         } else {
-          const count = view.getUint32(p, true); p += 4;
           f.pieces = [];
-          for (let k = 0; k < count; k++) { f.pieces.push(view.getBigUint64(p, true)); p += 8; }
+          for (let k = 0, count = r.u32(); k < count; k++) f.pieces.push(r.u64());
           span(f);
         }
         position += length;
@@ -361,7 +384,7 @@ export async function load(source) {
     // description per archive in the stream; throws on any failure.
     // `progress` (done, total) moves through the decode passes, in archive bytes.
     verify: (archive, original, progress = () => {}) => {
-      const share = frameShare(1);
+      const share = frameShare();
       onPass = (done, total) => progress(Math.floor(archive.length * share(done, total)), archive.length);
       try {
         return json(call(archive, () => {
@@ -398,19 +421,20 @@ export async function load(source) {
           const piece = output.subarray(from, from + n);
           from += n;
           if (frames > 0 && i === 0) {
-            if (!objects.length) throw failure(3);
+            if (!objects.length) throw failure(DECODE);
             objects.at(-1).push(piece);
           } else objects.push([piece]);
         });
         at += length;
         progress(at, blob.size);
       }
-      if (objects.length < 2) throw failure(3);
+      // a one-object archive is not a tree
+      if (objects.length <= 1) throw failure(DECODE);
       const manifest = new Uint8Array(await new Blob(objects[0]).arrayBuffer());
       const listed = unpackEntries(call(manifest, () => x.tree_manifest()));
       const files = objects.slice(1);
       const entries = listed.map(({ path, kind }) => (kind === "directory" ? { path, kind } : { path, kind, blob: new Blob(files.shift() ?? fail()) }));
-      if (files.length > 1 || (files.length === 1 && (entries.some((e) => e.blob) || files[0].some((p) => p.length)))) throw failure(3);
+      if (files.length > 1 || (files.length === 1 && (entries.some((e) => e.blob) || files[0].some((p) => p.length)))) throw failure(DECODE);
       return entries;
     },
     // How many objects the stream's first archive holds: one for a file, more
@@ -440,12 +464,32 @@ export async function load(source) {
 const inWorker = typeof WorkerGlobalScope !== "undefined" && self instanceof WorkerGlobalScope;
 // A pool worker codes for the page's worker and starts no pool of its own.
 const inPool = new URL(import.meta.url).search === "?pool";
+// The name an archive is written under: its input's, with this suffix.
+const SUFFIX = ".uorc";
 
+// Bytes crypto.getRandomValues fills in one call on this host: unbounded
+// until the host refuses a call.
+let randomQuota = Infinity;
 const EXAMPLES = {
   text: (n, seed) => { const t = new TextEncoder().encode(seed); return Uint8Array.from({ length: n }, (_, i) => t[i % t.length]); },
   zeros: (n) => new Uint8Array(n),
-  counter: (n) => Uint8Array.from({ length: n }, (_, i) => i & 255),
-  random: (n) => { const out = new Uint8Array(n); for (let at = 0; at < n; at += 65536) crypto.getRandomValues(out.subarray(at, Math.min(n, at + 65536))); return out; },
+  // a byte array holds each index modulo its range
+  counter: (n) => Uint8Array.from({ length: n }, (_, i) => i),
+  random: (n) => {
+    const out = new Uint8Array(n);
+    for (let at = 0; at < n;) {
+      const part = out.subarray(at, at + randomQuota);
+      try {
+        crypto.getRandomValues(part);
+        at += part.length;
+      } catch (error) {
+        // the host's quota per call, found by halving where it refuses
+        if (error?.name !== "QuotaExceededError" || part.length <= 1) throw error;
+        randomQuota = part.length >>> 1;
+      }
+    }
+    return out;
+  },
   empty: () => new Uint8Array(0),
 };
 
@@ -470,18 +514,27 @@ async function serve() {
   const helped = async ({ id, which, steps, pieces, window, frame }) => {
     try {
       const parts = await Promise.all([...window, frame].map(bytesOf));
-      const share = frameShare(which < 0 ? 3 : which === 0 ? 2 : 1);
-      const archive = uorc.codeFrame(frameRequest(pieces, parts.slice(0, -1), parts.at(-1)), which, steps,
-        (done, total) => self.postMessage({ id, type: "share", share: share(done, total) }));
+      const share = frameShare(passesOf(which));
+      let archive;
+      try {
+        archive = uorc.codeFrame(frameRequest(pieces, parts.slice(0, -1), parts.at(-1)), which, steps,
+          (done, total) => self.postMessage({ id, type: "share", share: share(done, total) }));
+      } finally {
+        ran.set(which, share.ran());
+      }
       self.postMessage({ id, type: "coded", archive, memory: uorc.memoryBytes() }, [archive.buffer]);
     } catch (error) {
       self.postMessage({ id, type: "failed", code: error?.code ?? "stopped", message: String(error?.message ?? error) });
       if (!error?.code) self.close();
     }
   };
-  // A pool worker codes a little text once, so that its first frame runs on
-  // optimized code rather than the engine's first tier.
-  if (inPool) uorc.compress(EXAMPLES.text(1 << 16, "uorc pool worker warm-up "));
+  // A pool worker codes a line of text first, so that its first frame runs
+  // on optimized code rather than the engine's first tier. The engine tiers
+  // up on the work every archive does whatever its length (the model's setup
+  // and the plan), so the line's own bytes are enough (measured in V8: the
+  // line and 64 KiB of it each code in about the same time, the first coding
+  // of either a little slower).
+  if (inPool) uorc.compress(new TextEncoder().encode("uorc pool worker warm-up "));
   const pool = inPool ? { size: 0, memory: 0, ready: 0, warm() {} } : workers(uorc.module, host);
   const run = {
     async compress({ files }) {
@@ -489,7 +542,7 @@ async function serve() {
       if (!tree) {
         const [file] = files;
         const archive = await uorc.compressBlob(file, 0n, progress, pool);
-        return { kind: "archive", input: file.size, files: [{ path: `${file.name}.uorc`, blob: archive }] };
+        return { kind: "archive", input: file.size, files: [{ path: `${file.name}${SUFFIX}`, blob: archive }] };
       }
       const dirs = new Set();
       const entries = files.map((file) => {
@@ -502,12 +555,12 @@ async function serve() {
       const all = [...[...dirs].sort().map((path) => ({ path, kind: "directory" })), ...entries];
       const root = files[0].webkitRelativePath ? files[0].webkitRelativePath.split("/")[0] : "files";
       const archive = await uorc.compressTreeBlob(all, 0n, progress, pool);
-      return { kind: "archive", input: total, count: entries.length, files: [{ path: `${root}.uorc`, blob: archive }] };
+      return { kind: "archive", input: total, count: entries.length, files: [{ path: `${root}${SUFFIX}`, blob: archive }] };
     },
     async decompress({ archive }) {
       if ((await uorc.objects(archive)) === 1) {
         const blob = await uorc.decompressBlob(archive, progress);
-        const name = archive.name.endsWith(".uorc") && archive.name.length > 5 ? archive.name.slice(0, -5) : `${archive.name}.out`;
+        const name = archive.name.endsWith(SUFFIX) && archive.name.length > SUFFIX.length ? archive.name.slice(0, -SUFFIX.length) : `${archive.name}.out`;
         return { kind: "files", input: archive.size, files: [{ path: name, blob }] };
       }
       const entries = await uorc.decompressTreeBlob(archive, progress);
@@ -527,7 +580,7 @@ async function serve() {
       const archive = uorc.compress(data);
       const back = uorc.decompress(archive);
       const same = back.length === data.length && back.every((b, i) => b === data[i]);
-      return { kind: "example", bytes: data.length, archive: archive.length, same, seconds: (performance.now() - started) / 1000 };
+      return { kind: "example", bytes: data.length, archive: archive.length, same, milliseconds: performance.now() - started };
     },
   };
   self.onmessage = async ({ data }) => {
@@ -551,7 +604,8 @@ async function serve() {
 // the page's host rule (Uorc.Page::pageWorker) applied to the device the
 // browser reports: at most host.coreLimit workers and host.workersPerGiB per
 // GiB of device memory (host.unreportedGiB when the browser reports none).
-// With fewer than two cores there is no pool.
+// A pool of one would code on the core the page's worker leaves, so there
+// is none.
 function workers(module, host) {
   const memory = self.navigator?.deviceMemory;
   const cores = self.navigator?.hardwareConcurrency ?? 1;
@@ -561,7 +615,8 @@ function workers(module, host) {
   const jobs = new Map();
   let started = false;
   let next = 0;
-  const state = { size: size < 2 ? 0 : size, memory: 0, ready: 0 };
+  // a pool adds cores only beyond the page worker's own, which waits while it codes
+  const state = { size: size > 1 ? size : 0, memory: 0, ready: 0 };
   const start = () => {
     started = true;
     for (let i = 0; i < state.size; i++) {
