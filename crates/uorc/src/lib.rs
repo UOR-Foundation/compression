@@ -66,6 +66,7 @@ pub mod chunk;
 pub mod coordinates;
 pub mod delta;
 mod frame;
+mod model;
 pub mod ncm;
 pub mod performance;
 pub mod portfolio;
