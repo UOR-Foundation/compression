@@ -2237,19 +2237,31 @@ fn cut_span(
             len: 0,
         });
     }
-    let coded = leaves.iter().filter(|l| l.done.is_none()).count();
-    let cores = (threads / coded.max(1)).max(1);
-    let mut archives = parallel(&leaves, threads, |leaf| match &leaf.done {
+    // The codings start longest first, each holding cores in proportion to
+    // the bytes it codes (at least one), so the longest is not the last to
+    // start on one core while the others' cores go idle.
+    let coded: usize = leaves
+        .iter()
+        .filter(|l| l.done.is_none())
+        .map(|l| l.at.len())
+        .sum();
+    let share = |leaf: &Leaf| (threads * leaf.at.len()).div_ceil(coded.max(1)).max(1);
+    let mut order: Vec<usize> = (0..leaves.len()).collect();
+    order.sort_by_key(|&i| std::cmp::Reverse(leaves[i].at.len()));
+    let mut coded_in_order = parallel(&order, threads, |&i| match &leaves[i].done {
         Some(archive) => Ok(archive.clone()),
         None => trial(
-            &span[leaf.at.clone()],
-            &leaf.pieces,
-            &cutter.slices(&leaf.reads),
-            cores,
+            &span[leaves[i].at.clone()],
+            &leaves[i].pieces,
+            &cutter.slices(&leaves[i].reads),
+            share(&leaves[i]),
         ),
     })
-    .into_iter()
-    .collect::<Result<Vec<_>, Error>>()?;
+    .into_iter();
+    let mut archives: Vec<Vec<u8>> = vec![Vec::new(); leaves.len()];
+    for &i in &order {
+        archives[i] = coded_in_order.next().unwrap_or(Ok(Vec::new()))?;
+    }
     if cut {
         let whole = archives.pop().unwrap_or_default();
         if whole.len() <= archives.iter().map(Vec::len).sum() {

@@ -1,0 +1,238 @@
+\begin{lexlean}{Uorc.Wire.Word}
+\title{Parameters}
+\begin{semanticmodule}
+definition{
+  name: power,
+  parameters: [base : Nat, exponent : Nat],
+  result: Nat,
+  body: (match exponent | Nat.zero => 1 | Nat.succ e => (prim multiply base (power base e) : Nat)),
+  axioms: [],
+  executable: true,
+  recursive_argument: exponent
+}
+
+definition{name: bitRange, parameters: [], result: Nat, body: (1 + 1), axioms: [], executable: true}
+
+definition{
+  name: byteBits,
+  parameters: [],
+  result: Nat,
+  body: (power (bitRange) (1 + (bitRange))),
+  axioms: [],
+  executable: true
+}
+
+definition{
+  name: byteRange,
+  parameters: [],
+  result: Nat,
+  body: (power (bitRange) (byteBits)),
+  axioms: [],
+  executable: true
+}
+
+definition{
+  name: profileWordBytes,
+  parameters: [],
+  result: Nat,
+  body: (power (bitRange) (bitRange)),
+  axioms: [],
+  executable: true
+}
+
+definition{
+  name: profileWordBits,
+  parameters: [],
+  result: Nat,
+  body: (prim multiply (byteBits) (profileWordBytes) : Nat),
+  axioms: [],
+  executable: true
+}
+
+definition{
+  name: contextBits,
+  parameters: [],
+  result: Nat,
+  body: (1 + (power (bitRange) (profileWordBytes))),
+  axioms: [],
+  executable: true
+}
+
+definition{
+  name: fixedInputs,
+  parameters: [],
+  result: Nat,
+  body: (1 + (bitRange)),
+  axioms: [],
+  executable: true
+}
+
+definition{
+  name: featureInputs,
+  parameters: [],
+  result: Nat,
+  body: (bitRange),
+  axioms: [],
+  executable: true
+}
+
+definition{
+  name: shortBit,
+  parameters: [],
+  result: Nat,
+  body: (power (bitRange) (contextBits)),
+  axioms: [],
+  executable: true
+}
+
+definition{
+  name: repBit,
+  parameters: [],
+  result: Nat,
+  body: (prim multiply (shortBit) (bitRange) : Nat),
+  axioms: [],
+  executable: true
+}
+
+definition{
+  name: selBit,
+  parameters: [],
+  result: Nat,
+  body: (prim multiply (repBit) (bitRange) : Nat),
+  axioms: [],
+  executable: true
+}
+
+definition{
+  name: tableUnit,
+  parameters: [],
+  result: Nat,
+  body: (prim multiply (selBit) (bitRange) : Nat),
+  axioms: [],
+  executable: true
+}
+
+definition{
+  name: tableField,
+  parameters: [],
+  result: Nat,
+  body: (power (bitRange) ((bitRange) + (profileWordBytes))),
+  axioms: [],
+  executable: true
+}
+
+definition{
+  name: matchUnit,
+  parameters: [],
+  result: Nat,
+  body: (prim multiply (tableUnit) (tableField) : Nat),
+  axioms: [],
+  executable: true
+}
+
+definition{
+  name: matchField,
+  parameters: [],
+  result: Nat,
+  body: (power (bitRange) (1 + (profileWordBytes))),
+  axioms: [],
+  executable: true
+}
+
+definition{
+  name: wideBase,
+  parameters: [],
+  result: Nat,
+  body: (prim multiply (matchUnit) (matchField) : Nat),
+  axioms: [],
+  executable: true
+}
+
+definition{
+  name: profileBase,
+  parameters: [],
+  result: Nat,
+  body: (prim multiply (wideBase) (bitRange) : Nat),
+  axioms: [],
+  executable: true
+}
+
+definition{
+  name: probField,
+  parameters: [],
+  result: Nat,
+  body: (power (bitRange) (1 + (profileWordBytes))),
+  axioms: [],
+  executable: true
+}
+
+definition{
+  name: streamsBase,
+  parameters: [],
+  result: Nat,
+  body: (prim multiply (profileBase) (probField) : Nat),
+  axioms: [],
+  executable: true
+}
+
+definition{
+  name: streamsField,
+  parameters: [],
+  result: Nat,
+  body: (power (bitRange) (power (bitRange) (profileWordBytes))),
+  axioms: [],
+  executable: true
+}
+
+definition{
+  name: epochBase,
+  parameters: [],
+  result: Nat,
+  body: (prim multiply (streamsBase) (streamsField) : Nat),
+  axioms: [],
+  executable: true
+}
+
+definition{
+  name: epochField,
+  parameters: [],
+  result: Nat,
+  body: (power (bitRange) (1 + (profileWordBytes))),
+  axioms: [],
+  executable: true
+}
+
+definition{
+  name: strategyBytes,
+  parameters: [],
+  result: Nat,
+  body: (1 + (profileWordBytes)),
+  axioms: [],
+  executable: true
+}
+
+definition{
+  name: littleEndian,
+  parameters: [fuel : Nat, data : Bytes, at : Nat],
+  result: Nat,
+  body: (match fuel
+    | Nat.zero => 0
+    | Nat.succ m => ((match (prim index data at : (Option UInt8))
+      | Option.none => (byteRange)
+      | Option.some octet => (prim to_nat octet : Nat)) + (prim multiply (byteRange) (littleEndian m data (1 + at)) : Nat))),
+  axioms: [Quot.sound, propext],
+  recursive_argument: fuel
+}
+
+definition{
+  name: ones,
+  parameters: [fuel : Nat, word : Nat],
+  result: Nat,
+  body: (match fuel
+    | Nat.zero => 0
+    | Nat.succ m => ((prim remainder word (bitRange) 0 : Nat) + (ones m (prim quotient word (bitRange) 0 : Nat)))),
+  axioms: [],
+  recursive_argument: fuel
+}
+\end{semanticmodule}
+\end{lexlean}

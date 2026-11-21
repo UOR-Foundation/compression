@@ -16,6 +16,8 @@
 
 use std::cell::RefCell;
 
+use uorc::tree::Kind;
+
 thread_local! {
     static INPUT: RefCell<Vec<u8>> = const { RefCell::new(Vec::new()) };
     static OUTPUT: RefCell<Vec<u8>> = const { RefCell::new(Vec::new()) };
@@ -36,27 +38,58 @@ pub extern "C" fn window_reset() {
     });
 }
 
-/// The status an export returns: its position in this list, which is the
-/// order of the page's `ERRORS` (web/uorc.js reads a status as that index).
+/// What an operation answers, by position: success, then each
+/// [`uorc::Error`] in its declared order. The page names the same positions
+/// (`CODES` in web/uorc.js, as the page's product model names them).
 #[repr(i32)]
-enum Status {
+#[derive(Clone, Copy)]
+pub enum Code {
+    /// Operation succeeded; the result is in the output buffer.
     Ok,
+    /// See [`uorc::Error::Budget`].
     Budget,
+    /// See [`uorc::Error::Overflow`].
     Overflow,
+    /// See [`uorc::Error::Decode`].
     Decode,
+    /// See [`uorc::Error::Mismatch`].
     Mismatch,
 }
 
 /// Operation succeeded; the result is in the output buffer.
-pub const OK: i32 = Status::Ok as i32;
+pub const OK: i32 = Code::Ok as i32;
 /// See [`uorc::Error::Budget`].
-pub const BUDGET: i32 = Status::Budget as i32;
+pub const BUDGET: i32 = Code::Budget as i32;
 /// See [`uorc::Error::Overflow`].
-pub const OVERFLOW: i32 = Status::Overflow as i32;
+pub const OVERFLOW: i32 = Code::Overflow as i32;
 /// See [`uorc::Error::Decode`].
-pub const DECODE: i32 = Status::Decode as i32;
+pub const DECODE: i32 = Code::Decode as i32;
 /// See [`uorc::Error::Mismatch`].
-pub const MISMATCH: i32 = Status::Mismatch as i32;
+pub const MISMATCH: i32 = Code::Mismatch as i32;
+
+/// Integers cross the boundary little-endian, each as wide as its type.
+const U32: usize = std::mem::size_of::<u32>();
+/// See [`U32`].
+const U64: usize = std::mem::size_of::<u64>();
+
+/// Tree entry kinds as they cross the boundary: a kind's byte is its
+/// position here (the page's `KINDS` names the same positions).
+const KINDS: &[Kind] = &[Kind::File, Kind::Executable, Kind::Directory];
+
+fn kind_of(byte: u8) -> Result<Kind, uorc::Error> {
+    KINDS
+        .get(usize::from(byte))
+        .copied()
+        .ok_or(uorc::Error::Decode)
+}
+
+fn kind_byte(kind: Kind) -> u8 {
+    let at = KINDS
+        .iter()
+        .position(|&k| k == kind)
+        .expect("every kind is listed");
+    u8::try_from(at).expect("a kind's position fits a byte")
+}
 
 fn resize(buffer: &RefCell<Vec<u8>>, len: usize) -> *mut u8 {
     let mut buffer = buffer.borrow_mut();
@@ -172,14 +205,14 @@ pub extern "C" fn header_size() -> usize {
 }
 
 /// Total length of the archive whose first bytes are in the input buffer;
-/// -2 when more bytes are needed to see its header, -1 when they are not a
-/// UORC archive header.
+/// NaN while more bytes are needed to see its header, and the negated
+/// [`DECODE`] when they are not a UORC archive header.
 #[no_mangle]
 pub extern "C" fn frame_length() -> f64 {
     INPUT.with(|input| match uorc::frame_length(&input.borrow()) {
         Ok(Some(n)) => n as f64,
-        Ok(None) => -2.0,
-        Err(_) => -1.0,
+        Ok(None) => f64::NAN,
+        Err(_) => -f64::from(DECODE),
     })
 }
 
@@ -225,7 +258,7 @@ pub extern "C" fn verify(compare: i32) -> i32 {
 /// `u8 kind` (0 file, 1 executable, 2 directory), `u32 pathLength`, path,
 /// `u32 dataLength`, data; integers little-endian.
 fn read_entries(bytes: &[u8]) -> Result<Vec<uorc::tree::Entry>, uorc::Error> {
-    use uorc::tree::{Entry, Kind};
+    use uorc::tree::Entry;
     struct Cursor<'a>(&'a [u8]);
     impl<'a> Cursor<'a> {
         fn take(&mut self, n: usize) -> Result<&'a [u8], uorc::Error> {
@@ -237,18 +270,14 @@ fn read_entries(bytes: &[u8]) -> Result<Vec<uorc::tree::Entry>, uorc::Error> {
             Ok(head)
         }
         fn word(&mut self) -> Result<usize, uorc::Error> {
-            Ok(u32::from_le_bytes(
-                self.take(std::mem::size_of::<u32>())?
-                    .try_into()
-                    .expect("4 bytes"),
-            ) as usize)
+            Ok(u32::from_le_bytes(self.take(U32)?.try_into().expect("a u32's bytes")) as usize)
         }
     }
     let mut c = Cursor(bytes);
     let count = c.word()?;
     let mut entries = Vec::new();
     for _ in 0..count {
-        let kind = Kind::of_code(c.take(1)?[0]).ok_or(uorc::Error::Decode)?;
+        let kind = kind_of(c.take(1)?[0])?;
         let len = c.word()?;
         let path = String::from_utf8(c.take(len)?.to_vec()).map_err(|_| uorc::Error::Decode)?;
         let len = c.word()?;
@@ -264,7 +293,7 @@ fn read_entries(bytes: &[u8]) -> Result<Vec<uorc::tree::Entry>, uorc::Error> {
 fn write_entries(entries: &[uorc::tree::Entry]) -> Vec<u8> {
     let mut out = (entries.len() as u32).to_le_bytes().to_vec();
     for entry in entries {
-        out.push(entry.kind.code());
+        out.push(kind_byte(entry.kind));
         out.extend((entry.path.len() as u32).to_le_bytes());
         out.extend(entry.path.as_bytes());
         out.extend((entry.data.len() as u32).to_le_bytes());
@@ -306,17 +335,11 @@ impl<'a> Fields<'a> {
         Ok(out)
     }
     fn u32(&mut self) -> Result<usize, uorc::Error> {
-        Ok(u32::from_le_bytes(
-            self.take(std::mem::size_of::<u32>())?
-                .try_into()
-                .expect("4 bytes"),
-        ) as usize)
+        Ok(u32::from_le_bytes(self.take(U32)?.try_into().expect("a u32's bytes")) as usize)
     }
     fn u64(&mut self) -> Result<u64, uorc::Error> {
         Ok(u64::from_le_bytes(
-            self.take(std::mem::size_of::<u64>())?
-                .try_into()
-                .expect("8 bytes"),
+            self.take(U64)?.try_into().expect("a u64's bytes"),
         ))
     }
     fn len(&mut self) -> Result<usize, uorc::Error> {
@@ -578,8 +601,7 @@ pub extern "C" fn tree_start() -> i32 {
     }))
 }
 
-fn read_listing(bytes: &[u8]) -> Result<Vec<(String, uorc::tree::Kind, u64)>, uorc::Error> {
-    use uorc::tree::Kind;
+fn read_listing(bytes: &[u8]) -> Result<Vec<(String, Kind, u64)>, uorc::Error> {
     let mut at = 0usize;
     let mut take = |n: usize| -> Result<&[u8], uorc::Error> {
         let end = at.checked_add(n).ok_or(uorc::Error::Decode)?;
@@ -587,20 +609,16 @@ fn read_listing(bytes: &[u8]) -> Result<Vec<(String, uorc::tree::Kind, u64)>, uo
         at = end;
         Ok(out)
     };
-    let word = |b: &[u8]| u32::from_le_bytes(b.try_into().expect("4 bytes")) as usize;
-    let count = word(take(std::mem::size_of::<u32>())?);
+    let word = |b: &[u8]| u32::from_le_bytes(b.try_into().expect("a u32's bytes")) as usize;
+    let count = word(take(U32)?);
     let mut out = Vec::new();
     for _ in 0..count {
-        let kind = Kind::of_code(take(1)?[0]).ok_or(uorc::Error::Decode)?;
-        let len = word(take(std::mem::size_of::<u32>())?);
+        let kind = kind_of(take(1)?[0])?;
+        let len = word(take(U32)?);
         let path = std::str::from_utf8(take(len)?)
             .map_err(|_| uorc::Error::Decode)?
             .to_owned();
-        let length = u64::from_le_bytes(
-            take(std::mem::size_of::<u64>())?
-                .try_into()
-                .expect("8 bytes"),
-        );
+        let length = u64::from_le_bytes(take(U64)?.try_into().expect("a u64's bytes"));
         out.push((path, kind, if kind == Kind::Directory { 0 } else { length }));
     }
     if at != bytes.len() {
@@ -764,7 +782,7 @@ mod tests {
     /// frames split back into the same files.
     #[test]
     fn tree_exports_stream_the_library_tree() {
-        use uorc::tree::{Entry, Kind};
+        use uorc::tree::Entry;
         let big: Vec<u8> = (0..uorc::FRAME + 70_000)
             .map(|i| (i * 7 % 251) as u8)
             .collect();
@@ -792,7 +810,11 @@ mod tests {
         ];
         let mut listing = (entries.len() as u32).to_le_bytes().to_vec();
         for e in &entries {
-            listing.push(e.kind.code());
+            listing.push(match e.kind {
+                Kind::File => 0,
+                Kind::Executable => 1,
+                Kind::Directory => 2,
+            });
             listing.extend((e.path.len() as u32).to_le_bytes());
             listing.extend(e.path.as_bytes());
             listing.extend((e.data.len() as u64).to_le_bytes());

@@ -7,6 +7,7 @@ import crypto from 'node:crypto';
 import {fileURLToPath} from 'node:url';
 import {loadCorpus,sourceRecords,leanDriver,requireFact} from './integrity-vectors.mjs';
 import {dataForm, notation, stageRuntime} from './semantic-source.mjs';
+import {lexleanBinary} from './lexlean-pin.mjs';
 const script=fileURLToPath(import.meta.url);
 const shaFile='src/Uorc/Integrity/Sha256.lex.tex';
 const sources=[shaFile,'src/Uorc/Integrity/BoundedChain.lex.tex','src/Uorc/Integrity/Contract.lex.tex'];
@@ -44,7 +45,7 @@ function execute(command,args,cwd,output,label,extra={}){
 }
 function succeeded(result,label){requireFact(!result.error&&result.status===0&&!result.signal,`${label} failed: ${result.stderr??''} ${result.stdout??''}`);}
 function verify(root,selected,output,label){
-  const result=execute('lexlean',['--project',path.join(root,'lexlean.toml'),'--diagnostic-format','json','verify',...selected],root,output,label);
+  const result=execute(lexleanBinary(),['--project',path.join(root,'lexlean.toml'),'--diagnostic-format','json','verify',...selected],root,output,label);
   return result;
 }
 export function auditRun(just,harness){
@@ -79,7 +80,7 @@ export function run(root){
       receipts.push({id:mutation.id,owner:mutation.owner,source_sha256:sha(source),mutant_sha256:sha(mutant),failed_stdout_sha256:sha(failed.stdout),restored_stdout_sha256:sha(restored.stdout)});
     }
     requireFact(receipts.length===mutations.length,'source mutations omitted');
-    const built=execute('lexlean',['--project',path.join(root,'lexlean.toml'),'--diagnostic-format','json','build',...sources],root,output,'build');succeeded(built,'source build');
+    const built=execute(lexleanBinary(),['--project',path.join(root,'lexlean.toml'),'--diagnostic-format','json','build',...sources],root,output,'build');succeeded(built,'source build');
     const result=JSON.parse(built.stdout);requireFact(result.success&&result.artifacts.length===1,'source build artifact missing');
     const build=path.resolve(root,result.artifacts[0]);requireFact(build.startsWith(path.resolve(root)+path.sep),'build artifact escaped project');
     const modelRoot=path.join(temporary,'generated');

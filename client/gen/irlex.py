@@ -138,7 +138,7 @@ class Lex:
         # derived, the address of the global before it plus that global's width.
         prev = None
         for g, w in self.p.globals.items():
-            D('width' + self.gname(g), [], 'Nat', str(w), ax=[])
+            D('width' + self.gname(g), [], 'Nat', need(w) if isinstance(w, ir.K) else str(w), ax=[])
             D('at' + self.gname(g), [], 'Nat', '0' if prev is None else f"({self.gat(prev)} + {self.gwidth(prev)})", ax=[])
             prev = g
         radix = need(ir.RADIX)

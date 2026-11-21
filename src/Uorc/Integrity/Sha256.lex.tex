@@ -1362,7 +1362,7 @@ theorem{
   name: wrapping_overflow,
   parameters: [],
   statement: ((wrappingAdd (4294967295 : UInt32) (1 : UInt32)) = (0 : UInt32)),
-  proof: reflexivity{},
+  proof: evaluation{},
   axioms: [Quot.sound, propext]
 }
 
@@ -1370,7 +1370,7 @@ theorem{
   name: wrapping_double_max,
   parameters: [],
   statement: ((wrappingAdd (4294967295 : UInt32) (4294967295 : UInt32)) = (4294967294 : UInt32)),
-  proof: reflexivity{},
+  proof: evaluation{},
   axioms: [Quot.sound, propext]
 }
 
@@ -1378,7 +1378,7 @@ theorem{
   name: length_bytes_max,
   parameters: [],
   statement: ((bitLengthBytes (2305843009213693951 : UInt64)) = 0xfffffffffffffff8),
-  proof: reflexivity{},
+  proof: evaluation{},
   axioms: [Quot.sound, propext]
 }
 
@@ -1386,7 +1386,7 @@ theorem{
   name: unfinished_digest,
   parameters: [],
   statement: ((digest (init)) = (ctor Result.error [Bytes, Error] (ctor Error.notFinalized))),
-  proof: reflexivity{},
+  proof: evaluation{},
   axioms: [Quot.sound, propext]
 }
 
@@ -1394,7 +1394,7 @@ theorem{
   name: finalize_step_requires_start,
   parameters: [],
   statement: ((finalizeStep (init)) = (ctor Result.error [State, Error] (ctor Error.notFinalized))),
-  proof: reflexivity{},
+  proof: evaluation{},
   axioms: [Quot.sound, propext]
 }
 
@@ -1402,7 +1402,7 @@ theorem{
   name: zero_update_fuel,
   parameters: [],
   statement: ((runUpdate 0 (record Update {state := (init), input := 0x, offset := 0})) = (ctor Result.error [State, Error] (ctor Error.fuelExhausted))),
-  proof: reflexivity{},
+  proof: evaluation{},
   axioms: [Quot.sound, propext]
 }
 
@@ -1410,7 +1410,7 @@ theorem{
   name: invalid_offset,
   parameters: [],
   statement: ((updateStep (record Update {state := (init), input := 0x, offset := 1})) = (ctor Result.error [UpdateEvent, Error] (ctor Error.invalidOffset))),
-  proof: reflexivity{},
+  proof: evaluation{},
   axioms: [Quot.sound, propext]
 }
 
@@ -1418,7 +1418,7 @@ theorem{
   name: oversized_buffer,
   parameters: [],
   statement: ((digest (record State {chain := (project (init) chain), buffer := 0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000, count := (project (init) count), work := (project (init) work), phase := (project (init) phase)})) = (ctor Result.error [Bytes, Error] (ctor Error.invalidState))),
-  proof: reflexivity{},
+  proof: evaluation{},
   axioms: [Quot.sound, propext]
 }
 
@@ -1426,7 +1426,7 @@ theorem{
   name: standard_length_domain,
   parameters: [],
   statement: ((absorbByte (record State {chain := (project (init) chain), buffer := 0x000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000, count := (2305843009213693951 : UInt64), work := (project (init) work), phase := (project (init) phase)}) (0 : UInt8)) = (ctor Result.error [State, Error] (ctor Error.lengthDomainExceeded))),
-  proof: reflexivity{},
+  proof: evaluation{},
   axioms: [Quot.sound, propext]
 }
 
@@ -1434,7 +1434,7 @@ theorem{
   name: invalid_length_domain,
   parameters: [],
   statement: ((finalize (record State {chain := (project (init) chain), buffer := (project (init) buffer), count := (2305843009213693952 : UInt64), work := (project (init) work), phase := (project (init) phase)})) = (ctor Result.error [State, Error] (ctor Error.invalidState))),
-  proof: reflexivity{},
+  proof: evaluation{},
   axioms: [Quot.sound, propext]
 }
 

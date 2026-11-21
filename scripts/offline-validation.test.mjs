@@ -94,7 +94,7 @@ test('normative gate retains reproduction and full formal verification', () => {
   for (const gate of ['lexlean-authority', 'template-check', 'fmt-check', 'model', 'lint', 'test', 'features', 'bdd', 'deny', 'lexlean-artifacts', 'reproducibility']) {
     assert.ok(vv.split(/\s+/).includes(gate), `${gate} omitted from just vv`);
   }
-  assert.match(just, /lexlean-artifacts:\n    lexlean build --all\n    lexlean verify --all/);
+  assert.match(just, /lexlean-artifacts:\n    \{\{lexlean\}\} build --all\n    \{\{lexlean\}\} verify --all/);
   assert.match(just, /reproducibility:\n    node scripts\/offline-validation\.mjs reproduce/);
 });
 

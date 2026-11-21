@@ -492,28 +492,32 @@ pub const basePL: u128 = 85568392920039424;
 pub const baseZ: u128 = 90071992547409920;
 /// `Uorc.Codec.NcmEncode::baseDE`.
 pub const baseDE: u128 = 94575592174780416;
+/// `Uorc.Codec.NcmEncode::wordHalfBytes`.
+pub const wordHalfBytes: u128 = (wordBytes / radix);
 /// `Uorc.Codec.NcmEncode::widthPos`.
-pub const widthPos: u128 = 4;
+pub const widthPos: u128 = wordHalfBytes;
 /// `Uorc.Codec.NcmEncode::atPos`.
 pub const atPos: u128 = 0;
 /// `Uorc.Codec.NcmEncode::widthC4`.
-pub const widthC4: u128 = 4;
+pub const widthC4: u128 = wordHalfBytes;
 /// `Uorc.Codec.NcmEncode::atC4`.
 pub const atC4: u128 = (atPos + widthPos);
 /// `Uorc.Codec.NcmEncode::widthC8`.
-pub const widthC8: u128 = 4;
+pub const widthC8: u128 = wordHalfBytes;
 /// `Uorc.Codec.NcmEncode::atC8`.
 pub const atC8: u128 = (atC4 + widthC4);
 /// `Uorc.Codec.NcmEncode::widthWordh`.
-pub const widthWordh: u128 = 4;
+pub const widthWordh: u128 = wordHalfBytes;
 /// `Uorc.Codec.NcmEncode::atWordh`.
 pub const atWordh: u128 = (atC8 + widthC8);
 /// `Uorc.Codec.NcmEncode::widthWord1`.
-pub const widthWord1: u128 = 4;
+pub const widthWord1: u128 = wordHalfBytes;
 /// `Uorc.Codec.NcmEncode::atWord1`.
 pub const atWord1: u128 = (atWordh + widthWordh);
+/// `Uorc.Codec.NcmEncode::wordQuarterBytes`.
+pub const wordQuarterBytes: u128 = (wordHalfBytes / radix);
 /// `Uorc.Codec.NcmEncode::widthC0`.
-pub const widthC0: u128 = 2;
+pub const widthC0: u128 = wordQuarterBytes;
 /// `Uorc.Codec.NcmEncode::atC0`.
 pub const atC0: u128 = (atWord1 + widthWord1);
 /// `Uorc.Codec.NcmEncode::widthBit`.
@@ -521,11 +525,11 @@ pub const widthBit: u128 = 1;
 /// `Uorc.Codec.NcmEncode::atBit`.
 pub const atBit: u128 = (atC0 + widthC0);
 /// `Uorc.Codec.NcmEncode::widthMptr`.
-pub const widthMptr: u128 = 4;
+pub const widthMptr: u128 = wordHalfBytes;
 /// `Uorc.Codec.NcmEncode::atMptr`.
 pub const atMptr: u128 = (atBit + widthBit);
 /// `Uorc.Codec.NcmEncode::widthMlen`.
-pub const widthMlen: u128 = 4;
+pub const widthMlen: u128 = wordHalfBytes;
 /// `Uorc.Codec.NcmEncode::atMlen`.
 pub const atMlen: u128 = (atMptr + widthMptr);
 /// `Uorc.Codec.NcmEncode::widthMexp`.
@@ -545,15 +549,15 @@ pub const widthR: u128 = 4;
 /// `Uorc.Codec.NcmEncode::atR`.
 pub const atR: u128 = (atEb + widthEb);
 /// `Uorc.Codec.NcmEncode::widthPm1`.
-pub const widthPm1: u128 = 2;
+pub const widthPm1: u128 = wordQuarterBytes;
 /// `Uorc.Codec.NcmEncode::atPm1`.
 pub const atPm1: u128 = (atR + widthR);
 /// `Uorc.Codec.NcmEncode::widthPm2`.
-pub const widthPm2: u128 = 2;
+pub const widthPm2: u128 = wordQuarterBytes;
 /// `Uorc.Codec.NcmEncode::atPm2`.
 pub const atPm2: u128 = (atPm1 + widthPm1);
 /// `Uorc.Codec.NcmEncode::widthPr`.
-pub const widthPr: u128 = 2;
+pub const widthPr: u128 = wordQuarterBytes;
 /// `Uorc.Codec.NcmEncode::atPr`.
 pub const atPr: u128 = (atPm2 + widthPm2);
 /// `Uorc.Codec.NcmEncode::widthPz`.
@@ -561,11 +565,11 @@ pub const widthPz: u128 = 1;
 /// `Uorc.Codec.NcmEncode::atPz`.
 pub const atPz: u128 = (atPr + widthPr);
 /// `Uorc.Codec.NcmEncode::widthAcc`.
-pub const widthAcc: u128 = 8;
+pub const widthAcc: u128 = wordBytes;
 /// `Uorc.Codec.NcmEncode::atAcc`.
 pub const atAcc: u128 = (atPz + widthPz);
 /// `Uorc.Codec.NcmEncode::widthSso`.
-pub const widthSso: u128 = 4;
+pub const widthSso: u128 = wordHalfBytes;
 /// `Uorc.Codec.NcmEncode::atSso`.
 pub const atSso: u128 = (atAcc + widthAcc);
 /// `Uorc.Codec.NcmEncode::widthSw`.
@@ -573,7 +577,7 @@ pub const widthSw: u128 = 8;
 /// `Uorc.Codec.NcmEncode::atSw`.
 pub const atSw: u128 = (atSso + widthSso);
 /// `Uorc.Codec.NcmEncode::widthAcc2`.
-pub const widthAcc2: u128 = 8;
+pub const widthAcc2: u128 = wordBytes;
 /// `Uorc.Codec.NcmEncode::atAcc2`.
 pub const atAcc2: u128 = (atSw + widthSw);
 /// `Uorc.Codec.NcmEncode::widthSw2`.
@@ -581,7 +585,7 @@ pub const widthSw2: u128 = 8;
 /// `Uorc.Codec.NcmEncode::atSw2`.
 pub const atSw2: u128 = (atAcc2 + widthAcc2);
 /// `Uorc.Codec.NcmEncode::widthMl`.
-pub const widthMl: u128 = 4;
+pub const widthMl: u128 = wordHalfBytes;
 /// `Uorc.Codec.NcmEncode::atMl`.
 pub const atMl: u128 = (atSw2 + widthSw2);
 /// `Uorc.Codec.NcmEncode::widthMf`.
@@ -589,23 +593,23 @@ pub const widthMf: u128 = 1;
 /// `Uorc.Codec.NcmEncode::atMf`.
 pub const atMf: u128 = (atMl + widthMl);
 /// `Uorc.Codec.NcmEncode::widthX1`.
-pub const widthX1: u128 = 4;
+pub const widthX1: u128 = wordHalfBytes;
 /// `Uorc.Codec.NcmEncode::atX1`.
 pub const atX1: u128 = (atMf + widthMf);
 /// `Uorc.Codec.NcmEncode::widthX2`.
-pub const widthX2: u128 = 4;
+pub const widthX2: u128 = wordHalfBytes;
 /// `Uorc.Codec.NcmEncode::atX2`.
 pub const atX2: u128 = (atX1 + widthX1);
 /// `Uorc.Codec.NcmEncode::widthX`.
-pub const widthX: u128 = 4;
+pub const widthX: u128 = wordHalfBytes;
 /// `Uorc.Codec.NcmEncode::atX`.
 pub const atX: u128 = (atX2 + widthX2);
 /// `Uorc.Codec.NcmEncode::widthIp`.
-pub const widthIp: u128 = 4;
+pub const widthIp: u128 = wordHalfBytes;
 /// `Uorc.Codec.NcmEncode::atIp`.
 pub const atIp: u128 = (atX + widthX);
 /// `Uorc.Codec.NcmEncode::widthOp`.
-pub const widthOp: u128 = 4;
+pub const widthOp: u128 = wordHalfBytes;
 /// `Uorc.Codec.NcmEncode::atOp`.
 pub const atOp: u128 = (atIp + widthIp);
 /// `Uorc.Codec.NcmEncode::widthY`.
@@ -613,11 +617,11 @@ pub const widthY: u128 = 1;
 /// `Uorc.Codec.NcmEncode::atY`.
 pub const atY: u128 = (atOp + widthOp);
 /// `Uorc.Codec.NcmEncode::widthPm3`.
-pub const widthPm3: u128 = 2;
+pub const widthPm3: u128 = wordQuarterBytes;
 /// `Uorc.Codec.NcmEncode::atPm3`.
 pub const atPm3: u128 = (atY + widthY);
 /// `Uorc.Codec.NcmEncode::widthAcc3`.
-pub const widthAcc3: u128 = 8;
+pub const widthAcc3: u128 = wordBytes;
 /// `Uorc.Codec.NcmEncode::atAcc3`.
 pub const atAcc3: u128 = (atPm3 + widthPm3);
 /// `Uorc.Codec.NcmEncode::widthSw3`.
@@ -641,15 +645,15 @@ pub const widthAj2: u128 = 1;
 /// `Uorc.Codec.NcmEncode::atAj2`.
 pub const atAj2: u128 = (atAi2 + widthAi2);
 /// `Uorc.Codec.NcmEncode::widthHoff`.
-pub const widthHoff: u128 = 4;
+pub const widthHoff: u128 = wordHalfBytes;
 /// `Uorc.Codec.NcmEncode::atHoff`.
 pub const atHoff: u128 = (atAj2 + widthAj2);
 /// `Uorc.Codec.NcmEncode::widthM2ptr`.
-pub const widthM2ptr: u128 = 4;
+pub const widthM2ptr: u128 = wordHalfBytes;
 /// `Uorc.Codec.NcmEncode::atM2ptr`.
 pub const atM2ptr: u128 = (atHoff + widthHoff);
 /// `Uorc.Codec.NcmEncode::widthM2len`.
-pub const widthM2len: u128 = 4;
+pub const widthM2len: u128 = wordHalfBytes;
 /// `Uorc.Codec.NcmEncode::atM2len`.
 pub const atM2len: u128 = (atM2ptr + widthM2ptr);
 /// `Uorc.Codec.NcmEncode::widthM2exp`.
@@ -665,7 +669,7 @@ pub const widthEb2: u128 = 1;
 /// `Uorc.Codec.NcmEncode::atEb2`.
 pub const atEb2: u128 = (atM2b + widthM2b);
 /// `Uorc.Codec.NcmEncode::widthMl2`.
-pub const widthMl2: u128 = 4;
+pub const widthMl2: u128 = wordHalfBytes;
 /// `Uorc.Codec.NcmEncode::atMl2`.
 pub const atMl2: u128 = (atEb2 + widthEb2);
 /// `Uorc.Codec.NcmEncode::widthMf2`.
@@ -673,7 +677,7 @@ pub const widthMf2: u128 = 1;
 /// `Uorc.Codec.NcmEncode::atMf2`.
 pub const atMf2: u128 = (atMl2 + widthMl2);
 /// `Uorc.Codec.NcmEncode::widthRd`.
-pub const widthRd: u128 = 4;
+pub const widthRd: u128 = wordHalfBytes;
 /// `Uorc.Codec.NcmEncode::atRd`.
 pub const atRd: u128 = (atMf2 + widthMf2);
 /// `Uorc.Codec.NcmEncode::widthRrun`.
@@ -717,7 +721,7 @@ pub const widthObase: u128 = 8;
 /// `Uorc.Codec.NcmEncode::atObase`.
 pub const atObase: u128 = (atIend + widthIend);
 /// `Uorc.Codec.NcmEncode::widthN`.
-pub const widthN: u128 = 4;
+pub const widthN: u128 = wordHalfBytes;
 /// `Uorc.Codec.NcmEncode::atN`.
 pub const atN: u128 = (atObase + widthObase);
 /// `Uorc.Codec.NcmEncode::widthTb`.
@@ -729,11 +733,11 @@ pub const widthMb: u128 = 1;
 /// `Uorc.Codec.NcmEncode::atMb`.
 pub const atMb: u128 = (atTb + widthTb);
 /// `Uorc.Codec.NcmEncode::widthPi`.
-pub const widthPi: u128 = 2;
+pub const widthPi: u128 = wordQuarterBytes;
 /// `Uorc.Codec.NcmEncode::atPi`.
 pub const atPi: u128 = (atMb + widthMb);
 /// `Uorc.Codec.NcmEncode::widthCap`.
-pub const widthCap: u128 = 4;
+pub const widthCap: u128 = wordHalfBytes;
 /// `Uorc.Codec.NcmEncode::atCap`.
 pub const atCap: u128 = (atPi + widthPi);
 /// `Uorc.Codec.NcmEncode::widthOvf`.
@@ -1652,96 +1656,22 @@ pub const baseDELast: u128 = (baseDE - 1);
 pub const baseDEHalf: u128 = (baseDE / radix);
 /// `Uorc.Codec.NcmEncode::baseDEHalfLast`.
 pub const baseDEHalfLast: u128 = (baseDEHalf - 1);
-/// `Uorc.Codec.NcmEncode::widthPosLast`.
-pub const widthPosLast: u128 = (widthPos - 1);
-/// `Uorc.Codec.NcmEncode::widthPosHalf`.
-pub const widthPosHalf: u128 = (widthPos / radix);
-/// `Uorc.Codec.NcmEncode::widthC4Last`.
-pub const widthC4Last: u128 = (widthC4 - 1);
-/// `Uorc.Codec.NcmEncode::widthC4Half`.
-pub const widthC4Half: u128 = (widthC4 / radix);
-/// `Uorc.Codec.NcmEncode::widthC8Last`.
-pub const widthC8Last: u128 = (widthC8 - 1);
-/// `Uorc.Codec.NcmEncode::widthC8Half`.
-pub const widthC8Half: u128 = (widthC8 / radix);
-/// `Uorc.Codec.NcmEncode::widthWordhLast`.
-pub const widthWordhLast: u128 = (widthWordh - 1);
-/// `Uorc.Codec.NcmEncode::widthWordhHalf`.
-pub const widthWordhHalf: u128 = (widthWordh / radix);
-/// `Uorc.Codec.NcmEncode::widthWord1Last`.
-pub const widthWord1Last: u128 = (widthWord1 - 1);
-/// `Uorc.Codec.NcmEncode::widthWord1Half`.
-pub const widthWord1Half: u128 = (widthWord1 / radix);
-/// `Uorc.Codec.NcmEncode::widthMptrLast`.
-pub const widthMptrLast: u128 = (widthMptr - 1);
-/// `Uorc.Codec.NcmEncode::widthMptrHalf`.
-pub const widthMptrHalf: u128 = (widthMptr / radix);
-/// `Uorc.Codec.NcmEncode::widthMlenLast`.
-pub const widthMlenLast: u128 = (widthMlen - 1);
-/// `Uorc.Codec.NcmEncode::widthMlenHalf`.
-pub const widthMlenHalf: u128 = (widthMlen / radix);
 /// `Uorc.Codec.NcmEncode::widthRLast`.
 pub const widthRLast: u128 = (widthR - 1);
 /// `Uorc.Codec.NcmEncode::widthRHalf`.
 pub const widthRHalf: u128 = (widthR / radix);
-/// `Uorc.Codec.NcmEncode::widthAccLast`.
-pub const widthAccLast: u128 = (widthAcc - 1);
-/// `Uorc.Codec.NcmEncode::widthAccHalf`.
-pub const widthAccHalf: u128 = (widthAcc / radix);
-/// `Uorc.Codec.NcmEncode::widthAccHalfLast`.
-pub const widthAccHalfLast: u128 = (widthAccHalf - 1);
-/// `Uorc.Codec.NcmEncode::widthSsoLast`.
-pub const widthSsoLast: u128 = (widthSso - 1);
-/// `Uorc.Codec.NcmEncode::widthSsoHalf`.
-pub const widthSsoHalf: u128 = (widthSso / radix);
 /// `Uorc.Codec.NcmEncode::widthSwLast`.
 pub const widthSwLast: u128 = (widthSw - 1);
 /// `Uorc.Codec.NcmEncode::widthSwHalf`.
 pub const widthSwHalf: u128 = (widthSw / radix);
 /// `Uorc.Codec.NcmEncode::widthSwHalfLast`.
 pub const widthSwHalfLast: u128 = (widthSwHalf - 1);
-/// `Uorc.Codec.NcmEncode::widthAcc2Last`.
-pub const widthAcc2Last: u128 = (widthAcc2 - 1);
-/// `Uorc.Codec.NcmEncode::widthAcc2Half`.
-pub const widthAcc2Half: u128 = (widthAcc2 / radix);
-/// `Uorc.Codec.NcmEncode::widthAcc2HalfLast`.
-pub const widthAcc2HalfLast: u128 = (widthAcc2Half - 1);
 /// `Uorc.Codec.NcmEncode::widthSw2Last`.
 pub const widthSw2Last: u128 = (widthSw2 - 1);
 /// `Uorc.Codec.NcmEncode::widthSw2Half`.
 pub const widthSw2Half: u128 = (widthSw2 / radix);
 /// `Uorc.Codec.NcmEncode::widthSw2HalfLast`.
 pub const widthSw2HalfLast: u128 = (widthSw2Half - 1);
-/// `Uorc.Codec.NcmEncode::widthMlLast`.
-pub const widthMlLast: u128 = (widthMl - 1);
-/// `Uorc.Codec.NcmEncode::widthMlHalf`.
-pub const widthMlHalf: u128 = (widthMl / radix);
-/// `Uorc.Codec.NcmEncode::widthX1Last`.
-pub const widthX1Last: u128 = (widthX1 - 1);
-/// `Uorc.Codec.NcmEncode::widthX1Half`.
-pub const widthX1Half: u128 = (widthX1 / radix);
-/// `Uorc.Codec.NcmEncode::widthX2Last`.
-pub const widthX2Last: u128 = (widthX2 - 1);
-/// `Uorc.Codec.NcmEncode::widthX2Half`.
-pub const widthX2Half: u128 = (widthX2 / radix);
-/// `Uorc.Codec.NcmEncode::widthXLast`.
-pub const widthXLast: u128 = (widthX - 1);
-/// `Uorc.Codec.NcmEncode::widthXHalf`.
-pub const widthXHalf: u128 = (widthX / radix);
-/// `Uorc.Codec.NcmEncode::widthIpLast`.
-pub const widthIpLast: u128 = (widthIp - 1);
-/// `Uorc.Codec.NcmEncode::widthIpHalf`.
-pub const widthIpHalf: u128 = (widthIp / radix);
-/// `Uorc.Codec.NcmEncode::widthOpLast`.
-pub const widthOpLast: u128 = (widthOp - 1);
-/// `Uorc.Codec.NcmEncode::widthOpHalf`.
-pub const widthOpHalf: u128 = (widthOp / radix);
-/// `Uorc.Codec.NcmEncode::widthAcc3Last`.
-pub const widthAcc3Last: u128 = (widthAcc3 - 1);
-/// `Uorc.Codec.NcmEncode::widthAcc3Half`.
-pub const widthAcc3Half: u128 = (widthAcc3 / radix);
-/// `Uorc.Codec.NcmEncode::widthAcc3HalfLast`.
-pub const widthAcc3HalfLast: u128 = (widthAcc3Half - 1);
 /// `Uorc.Codec.NcmEncode::widthSw3Last`.
 pub const widthSw3Last: u128 = (widthSw3 - 1);
 /// `Uorc.Codec.NcmEncode::widthSw3Half`.
@@ -1756,26 +1686,6 @@ pub const widthAi1Half: u128 = (widthAi1 / radix);
 pub const widthAi2Last: u128 = (widthAi2 - 1);
 /// `Uorc.Codec.NcmEncode::widthAi2Half`.
 pub const widthAi2Half: u128 = (widthAi2 / radix);
-/// `Uorc.Codec.NcmEncode::widthHoffLast`.
-pub const widthHoffLast: u128 = (widthHoff - 1);
-/// `Uorc.Codec.NcmEncode::widthHoffHalf`.
-pub const widthHoffHalf: u128 = (widthHoff / radix);
-/// `Uorc.Codec.NcmEncode::widthM2ptrLast`.
-pub const widthM2ptrLast: u128 = (widthM2ptr - 1);
-/// `Uorc.Codec.NcmEncode::widthM2ptrHalf`.
-pub const widthM2ptrHalf: u128 = (widthM2ptr / radix);
-/// `Uorc.Codec.NcmEncode::widthM2lenLast`.
-pub const widthM2lenLast: u128 = (widthM2len - 1);
-/// `Uorc.Codec.NcmEncode::widthM2lenHalf`.
-pub const widthM2lenHalf: u128 = (widthM2len / radix);
-/// `Uorc.Codec.NcmEncode::widthMl2Last`.
-pub const widthMl2Last: u128 = (widthMl2 - 1);
-/// `Uorc.Codec.NcmEncode::widthMl2Half`.
-pub const widthMl2Half: u128 = (widthMl2 / radix);
-/// `Uorc.Codec.NcmEncode::widthRdLast`.
-pub const widthRdLast: u128 = (widthRd - 1);
-/// `Uorc.Codec.NcmEncode::widthRdHalf`.
-pub const widthRdHalf: u128 = (widthRd / radix);
 /// `Uorc.Codec.NcmEncode::widthSeenLast`.
 pub const widthSeenLast: u128 = (widthSeen - 1);
 /// `Uorc.Codec.NcmEncode::widthSeenHalf`.
@@ -1792,14 +1702,6 @@ pub const widthObaseLast: u128 = (widthObase - 1);
 pub const widthObaseHalf: u128 = (widthObase / radix);
 /// `Uorc.Codec.NcmEncode::widthObaseHalfLast`.
 pub const widthObaseHalfLast: u128 = (widthObaseHalf - 1);
-/// `Uorc.Codec.NcmEncode::widthNLast`.
-pub const widthNLast: u128 = (widthN - 1);
-/// `Uorc.Codec.NcmEncode::widthNHalf`.
-pub const widthNHalf: u128 = (widthN / radix);
-/// `Uorc.Codec.NcmEncode::widthCapLast`.
-pub const widthCapLast: u128 = (widthCap - 1);
-/// `Uorc.Codec.NcmEncode::widthCapHalf`.
-pub const widthCapHalf: u128 = (widthCap / radix);
 /// `Uorc.Codec.NcmEncode::widthProfLast`.
 pub const widthProfLast: u128 = (widthProf - 1);
 /// `Uorc.Codec.NcmEncode::widthProfHalf`.
@@ -2211,6 +2113,7 @@ pub mod u8 {
     pub const capSlack: u8 = super::capSlack as u8;
     pub const lengthBytes: u8 = super::lengthBytes as u8;
     pub const byteBits: u8 = super::byteBits as u8;
+    pub const wordHalfBytes: u8 = super::wordHalfBytes as u8;
     pub const widthPos: u8 = super::widthPos as u8;
     pub const atPos: u8 = super::atPos as u8;
     pub const widthC4: u8 = super::widthC4 as u8;
@@ -2221,6 +2124,7 @@ pub mod u8 {
     pub const atWordh: u8 = super::atWordh as u8;
     pub const widthWord1: u8 = super::widthWord1 as u8;
     pub const atWord1: u8 = super::atWord1 as u8;
+    pub const wordQuarterBytes: u8 = super::wordQuarterBytes as u8;
     pub const widthC0: u8 = super::widthC0 as u8;
     pub const atC0: u8 = super::atC0 as u8;
     pub const widthBit: u8 = super::widthBit as u8;
@@ -2564,51 +2468,14 @@ pub mod u8 {
     pub const baseHBHalf: u8 = super::baseHBHalf as u8;
     pub const baseHBHalfLast: u8 = super::baseHBHalfLast as u8;
     pub const baseBBHalfLast: u8 = super::baseBBHalfLast as u8;
-    pub const widthPosLast: u8 = super::widthPosLast as u8;
-    pub const widthPosHalf: u8 = super::widthPosHalf as u8;
-    pub const widthC4Last: u8 = super::widthC4Last as u8;
-    pub const widthC4Half: u8 = super::widthC4Half as u8;
-    pub const widthC8Last: u8 = super::widthC8Last as u8;
-    pub const widthC8Half: u8 = super::widthC8Half as u8;
-    pub const widthWordhLast: u8 = super::widthWordhLast as u8;
-    pub const widthWordhHalf: u8 = super::widthWordhHalf as u8;
-    pub const widthWord1Last: u8 = super::widthWord1Last as u8;
-    pub const widthWord1Half: u8 = super::widthWord1Half as u8;
-    pub const widthMptrLast: u8 = super::widthMptrLast as u8;
-    pub const widthMptrHalf: u8 = super::widthMptrHalf as u8;
-    pub const widthMlenLast: u8 = super::widthMlenLast as u8;
-    pub const widthMlenHalf: u8 = super::widthMlenHalf as u8;
     pub const widthRLast: u8 = super::widthRLast as u8;
     pub const widthRHalf: u8 = super::widthRHalf as u8;
-    pub const widthAccLast: u8 = super::widthAccLast as u8;
-    pub const widthAccHalf: u8 = super::widthAccHalf as u8;
-    pub const widthAccHalfLast: u8 = super::widthAccHalfLast as u8;
-    pub const widthSsoLast: u8 = super::widthSsoLast as u8;
-    pub const widthSsoHalf: u8 = super::widthSsoHalf as u8;
     pub const widthSwLast: u8 = super::widthSwLast as u8;
     pub const widthSwHalf: u8 = super::widthSwHalf as u8;
     pub const widthSwHalfLast: u8 = super::widthSwHalfLast as u8;
-    pub const widthAcc2Last: u8 = super::widthAcc2Last as u8;
-    pub const widthAcc2Half: u8 = super::widthAcc2Half as u8;
-    pub const widthAcc2HalfLast: u8 = super::widthAcc2HalfLast as u8;
     pub const widthSw2Last: u8 = super::widthSw2Last as u8;
     pub const widthSw2Half: u8 = super::widthSw2Half as u8;
     pub const widthSw2HalfLast: u8 = super::widthSw2HalfLast as u8;
-    pub const widthMlLast: u8 = super::widthMlLast as u8;
-    pub const widthMlHalf: u8 = super::widthMlHalf as u8;
-    pub const widthX1Last: u8 = super::widthX1Last as u8;
-    pub const widthX1Half: u8 = super::widthX1Half as u8;
-    pub const widthX2Last: u8 = super::widthX2Last as u8;
-    pub const widthX2Half: u8 = super::widthX2Half as u8;
-    pub const widthXLast: u8 = super::widthXLast as u8;
-    pub const widthXHalf: u8 = super::widthXHalf as u8;
-    pub const widthIpLast: u8 = super::widthIpLast as u8;
-    pub const widthIpHalf: u8 = super::widthIpHalf as u8;
-    pub const widthOpLast: u8 = super::widthOpLast as u8;
-    pub const widthOpHalf: u8 = super::widthOpHalf as u8;
-    pub const widthAcc3Last: u8 = super::widthAcc3Last as u8;
-    pub const widthAcc3Half: u8 = super::widthAcc3Half as u8;
-    pub const widthAcc3HalfLast: u8 = super::widthAcc3HalfLast as u8;
     pub const widthSw3Last: u8 = super::widthSw3Last as u8;
     pub const widthSw3Half: u8 = super::widthSw3Half as u8;
     pub const widthSw3HalfLast: u8 = super::widthSw3HalfLast as u8;
@@ -2616,16 +2483,6 @@ pub mod u8 {
     pub const widthAi1Half: u8 = super::widthAi1Half as u8;
     pub const widthAi2Last: u8 = super::widthAi2Last as u8;
     pub const widthAi2Half: u8 = super::widthAi2Half as u8;
-    pub const widthHoffLast: u8 = super::widthHoffLast as u8;
-    pub const widthHoffHalf: u8 = super::widthHoffHalf as u8;
-    pub const widthM2ptrLast: u8 = super::widthM2ptrLast as u8;
-    pub const widthM2ptrHalf: u8 = super::widthM2ptrHalf as u8;
-    pub const widthM2lenLast: u8 = super::widthM2lenLast as u8;
-    pub const widthM2lenHalf: u8 = super::widthM2lenHalf as u8;
-    pub const widthMl2Last: u8 = super::widthMl2Last as u8;
-    pub const widthMl2Half: u8 = super::widthMl2Half as u8;
-    pub const widthRdLast: u8 = super::widthRdLast as u8;
-    pub const widthRdHalf: u8 = super::widthRdHalf as u8;
     pub const widthSeenLast: u8 = super::widthSeenLast as u8;
     pub const widthSeenHalf: u8 = super::widthSeenHalf as u8;
     pub const widthIendLast: u8 = super::widthIendLast as u8;
@@ -2634,10 +2491,6 @@ pub mod u8 {
     pub const widthObaseLast: u8 = super::widthObaseLast as u8;
     pub const widthObaseHalf: u8 = super::widthObaseHalf as u8;
     pub const widthObaseHalfLast: u8 = super::widthObaseHalfLast as u8;
-    pub const widthNLast: u8 = super::widthNLast as u8;
-    pub const widthNHalf: u8 = super::widthNHalf as u8;
-    pub const widthCapLast: u8 = super::widthCapLast as u8;
-    pub const widthCapHalf: u8 = super::widthCapHalf as u8;
     pub const widthProfLast: u8 = super::widthProfLast as u8;
     pub const widthProfHalf: u8 = super::widthProfHalf as u8;
     pub const widthLmaskLast: u8 = super::widthLmaskLast as u8;
@@ -2894,6 +2747,7 @@ pub mod u8 {
         pub const baseSTL: u8 = super::super::baseSTL.trailing_zeros() as u8;
         pub const baseK: u8 = super::super::baseK.trailing_zeros() as u8;
         pub const baseLT: u8 = super::super::baseLT.trailing_zeros() as u8;
+        pub const wordHalfBytes: u8 = super::super::wordHalfBytes.trailing_zeros() as u8;
         pub const widthPos: u8 = super::super::widthPos.trailing_zeros() as u8;
         pub const widthC4: u8 = super::super::widthC4.trailing_zeros() as u8;
         pub const atC4: u8 = super::super::atC4.trailing_zeros() as u8;
@@ -2902,6 +2756,7 @@ pub mod u8 {
         pub const widthWordh: u8 = super::super::widthWordh.trailing_zeros() as u8;
         pub const widthWord1: u8 = super::super::widthWord1.trailing_zeros() as u8;
         pub const atWord1: u8 = super::super::atWord1.trailing_zeros() as u8;
+        pub const wordQuarterBytes: u8 = super::super::wordQuarterBytes.trailing_zeros() as u8;
         pub const widthC0: u8 = super::super::widthC0.trailing_zeros() as u8;
         pub const widthBit: u8 = super::super::widthBit.trailing_zeros() as u8;
         pub const widthMptr: u8 = super::super::widthMptr.trailing_zeros() as u8;
@@ -3120,39 +2975,15 @@ pub mod u8 {
         pub const baseSTLHalf: u8 = super::super::baseSTLHalf.trailing_zeros() as u8;
         pub const baseKHalf: u8 = super::super::baseKHalf.trailing_zeros() as u8;
         pub const baseLTHalf: u8 = super::super::baseLTHalf.trailing_zeros() as u8;
-        pub const widthPosHalf: u8 = super::super::widthPosHalf.trailing_zeros() as u8;
-        pub const widthC4Half: u8 = super::super::widthC4Half.trailing_zeros() as u8;
-        pub const widthC8Half: u8 = super::super::widthC8Half.trailing_zeros() as u8;
-        pub const widthWordhHalf: u8 = super::super::widthWordhHalf.trailing_zeros() as u8;
-        pub const widthWord1Half: u8 = super::super::widthWord1Half.trailing_zeros() as u8;
-        pub const widthMptrHalf: u8 = super::super::widthMptrHalf.trailing_zeros() as u8;
-        pub const widthMlenHalf: u8 = super::super::widthMlenHalf.trailing_zeros() as u8;
         pub const widthRHalf: u8 = super::super::widthRHalf.trailing_zeros() as u8;
-        pub const widthAccHalf: u8 = super::super::widthAccHalf.trailing_zeros() as u8;
-        pub const widthSsoHalf: u8 = super::super::widthSsoHalf.trailing_zeros() as u8;
         pub const widthSwHalf: u8 = super::super::widthSwHalf.trailing_zeros() as u8;
-        pub const widthAcc2Half: u8 = super::super::widthAcc2Half.trailing_zeros() as u8;
         pub const widthSw2Half: u8 = super::super::widthSw2Half.trailing_zeros() as u8;
-        pub const widthMlHalf: u8 = super::super::widthMlHalf.trailing_zeros() as u8;
-        pub const widthX1Half: u8 = super::super::widthX1Half.trailing_zeros() as u8;
-        pub const widthX2Half: u8 = super::super::widthX2Half.trailing_zeros() as u8;
-        pub const widthXHalf: u8 = super::super::widthXHalf.trailing_zeros() as u8;
-        pub const widthIpHalf: u8 = super::super::widthIpHalf.trailing_zeros() as u8;
-        pub const widthOpHalf: u8 = super::super::widthOpHalf.trailing_zeros() as u8;
-        pub const widthAcc3Half: u8 = super::super::widthAcc3Half.trailing_zeros() as u8;
         pub const widthSw3Half: u8 = super::super::widthSw3Half.trailing_zeros() as u8;
         pub const widthAi1Half: u8 = super::super::widthAi1Half.trailing_zeros() as u8;
         pub const widthAi2Half: u8 = super::super::widthAi2Half.trailing_zeros() as u8;
-        pub const widthHoffHalf: u8 = super::super::widthHoffHalf.trailing_zeros() as u8;
-        pub const widthM2ptrHalf: u8 = super::super::widthM2ptrHalf.trailing_zeros() as u8;
-        pub const widthM2lenHalf: u8 = super::super::widthM2lenHalf.trailing_zeros() as u8;
-        pub const widthMl2Half: u8 = super::super::widthMl2Half.trailing_zeros() as u8;
-        pub const widthRdHalf: u8 = super::super::widthRdHalf.trailing_zeros() as u8;
         pub const widthSeenHalf: u8 = super::super::widthSeenHalf.trailing_zeros() as u8;
         pub const widthIendHalf: u8 = super::super::widthIendHalf.trailing_zeros() as u8;
         pub const widthObaseHalf: u8 = super::super::widthObaseHalf.trailing_zeros() as u8;
-        pub const widthNHalf: u8 = super::super::widthNHalf.trailing_zeros() as u8;
-        pub const widthCapHalf: u8 = super::super::widthCapHalf.trailing_zeros() as u8;
         pub const widthProfHalf: u8 = super::super::widthProfHalf.trailing_zeros() as u8;
         pub const widthLmaskHalf: u8 = super::super::widthLmaskHalf.trailing_zeros() as u8;
         pub const widthCmHalf: u8 = super::super::widthCmHalf.trailing_zeros() as u8;
@@ -3366,6 +3197,7 @@ pub mod u16 {
     pub const baseST: u16 = super::baseST as u16;
     pub const baseLD: u16 = super::baseLD as u16;
     pub const baseSTR: u16 = super::baseSTR as u16;
+    pub const wordHalfBytes: u16 = super::wordHalfBytes as u16;
     pub const widthPos: u16 = super::widthPos as u16;
     pub const atPos: u16 = super::atPos as u16;
     pub const widthC4: u16 = super::widthC4 as u16;
@@ -3376,6 +3208,7 @@ pub mod u16 {
     pub const atWordh: u16 = super::atWordh as u16;
     pub const widthWord1: u16 = super::widthWord1 as u16;
     pub const atWord1: u16 = super::atWord1 as u16;
+    pub const wordQuarterBytes: u16 = super::wordQuarterBytes as u16;
     pub const widthC0: u16 = super::widthC0 as u16;
     pub const atC0: u16 = super::atC0 as u16;
     pub const widthBit: u16 = super::widthBit as u16;
@@ -3802,51 +3635,14 @@ pub mod u16 {
     pub const baseSTRLast: u16 = super::baseSTRLast as u16;
     pub const baseSTRHalf: u16 = super::baseSTRHalf as u16;
     pub const baseSTRHalfLast: u16 = super::baseSTRHalfLast as u16;
-    pub const widthPosLast: u16 = super::widthPosLast as u16;
-    pub const widthPosHalf: u16 = super::widthPosHalf as u16;
-    pub const widthC4Last: u16 = super::widthC4Last as u16;
-    pub const widthC4Half: u16 = super::widthC4Half as u16;
-    pub const widthC8Last: u16 = super::widthC8Last as u16;
-    pub const widthC8Half: u16 = super::widthC8Half as u16;
-    pub const widthWordhLast: u16 = super::widthWordhLast as u16;
-    pub const widthWordhHalf: u16 = super::widthWordhHalf as u16;
-    pub const widthWord1Last: u16 = super::widthWord1Last as u16;
-    pub const widthWord1Half: u16 = super::widthWord1Half as u16;
-    pub const widthMptrLast: u16 = super::widthMptrLast as u16;
-    pub const widthMptrHalf: u16 = super::widthMptrHalf as u16;
-    pub const widthMlenLast: u16 = super::widthMlenLast as u16;
-    pub const widthMlenHalf: u16 = super::widthMlenHalf as u16;
     pub const widthRLast: u16 = super::widthRLast as u16;
     pub const widthRHalf: u16 = super::widthRHalf as u16;
-    pub const widthAccLast: u16 = super::widthAccLast as u16;
-    pub const widthAccHalf: u16 = super::widthAccHalf as u16;
-    pub const widthAccHalfLast: u16 = super::widthAccHalfLast as u16;
-    pub const widthSsoLast: u16 = super::widthSsoLast as u16;
-    pub const widthSsoHalf: u16 = super::widthSsoHalf as u16;
     pub const widthSwLast: u16 = super::widthSwLast as u16;
     pub const widthSwHalf: u16 = super::widthSwHalf as u16;
     pub const widthSwHalfLast: u16 = super::widthSwHalfLast as u16;
-    pub const widthAcc2Last: u16 = super::widthAcc2Last as u16;
-    pub const widthAcc2Half: u16 = super::widthAcc2Half as u16;
-    pub const widthAcc2HalfLast: u16 = super::widthAcc2HalfLast as u16;
     pub const widthSw2Last: u16 = super::widthSw2Last as u16;
     pub const widthSw2Half: u16 = super::widthSw2Half as u16;
     pub const widthSw2HalfLast: u16 = super::widthSw2HalfLast as u16;
-    pub const widthMlLast: u16 = super::widthMlLast as u16;
-    pub const widthMlHalf: u16 = super::widthMlHalf as u16;
-    pub const widthX1Last: u16 = super::widthX1Last as u16;
-    pub const widthX1Half: u16 = super::widthX1Half as u16;
-    pub const widthX2Last: u16 = super::widthX2Last as u16;
-    pub const widthX2Half: u16 = super::widthX2Half as u16;
-    pub const widthXLast: u16 = super::widthXLast as u16;
-    pub const widthXHalf: u16 = super::widthXHalf as u16;
-    pub const widthIpLast: u16 = super::widthIpLast as u16;
-    pub const widthIpHalf: u16 = super::widthIpHalf as u16;
-    pub const widthOpLast: u16 = super::widthOpLast as u16;
-    pub const widthOpHalf: u16 = super::widthOpHalf as u16;
-    pub const widthAcc3Last: u16 = super::widthAcc3Last as u16;
-    pub const widthAcc3Half: u16 = super::widthAcc3Half as u16;
-    pub const widthAcc3HalfLast: u16 = super::widthAcc3HalfLast as u16;
     pub const widthSw3Last: u16 = super::widthSw3Last as u16;
     pub const widthSw3Half: u16 = super::widthSw3Half as u16;
     pub const widthSw3HalfLast: u16 = super::widthSw3HalfLast as u16;
@@ -3854,16 +3650,6 @@ pub mod u16 {
     pub const widthAi1Half: u16 = super::widthAi1Half as u16;
     pub const widthAi2Last: u16 = super::widthAi2Last as u16;
     pub const widthAi2Half: u16 = super::widthAi2Half as u16;
-    pub const widthHoffLast: u16 = super::widthHoffLast as u16;
-    pub const widthHoffHalf: u16 = super::widthHoffHalf as u16;
-    pub const widthM2ptrLast: u16 = super::widthM2ptrLast as u16;
-    pub const widthM2ptrHalf: u16 = super::widthM2ptrHalf as u16;
-    pub const widthM2lenLast: u16 = super::widthM2lenLast as u16;
-    pub const widthM2lenHalf: u16 = super::widthM2lenHalf as u16;
-    pub const widthMl2Last: u16 = super::widthMl2Last as u16;
-    pub const widthMl2Half: u16 = super::widthMl2Half as u16;
-    pub const widthRdLast: u16 = super::widthRdLast as u16;
-    pub const widthRdHalf: u16 = super::widthRdHalf as u16;
     pub const widthSeenLast: u16 = super::widthSeenLast as u16;
     pub const widthSeenHalf: u16 = super::widthSeenHalf as u16;
     pub const widthIendLast: u16 = super::widthIendLast as u16;
@@ -3872,10 +3658,6 @@ pub mod u16 {
     pub const widthObaseLast: u16 = super::widthObaseLast as u16;
     pub const widthObaseHalf: u16 = super::widthObaseHalf as u16;
     pub const widthObaseHalfLast: u16 = super::widthObaseHalfLast as u16;
-    pub const widthNLast: u16 = super::widthNLast as u16;
-    pub const widthNHalf: u16 = super::widthNHalf as u16;
-    pub const widthCapLast: u16 = super::widthCapLast as u16;
-    pub const widthCapHalf: u16 = super::widthCapHalf as u16;
     pub const widthProfLast: u16 = super::widthProfLast as u16;
     pub const widthProfHalf: u16 = super::widthProfHalf as u16;
     pub const widthLmaskLast: u16 = super::widthLmaskLast as u16;
@@ -4151,6 +3933,7 @@ pub mod u16 {
         pub const baseSTL: u16 = super::super::baseSTL.trailing_zeros() as u16;
         pub const baseK: u16 = super::super::baseK.trailing_zeros() as u16;
         pub const baseLT: u16 = super::super::baseLT.trailing_zeros() as u16;
+        pub const wordHalfBytes: u16 = super::super::wordHalfBytes.trailing_zeros() as u16;
         pub const widthPos: u16 = super::super::widthPos.trailing_zeros() as u16;
         pub const widthC4: u16 = super::super::widthC4.trailing_zeros() as u16;
         pub const atC4: u16 = super::super::atC4.trailing_zeros() as u16;
@@ -4159,6 +3942,7 @@ pub mod u16 {
         pub const widthWordh: u16 = super::super::widthWordh.trailing_zeros() as u16;
         pub const widthWord1: u16 = super::super::widthWord1.trailing_zeros() as u16;
         pub const atWord1: u16 = super::super::atWord1.trailing_zeros() as u16;
+        pub const wordQuarterBytes: u16 = super::super::wordQuarterBytes.trailing_zeros() as u16;
         pub const widthC0: u16 = super::super::widthC0.trailing_zeros() as u16;
         pub const widthBit: u16 = super::super::widthBit.trailing_zeros() as u16;
         pub const widthMptr: u16 = super::super::widthMptr.trailing_zeros() as u16;
@@ -4377,39 +4161,15 @@ pub mod u16 {
         pub const baseSTLHalf: u16 = super::super::baseSTLHalf.trailing_zeros() as u16;
         pub const baseKHalf: u16 = super::super::baseKHalf.trailing_zeros() as u16;
         pub const baseLTHalf: u16 = super::super::baseLTHalf.trailing_zeros() as u16;
-        pub const widthPosHalf: u16 = super::super::widthPosHalf.trailing_zeros() as u16;
-        pub const widthC4Half: u16 = super::super::widthC4Half.trailing_zeros() as u16;
-        pub const widthC8Half: u16 = super::super::widthC8Half.trailing_zeros() as u16;
-        pub const widthWordhHalf: u16 = super::super::widthWordhHalf.trailing_zeros() as u16;
-        pub const widthWord1Half: u16 = super::super::widthWord1Half.trailing_zeros() as u16;
-        pub const widthMptrHalf: u16 = super::super::widthMptrHalf.trailing_zeros() as u16;
-        pub const widthMlenHalf: u16 = super::super::widthMlenHalf.trailing_zeros() as u16;
         pub const widthRHalf: u16 = super::super::widthRHalf.trailing_zeros() as u16;
-        pub const widthAccHalf: u16 = super::super::widthAccHalf.trailing_zeros() as u16;
-        pub const widthSsoHalf: u16 = super::super::widthSsoHalf.trailing_zeros() as u16;
         pub const widthSwHalf: u16 = super::super::widthSwHalf.trailing_zeros() as u16;
-        pub const widthAcc2Half: u16 = super::super::widthAcc2Half.trailing_zeros() as u16;
         pub const widthSw2Half: u16 = super::super::widthSw2Half.trailing_zeros() as u16;
-        pub const widthMlHalf: u16 = super::super::widthMlHalf.trailing_zeros() as u16;
-        pub const widthX1Half: u16 = super::super::widthX1Half.trailing_zeros() as u16;
-        pub const widthX2Half: u16 = super::super::widthX2Half.trailing_zeros() as u16;
-        pub const widthXHalf: u16 = super::super::widthXHalf.trailing_zeros() as u16;
-        pub const widthIpHalf: u16 = super::super::widthIpHalf.trailing_zeros() as u16;
-        pub const widthOpHalf: u16 = super::super::widthOpHalf.trailing_zeros() as u16;
-        pub const widthAcc3Half: u16 = super::super::widthAcc3Half.trailing_zeros() as u16;
         pub const widthSw3Half: u16 = super::super::widthSw3Half.trailing_zeros() as u16;
         pub const widthAi1Half: u16 = super::super::widthAi1Half.trailing_zeros() as u16;
         pub const widthAi2Half: u16 = super::super::widthAi2Half.trailing_zeros() as u16;
-        pub const widthHoffHalf: u16 = super::super::widthHoffHalf.trailing_zeros() as u16;
-        pub const widthM2ptrHalf: u16 = super::super::widthM2ptrHalf.trailing_zeros() as u16;
-        pub const widthM2lenHalf: u16 = super::super::widthM2lenHalf.trailing_zeros() as u16;
-        pub const widthMl2Half: u16 = super::super::widthMl2Half.trailing_zeros() as u16;
-        pub const widthRdHalf: u16 = super::super::widthRdHalf.trailing_zeros() as u16;
         pub const widthSeenHalf: u16 = super::super::widthSeenHalf.trailing_zeros() as u16;
         pub const widthIendHalf: u16 = super::super::widthIendHalf.trailing_zeros() as u16;
         pub const widthObaseHalf: u16 = super::super::widthObaseHalf.trailing_zeros() as u16;
-        pub const widthNHalf: u16 = super::super::widthNHalf.trailing_zeros() as u16;
-        pub const widthCapHalf: u16 = super::super::widthCapHalf.trailing_zeros() as u16;
         pub const widthProfHalf: u16 = super::super::widthProfHalf.trailing_zeros() as u16;
         pub const widthLmaskHalf: u16 = super::super::widthLmaskHalf.trailing_zeros() as u16;
         pub const widthCmHalf: u16 = super::super::widthCmHalf.trailing_zeros() as u16;
@@ -4669,6 +4429,7 @@ pub mod u32 {
     pub const baseM2T: u32 = super::baseM2T as u32;
     pub const baseM2S: u32 = super::baseM2S as u32;
     pub const baseRS: u32 = super::baseRS as u32;
+    pub const wordHalfBytes: u32 = super::wordHalfBytes as u32;
     pub const widthPos: u32 = super::widthPos as u32;
     pub const atPos: u32 = super::atPos as u32;
     pub const widthC4: u32 = super::widthC4 as u32;
@@ -4679,6 +4440,7 @@ pub mod u32 {
     pub const atWordh: u32 = super::atWordh as u32;
     pub const widthWord1: u32 = super::widthWord1 as u32;
     pub const atWord1: u32 = super::atWord1 as u32;
+    pub const wordQuarterBytes: u32 = super::wordQuarterBytes as u32;
     pub const widthC0: u32 = super::widthC0 as u32;
     pub const atC0: u32 = super::atC0 as u32;
     pub const widthBit: u32 = super::widthBit as u32;
@@ -5170,51 +4932,14 @@ pub mod u32 {
     pub const baseRSHalf: u32 = super::baseRSHalf as u32;
     pub const baseRSHalfLast: u32 = super::baseRSHalfLast as u32;
     pub const baseHHalfLast: u32 = super::baseHHalfLast as u32;
-    pub const widthPosLast: u32 = super::widthPosLast as u32;
-    pub const widthPosHalf: u32 = super::widthPosHalf as u32;
-    pub const widthC4Last: u32 = super::widthC4Last as u32;
-    pub const widthC4Half: u32 = super::widthC4Half as u32;
-    pub const widthC8Last: u32 = super::widthC8Last as u32;
-    pub const widthC8Half: u32 = super::widthC8Half as u32;
-    pub const widthWordhLast: u32 = super::widthWordhLast as u32;
-    pub const widthWordhHalf: u32 = super::widthWordhHalf as u32;
-    pub const widthWord1Last: u32 = super::widthWord1Last as u32;
-    pub const widthWord1Half: u32 = super::widthWord1Half as u32;
-    pub const widthMptrLast: u32 = super::widthMptrLast as u32;
-    pub const widthMptrHalf: u32 = super::widthMptrHalf as u32;
-    pub const widthMlenLast: u32 = super::widthMlenLast as u32;
-    pub const widthMlenHalf: u32 = super::widthMlenHalf as u32;
     pub const widthRLast: u32 = super::widthRLast as u32;
     pub const widthRHalf: u32 = super::widthRHalf as u32;
-    pub const widthAccLast: u32 = super::widthAccLast as u32;
-    pub const widthAccHalf: u32 = super::widthAccHalf as u32;
-    pub const widthAccHalfLast: u32 = super::widthAccHalfLast as u32;
-    pub const widthSsoLast: u32 = super::widthSsoLast as u32;
-    pub const widthSsoHalf: u32 = super::widthSsoHalf as u32;
     pub const widthSwLast: u32 = super::widthSwLast as u32;
     pub const widthSwHalf: u32 = super::widthSwHalf as u32;
     pub const widthSwHalfLast: u32 = super::widthSwHalfLast as u32;
-    pub const widthAcc2Last: u32 = super::widthAcc2Last as u32;
-    pub const widthAcc2Half: u32 = super::widthAcc2Half as u32;
-    pub const widthAcc2HalfLast: u32 = super::widthAcc2HalfLast as u32;
     pub const widthSw2Last: u32 = super::widthSw2Last as u32;
     pub const widthSw2Half: u32 = super::widthSw2Half as u32;
     pub const widthSw2HalfLast: u32 = super::widthSw2HalfLast as u32;
-    pub const widthMlLast: u32 = super::widthMlLast as u32;
-    pub const widthMlHalf: u32 = super::widthMlHalf as u32;
-    pub const widthX1Last: u32 = super::widthX1Last as u32;
-    pub const widthX1Half: u32 = super::widthX1Half as u32;
-    pub const widthX2Last: u32 = super::widthX2Last as u32;
-    pub const widthX2Half: u32 = super::widthX2Half as u32;
-    pub const widthXLast: u32 = super::widthXLast as u32;
-    pub const widthXHalf: u32 = super::widthXHalf as u32;
-    pub const widthIpLast: u32 = super::widthIpLast as u32;
-    pub const widthIpHalf: u32 = super::widthIpHalf as u32;
-    pub const widthOpLast: u32 = super::widthOpLast as u32;
-    pub const widthOpHalf: u32 = super::widthOpHalf as u32;
-    pub const widthAcc3Last: u32 = super::widthAcc3Last as u32;
-    pub const widthAcc3Half: u32 = super::widthAcc3Half as u32;
-    pub const widthAcc3HalfLast: u32 = super::widthAcc3HalfLast as u32;
     pub const widthSw3Last: u32 = super::widthSw3Last as u32;
     pub const widthSw3Half: u32 = super::widthSw3Half as u32;
     pub const widthSw3HalfLast: u32 = super::widthSw3HalfLast as u32;
@@ -5222,16 +4947,6 @@ pub mod u32 {
     pub const widthAi1Half: u32 = super::widthAi1Half as u32;
     pub const widthAi2Last: u32 = super::widthAi2Last as u32;
     pub const widthAi2Half: u32 = super::widthAi2Half as u32;
-    pub const widthHoffLast: u32 = super::widthHoffLast as u32;
-    pub const widthHoffHalf: u32 = super::widthHoffHalf as u32;
-    pub const widthM2ptrLast: u32 = super::widthM2ptrLast as u32;
-    pub const widthM2ptrHalf: u32 = super::widthM2ptrHalf as u32;
-    pub const widthM2lenLast: u32 = super::widthM2lenLast as u32;
-    pub const widthM2lenHalf: u32 = super::widthM2lenHalf as u32;
-    pub const widthMl2Last: u32 = super::widthMl2Last as u32;
-    pub const widthMl2Half: u32 = super::widthMl2Half as u32;
-    pub const widthRdLast: u32 = super::widthRdLast as u32;
-    pub const widthRdHalf: u32 = super::widthRdHalf as u32;
     pub const widthSeenLast: u32 = super::widthSeenLast as u32;
     pub const widthSeenHalf: u32 = super::widthSeenHalf as u32;
     pub const widthIendLast: u32 = super::widthIendLast as u32;
@@ -5240,10 +4955,6 @@ pub mod u32 {
     pub const widthObaseLast: u32 = super::widthObaseLast as u32;
     pub const widthObaseHalf: u32 = super::widthObaseHalf as u32;
     pub const widthObaseHalfLast: u32 = super::widthObaseHalfLast as u32;
-    pub const widthNLast: u32 = super::widthNLast as u32;
-    pub const widthNHalf: u32 = super::widthNHalf as u32;
-    pub const widthCapLast: u32 = super::widthCapLast as u32;
-    pub const widthCapHalf: u32 = super::widthCapHalf as u32;
     pub const widthProfLast: u32 = super::widthProfLast as u32;
     pub const widthProfHalf: u32 = super::widthProfHalf as u32;
     pub const widthLmaskLast: u32 = super::widthLmaskLast as u32;
@@ -5525,6 +5236,7 @@ pub mod u32 {
         pub const baseSTL: u32 = super::super::baseSTL.trailing_zeros() as u32;
         pub const baseK: u32 = super::super::baseK.trailing_zeros() as u32;
         pub const baseLT: u32 = super::super::baseLT.trailing_zeros() as u32;
+        pub const wordHalfBytes: u32 = super::super::wordHalfBytes.trailing_zeros() as u32;
         pub const widthPos: u32 = super::super::widthPos.trailing_zeros() as u32;
         pub const widthC4: u32 = super::super::widthC4.trailing_zeros() as u32;
         pub const atC4: u32 = super::super::atC4.trailing_zeros() as u32;
@@ -5533,6 +5245,7 @@ pub mod u32 {
         pub const widthWordh: u32 = super::super::widthWordh.trailing_zeros() as u32;
         pub const widthWord1: u32 = super::super::widthWord1.trailing_zeros() as u32;
         pub const atWord1: u32 = super::super::atWord1.trailing_zeros() as u32;
+        pub const wordQuarterBytes: u32 = super::super::wordQuarterBytes.trailing_zeros() as u32;
         pub const widthC0: u32 = super::super::widthC0.trailing_zeros() as u32;
         pub const widthBit: u32 = super::super::widthBit.trailing_zeros() as u32;
         pub const widthMptr: u32 = super::super::widthMptr.trailing_zeros() as u32;
@@ -5751,39 +5464,15 @@ pub mod u32 {
         pub const baseSTLHalf: u32 = super::super::baseSTLHalf.trailing_zeros() as u32;
         pub const baseKHalf: u32 = super::super::baseKHalf.trailing_zeros() as u32;
         pub const baseLTHalf: u32 = super::super::baseLTHalf.trailing_zeros() as u32;
-        pub const widthPosHalf: u32 = super::super::widthPosHalf.trailing_zeros() as u32;
-        pub const widthC4Half: u32 = super::super::widthC4Half.trailing_zeros() as u32;
-        pub const widthC8Half: u32 = super::super::widthC8Half.trailing_zeros() as u32;
-        pub const widthWordhHalf: u32 = super::super::widthWordhHalf.trailing_zeros() as u32;
-        pub const widthWord1Half: u32 = super::super::widthWord1Half.trailing_zeros() as u32;
-        pub const widthMptrHalf: u32 = super::super::widthMptrHalf.trailing_zeros() as u32;
-        pub const widthMlenHalf: u32 = super::super::widthMlenHalf.trailing_zeros() as u32;
         pub const widthRHalf: u32 = super::super::widthRHalf.trailing_zeros() as u32;
-        pub const widthAccHalf: u32 = super::super::widthAccHalf.trailing_zeros() as u32;
-        pub const widthSsoHalf: u32 = super::super::widthSsoHalf.trailing_zeros() as u32;
         pub const widthSwHalf: u32 = super::super::widthSwHalf.trailing_zeros() as u32;
-        pub const widthAcc2Half: u32 = super::super::widthAcc2Half.trailing_zeros() as u32;
         pub const widthSw2Half: u32 = super::super::widthSw2Half.trailing_zeros() as u32;
-        pub const widthMlHalf: u32 = super::super::widthMlHalf.trailing_zeros() as u32;
-        pub const widthX1Half: u32 = super::super::widthX1Half.trailing_zeros() as u32;
-        pub const widthX2Half: u32 = super::super::widthX2Half.trailing_zeros() as u32;
-        pub const widthXHalf: u32 = super::super::widthXHalf.trailing_zeros() as u32;
-        pub const widthIpHalf: u32 = super::super::widthIpHalf.trailing_zeros() as u32;
-        pub const widthOpHalf: u32 = super::super::widthOpHalf.trailing_zeros() as u32;
-        pub const widthAcc3Half: u32 = super::super::widthAcc3Half.trailing_zeros() as u32;
         pub const widthSw3Half: u32 = super::super::widthSw3Half.trailing_zeros() as u32;
         pub const widthAi1Half: u32 = super::super::widthAi1Half.trailing_zeros() as u32;
         pub const widthAi2Half: u32 = super::super::widthAi2Half.trailing_zeros() as u32;
-        pub const widthHoffHalf: u32 = super::super::widthHoffHalf.trailing_zeros() as u32;
-        pub const widthM2ptrHalf: u32 = super::super::widthM2ptrHalf.trailing_zeros() as u32;
-        pub const widthM2lenHalf: u32 = super::super::widthM2lenHalf.trailing_zeros() as u32;
-        pub const widthMl2Half: u32 = super::super::widthMl2Half.trailing_zeros() as u32;
-        pub const widthRdHalf: u32 = super::super::widthRdHalf.trailing_zeros() as u32;
         pub const widthSeenHalf: u32 = super::super::widthSeenHalf.trailing_zeros() as u32;
         pub const widthIendHalf: u32 = super::super::widthIendHalf.trailing_zeros() as u32;
         pub const widthObaseHalf: u32 = super::super::widthObaseHalf.trailing_zeros() as u32;
-        pub const widthNHalf: u32 = super::super::widthNHalf.trailing_zeros() as u32;
-        pub const widthCapHalf: u32 = super::super::widthCapHalf.trailing_zeros() as u32;
         pub const widthProfHalf: u32 = super::super::widthProfHalf.trailing_zeros() as u32;
         pub const widthLmaskHalf: u32 = super::super::widthLmaskHalf.trailing_zeros() as u32;
         pub const widthCmHalf: u32 = super::super::widthCmHalf.trailing_zeros() as u32;
@@ -6078,6 +5767,7 @@ pub mod u64 {
     pub const basePL: u64 = super::basePL as u64;
     pub const baseZ: u64 = super::baseZ as u64;
     pub const baseDE: u64 = super::baseDE as u64;
+    pub const wordHalfBytes: u64 = super::wordHalfBytes as u64;
     pub const widthPos: u64 = super::widthPos as u64;
     pub const atPos: u64 = super::atPos as u64;
     pub const widthC4: u64 = super::widthC4 as u64;
@@ -6088,6 +5778,7 @@ pub mod u64 {
     pub const atWordh: u64 = super::atWordh as u64;
     pub const widthWord1: u64 = super::widthWord1 as u64;
     pub const atWord1: u64 = super::atWord1 as u64;
+    pub const wordQuarterBytes: u64 = super::wordQuarterBytes as u64;
     pub const widthC0: u64 = super::widthC0 as u64;
     pub const atC0: u64 = super::atC0 as u64;
     pub const widthBit: u64 = super::widthBit as u64;
@@ -6658,51 +6349,14 @@ pub mod u64 {
     pub const baseDELast: u64 = super::baseDELast as u64;
     pub const baseDEHalf: u64 = super::baseDEHalf as u64;
     pub const baseDEHalfLast: u64 = super::baseDEHalfLast as u64;
-    pub const widthPosLast: u64 = super::widthPosLast as u64;
-    pub const widthPosHalf: u64 = super::widthPosHalf as u64;
-    pub const widthC4Last: u64 = super::widthC4Last as u64;
-    pub const widthC4Half: u64 = super::widthC4Half as u64;
-    pub const widthC8Last: u64 = super::widthC8Last as u64;
-    pub const widthC8Half: u64 = super::widthC8Half as u64;
-    pub const widthWordhLast: u64 = super::widthWordhLast as u64;
-    pub const widthWordhHalf: u64 = super::widthWordhHalf as u64;
-    pub const widthWord1Last: u64 = super::widthWord1Last as u64;
-    pub const widthWord1Half: u64 = super::widthWord1Half as u64;
-    pub const widthMptrLast: u64 = super::widthMptrLast as u64;
-    pub const widthMptrHalf: u64 = super::widthMptrHalf as u64;
-    pub const widthMlenLast: u64 = super::widthMlenLast as u64;
-    pub const widthMlenHalf: u64 = super::widthMlenHalf as u64;
     pub const widthRLast: u64 = super::widthRLast as u64;
     pub const widthRHalf: u64 = super::widthRHalf as u64;
-    pub const widthAccLast: u64 = super::widthAccLast as u64;
-    pub const widthAccHalf: u64 = super::widthAccHalf as u64;
-    pub const widthAccHalfLast: u64 = super::widthAccHalfLast as u64;
-    pub const widthSsoLast: u64 = super::widthSsoLast as u64;
-    pub const widthSsoHalf: u64 = super::widthSsoHalf as u64;
     pub const widthSwLast: u64 = super::widthSwLast as u64;
     pub const widthSwHalf: u64 = super::widthSwHalf as u64;
     pub const widthSwHalfLast: u64 = super::widthSwHalfLast as u64;
-    pub const widthAcc2Last: u64 = super::widthAcc2Last as u64;
-    pub const widthAcc2Half: u64 = super::widthAcc2Half as u64;
-    pub const widthAcc2HalfLast: u64 = super::widthAcc2HalfLast as u64;
     pub const widthSw2Last: u64 = super::widthSw2Last as u64;
     pub const widthSw2Half: u64 = super::widthSw2Half as u64;
     pub const widthSw2HalfLast: u64 = super::widthSw2HalfLast as u64;
-    pub const widthMlLast: u64 = super::widthMlLast as u64;
-    pub const widthMlHalf: u64 = super::widthMlHalf as u64;
-    pub const widthX1Last: u64 = super::widthX1Last as u64;
-    pub const widthX1Half: u64 = super::widthX1Half as u64;
-    pub const widthX2Last: u64 = super::widthX2Last as u64;
-    pub const widthX2Half: u64 = super::widthX2Half as u64;
-    pub const widthXLast: u64 = super::widthXLast as u64;
-    pub const widthXHalf: u64 = super::widthXHalf as u64;
-    pub const widthIpLast: u64 = super::widthIpLast as u64;
-    pub const widthIpHalf: u64 = super::widthIpHalf as u64;
-    pub const widthOpLast: u64 = super::widthOpLast as u64;
-    pub const widthOpHalf: u64 = super::widthOpHalf as u64;
-    pub const widthAcc3Last: u64 = super::widthAcc3Last as u64;
-    pub const widthAcc3Half: u64 = super::widthAcc3Half as u64;
-    pub const widthAcc3HalfLast: u64 = super::widthAcc3HalfLast as u64;
     pub const widthSw3Last: u64 = super::widthSw3Last as u64;
     pub const widthSw3Half: u64 = super::widthSw3Half as u64;
     pub const widthSw3HalfLast: u64 = super::widthSw3HalfLast as u64;
@@ -6710,16 +6364,6 @@ pub mod u64 {
     pub const widthAi1Half: u64 = super::widthAi1Half as u64;
     pub const widthAi2Last: u64 = super::widthAi2Last as u64;
     pub const widthAi2Half: u64 = super::widthAi2Half as u64;
-    pub const widthHoffLast: u64 = super::widthHoffLast as u64;
-    pub const widthHoffHalf: u64 = super::widthHoffHalf as u64;
-    pub const widthM2ptrLast: u64 = super::widthM2ptrLast as u64;
-    pub const widthM2ptrHalf: u64 = super::widthM2ptrHalf as u64;
-    pub const widthM2lenLast: u64 = super::widthM2lenLast as u64;
-    pub const widthM2lenHalf: u64 = super::widthM2lenHalf as u64;
-    pub const widthMl2Last: u64 = super::widthMl2Last as u64;
-    pub const widthMl2Half: u64 = super::widthMl2Half as u64;
-    pub const widthRdLast: u64 = super::widthRdLast as u64;
-    pub const widthRdHalf: u64 = super::widthRdHalf as u64;
     pub const widthSeenLast: u64 = super::widthSeenLast as u64;
     pub const widthSeenHalf: u64 = super::widthSeenHalf as u64;
     pub const widthIendLast: u64 = super::widthIendLast as u64;
@@ -6728,10 +6372,6 @@ pub mod u64 {
     pub const widthObaseLast: u64 = super::widthObaseLast as u64;
     pub const widthObaseHalf: u64 = super::widthObaseHalf as u64;
     pub const widthObaseHalfLast: u64 = super::widthObaseHalfLast as u64;
-    pub const widthNLast: u64 = super::widthNLast as u64;
-    pub const widthNHalf: u64 = super::widthNHalf as u64;
-    pub const widthCapLast: u64 = super::widthCapLast as u64;
-    pub const widthCapHalf: u64 = super::widthCapHalf as u64;
     pub const widthProfLast: u64 = super::widthProfLast as u64;
     pub const widthProfHalf: u64 = super::widthProfHalf as u64;
     pub const widthLmaskLast: u64 = super::widthLmaskLast as u64;
@@ -7013,6 +6653,7 @@ pub mod u64 {
         pub const baseSTL: u64 = super::super::baseSTL.trailing_zeros() as u64;
         pub const baseK: u64 = super::super::baseK.trailing_zeros() as u64;
         pub const baseLT: u64 = super::super::baseLT.trailing_zeros() as u64;
+        pub const wordHalfBytes: u64 = super::super::wordHalfBytes.trailing_zeros() as u64;
         pub const widthPos: u64 = super::super::widthPos.trailing_zeros() as u64;
         pub const widthC4: u64 = super::super::widthC4.trailing_zeros() as u64;
         pub const atC4: u64 = super::super::atC4.trailing_zeros() as u64;
@@ -7021,6 +6662,7 @@ pub mod u64 {
         pub const widthWordh: u64 = super::super::widthWordh.trailing_zeros() as u64;
         pub const widthWord1: u64 = super::super::widthWord1.trailing_zeros() as u64;
         pub const atWord1: u64 = super::super::atWord1.trailing_zeros() as u64;
+        pub const wordQuarterBytes: u64 = super::super::wordQuarterBytes.trailing_zeros() as u64;
         pub const widthC0: u64 = super::super::widthC0.trailing_zeros() as u64;
         pub const widthBit: u64 = super::super::widthBit.trailing_zeros() as u64;
         pub const widthMptr: u64 = super::super::widthMptr.trailing_zeros() as u64;
@@ -7239,39 +6881,15 @@ pub mod u64 {
         pub const baseSTLHalf: u64 = super::super::baseSTLHalf.trailing_zeros() as u64;
         pub const baseKHalf: u64 = super::super::baseKHalf.trailing_zeros() as u64;
         pub const baseLTHalf: u64 = super::super::baseLTHalf.trailing_zeros() as u64;
-        pub const widthPosHalf: u64 = super::super::widthPosHalf.trailing_zeros() as u64;
-        pub const widthC4Half: u64 = super::super::widthC4Half.trailing_zeros() as u64;
-        pub const widthC8Half: u64 = super::super::widthC8Half.trailing_zeros() as u64;
-        pub const widthWordhHalf: u64 = super::super::widthWordhHalf.trailing_zeros() as u64;
-        pub const widthWord1Half: u64 = super::super::widthWord1Half.trailing_zeros() as u64;
-        pub const widthMptrHalf: u64 = super::super::widthMptrHalf.trailing_zeros() as u64;
-        pub const widthMlenHalf: u64 = super::super::widthMlenHalf.trailing_zeros() as u64;
         pub const widthRHalf: u64 = super::super::widthRHalf.trailing_zeros() as u64;
-        pub const widthAccHalf: u64 = super::super::widthAccHalf.trailing_zeros() as u64;
-        pub const widthSsoHalf: u64 = super::super::widthSsoHalf.trailing_zeros() as u64;
         pub const widthSwHalf: u64 = super::super::widthSwHalf.trailing_zeros() as u64;
-        pub const widthAcc2Half: u64 = super::super::widthAcc2Half.trailing_zeros() as u64;
         pub const widthSw2Half: u64 = super::super::widthSw2Half.trailing_zeros() as u64;
-        pub const widthMlHalf: u64 = super::super::widthMlHalf.trailing_zeros() as u64;
-        pub const widthX1Half: u64 = super::super::widthX1Half.trailing_zeros() as u64;
-        pub const widthX2Half: u64 = super::super::widthX2Half.trailing_zeros() as u64;
-        pub const widthXHalf: u64 = super::super::widthXHalf.trailing_zeros() as u64;
-        pub const widthIpHalf: u64 = super::super::widthIpHalf.trailing_zeros() as u64;
-        pub const widthOpHalf: u64 = super::super::widthOpHalf.trailing_zeros() as u64;
-        pub const widthAcc3Half: u64 = super::super::widthAcc3Half.trailing_zeros() as u64;
         pub const widthSw3Half: u64 = super::super::widthSw3Half.trailing_zeros() as u64;
         pub const widthAi1Half: u64 = super::super::widthAi1Half.trailing_zeros() as u64;
         pub const widthAi2Half: u64 = super::super::widthAi2Half.trailing_zeros() as u64;
-        pub const widthHoffHalf: u64 = super::super::widthHoffHalf.trailing_zeros() as u64;
-        pub const widthM2ptrHalf: u64 = super::super::widthM2ptrHalf.trailing_zeros() as u64;
-        pub const widthM2lenHalf: u64 = super::super::widthM2lenHalf.trailing_zeros() as u64;
-        pub const widthMl2Half: u64 = super::super::widthMl2Half.trailing_zeros() as u64;
-        pub const widthRdHalf: u64 = super::super::widthRdHalf.trailing_zeros() as u64;
         pub const widthSeenHalf: u64 = super::super::widthSeenHalf.trailing_zeros() as u64;
         pub const widthIendHalf: u64 = super::super::widthIendHalf.trailing_zeros() as u64;
         pub const widthObaseHalf: u64 = super::super::widthObaseHalf.trailing_zeros() as u64;
-        pub const widthNHalf: u64 = super::super::widthNHalf.trailing_zeros() as u64;
-        pub const widthCapHalf: u64 = super::super::widthCapHalf.trailing_zeros() as u64;
         pub const widthProfHalf: u64 = super::super::widthProfHalf.trailing_zeros() as u64;
         pub const widthLmaskHalf: u64 = super::super::widthLmaskHalf.trailing_zeros() as u64;
         pub const widthCmHalf: u64 = super::super::widthCmHalf.trailing_zeros() as u64;
@@ -7531,6 +7149,7 @@ pub mod usize {
     pub const baseM2T: usize = super::baseM2T as usize;
     pub const baseM2S: usize = super::baseM2S as usize;
     pub const baseRS: usize = super::baseRS as usize;
+    pub const wordHalfBytes: usize = super::wordHalfBytes as usize;
     pub const widthPos: usize = super::widthPos as usize;
     pub const atPos: usize = super::atPos as usize;
     pub const widthC4: usize = super::widthC4 as usize;
@@ -7541,6 +7160,7 @@ pub mod usize {
     pub const atWordh: usize = super::atWordh as usize;
     pub const widthWord1: usize = super::widthWord1 as usize;
     pub const atWord1: usize = super::atWord1 as usize;
+    pub const wordQuarterBytes: usize = super::wordQuarterBytes as usize;
     pub const widthC0: usize = super::widthC0 as usize;
     pub const atC0: usize = super::atC0 as usize;
     pub const widthBit: usize = super::widthBit as usize;
@@ -8032,51 +7652,14 @@ pub mod usize {
     pub const baseRSHalf: usize = super::baseRSHalf as usize;
     pub const baseRSHalfLast: usize = super::baseRSHalfLast as usize;
     pub const baseHHalfLast: usize = super::baseHHalfLast as usize;
-    pub const widthPosLast: usize = super::widthPosLast as usize;
-    pub const widthPosHalf: usize = super::widthPosHalf as usize;
-    pub const widthC4Last: usize = super::widthC4Last as usize;
-    pub const widthC4Half: usize = super::widthC4Half as usize;
-    pub const widthC8Last: usize = super::widthC8Last as usize;
-    pub const widthC8Half: usize = super::widthC8Half as usize;
-    pub const widthWordhLast: usize = super::widthWordhLast as usize;
-    pub const widthWordhHalf: usize = super::widthWordhHalf as usize;
-    pub const widthWord1Last: usize = super::widthWord1Last as usize;
-    pub const widthWord1Half: usize = super::widthWord1Half as usize;
-    pub const widthMptrLast: usize = super::widthMptrLast as usize;
-    pub const widthMptrHalf: usize = super::widthMptrHalf as usize;
-    pub const widthMlenLast: usize = super::widthMlenLast as usize;
-    pub const widthMlenHalf: usize = super::widthMlenHalf as usize;
     pub const widthRLast: usize = super::widthRLast as usize;
     pub const widthRHalf: usize = super::widthRHalf as usize;
-    pub const widthAccLast: usize = super::widthAccLast as usize;
-    pub const widthAccHalf: usize = super::widthAccHalf as usize;
-    pub const widthAccHalfLast: usize = super::widthAccHalfLast as usize;
-    pub const widthSsoLast: usize = super::widthSsoLast as usize;
-    pub const widthSsoHalf: usize = super::widthSsoHalf as usize;
     pub const widthSwLast: usize = super::widthSwLast as usize;
     pub const widthSwHalf: usize = super::widthSwHalf as usize;
     pub const widthSwHalfLast: usize = super::widthSwHalfLast as usize;
-    pub const widthAcc2Last: usize = super::widthAcc2Last as usize;
-    pub const widthAcc2Half: usize = super::widthAcc2Half as usize;
-    pub const widthAcc2HalfLast: usize = super::widthAcc2HalfLast as usize;
     pub const widthSw2Last: usize = super::widthSw2Last as usize;
     pub const widthSw2Half: usize = super::widthSw2Half as usize;
     pub const widthSw2HalfLast: usize = super::widthSw2HalfLast as usize;
-    pub const widthMlLast: usize = super::widthMlLast as usize;
-    pub const widthMlHalf: usize = super::widthMlHalf as usize;
-    pub const widthX1Last: usize = super::widthX1Last as usize;
-    pub const widthX1Half: usize = super::widthX1Half as usize;
-    pub const widthX2Last: usize = super::widthX2Last as usize;
-    pub const widthX2Half: usize = super::widthX2Half as usize;
-    pub const widthXLast: usize = super::widthXLast as usize;
-    pub const widthXHalf: usize = super::widthXHalf as usize;
-    pub const widthIpLast: usize = super::widthIpLast as usize;
-    pub const widthIpHalf: usize = super::widthIpHalf as usize;
-    pub const widthOpLast: usize = super::widthOpLast as usize;
-    pub const widthOpHalf: usize = super::widthOpHalf as usize;
-    pub const widthAcc3Last: usize = super::widthAcc3Last as usize;
-    pub const widthAcc3Half: usize = super::widthAcc3Half as usize;
-    pub const widthAcc3HalfLast: usize = super::widthAcc3HalfLast as usize;
     pub const widthSw3Last: usize = super::widthSw3Last as usize;
     pub const widthSw3Half: usize = super::widthSw3Half as usize;
     pub const widthSw3HalfLast: usize = super::widthSw3HalfLast as usize;
@@ -8084,16 +7667,6 @@ pub mod usize {
     pub const widthAi1Half: usize = super::widthAi1Half as usize;
     pub const widthAi2Last: usize = super::widthAi2Last as usize;
     pub const widthAi2Half: usize = super::widthAi2Half as usize;
-    pub const widthHoffLast: usize = super::widthHoffLast as usize;
-    pub const widthHoffHalf: usize = super::widthHoffHalf as usize;
-    pub const widthM2ptrLast: usize = super::widthM2ptrLast as usize;
-    pub const widthM2ptrHalf: usize = super::widthM2ptrHalf as usize;
-    pub const widthM2lenLast: usize = super::widthM2lenLast as usize;
-    pub const widthM2lenHalf: usize = super::widthM2lenHalf as usize;
-    pub const widthMl2Last: usize = super::widthMl2Last as usize;
-    pub const widthMl2Half: usize = super::widthMl2Half as usize;
-    pub const widthRdLast: usize = super::widthRdLast as usize;
-    pub const widthRdHalf: usize = super::widthRdHalf as usize;
     pub const widthSeenLast: usize = super::widthSeenLast as usize;
     pub const widthSeenHalf: usize = super::widthSeenHalf as usize;
     pub const widthIendLast: usize = super::widthIendLast as usize;
@@ -8102,10 +7675,6 @@ pub mod usize {
     pub const widthObaseLast: usize = super::widthObaseLast as usize;
     pub const widthObaseHalf: usize = super::widthObaseHalf as usize;
     pub const widthObaseHalfLast: usize = super::widthObaseHalfLast as usize;
-    pub const widthNLast: usize = super::widthNLast as usize;
-    pub const widthNHalf: usize = super::widthNHalf as usize;
-    pub const widthCapLast: usize = super::widthCapLast as usize;
-    pub const widthCapHalf: usize = super::widthCapHalf as usize;
     pub const widthProfLast: usize = super::widthProfLast as usize;
     pub const widthProfHalf: usize = super::widthProfHalf as usize;
     pub const widthLmaskLast: usize = super::widthLmaskLast as usize;
@@ -8387,6 +7956,7 @@ pub mod usize {
         pub const baseSTL: usize = super::super::baseSTL.trailing_zeros() as usize;
         pub const baseK: usize = super::super::baseK.trailing_zeros() as usize;
         pub const baseLT: usize = super::super::baseLT.trailing_zeros() as usize;
+        pub const wordHalfBytes: usize = super::super::wordHalfBytes.trailing_zeros() as usize;
         pub const widthPos: usize = super::super::widthPos.trailing_zeros() as usize;
         pub const widthC4: usize = super::super::widthC4.trailing_zeros() as usize;
         pub const atC4: usize = super::super::atC4.trailing_zeros() as usize;
@@ -8395,6 +7965,7 @@ pub mod usize {
         pub const widthWordh: usize = super::super::widthWordh.trailing_zeros() as usize;
         pub const widthWord1: usize = super::super::widthWord1.trailing_zeros() as usize;
         pub const atWord1: usize = super::super::atWord1.trailing_zeros() as usize;
+        pub const wordQuarterBytes: usize = super::super::wordQuarterBytes.trailing_zeros() as usize;
         pub const widthC0: usize = super::super::widthC0.trailing_zeros() as usize;
         pub const widthBit: usize = super::super::widthBit.trailing_zeros() as usize;
         pub const widthMptr: usize = super::super::widthMptr.trailing_zeros() as usize;
@@ -8613,39 +8184,15 @@ pub mod usize {
         pub const baseSTLHalf: usize = super::super::baseSTLHalf.trailing_zeros() as usize;
         pub const baseKHalf: usize = super::super::baseKHalf.trailing_zeros() as usize;
         pub const baseLTHalf: usize = super::super::baseLTHalf.trailing_zeros() as usize;
-        pub const widthPosHalf: usize = super::super::widthPosHalf.trailing_zeros() as usize;
-        pub const widthC4Half: usize = super::super::widthC4Half.trailing_zeros() as usize;
-        pub const widthC8Half: usize = super::super::widthC8Half.trailing_zeros() as usize;
-        pub const widthWordhHalf: usize = super::super::widthWordhHalf.trailing_zeros() as usize;
-        pub const widthWord1Half: usize = super::super::widthWord1Half.trailing_zeros() as usize;
-        pub const widthMptrHalf: usize = super::super::widthMptrHalf.trailing_zeros() as usize;
-        pub const widthMlenHalf: usize = super::super::widthMlenHalf.trailing_zeros() as usize;
         pub const widthRHalf: usize = super::super::widthRHalf.trailing_zeros() as usize;
-        pub const widthAccHalf: usize = super::super::widthAccHalf.trailing_zeros() as usize;
-        pub const widthSsoHalf: usize = super::super::widthSsoHalf.trailing_zeros() as usize;
         pub const widthSwHalf: usize = super::super::widthSwHalf.trailing_zeros() as usize;
-        pub const widthAcc2Half: usize = super::super::widthAcc2Half.trailing_zeros() as usize;
         pub const widthSw2Half: usize = super::super::widthSw2Half.trailing_zeros() as usize;
-        pub const widthMlHalf: usize = super::super::widthMlHalf.trailing_zeros() as usize;
-        pub const widthX1Half: usize = super::super::widthX1Half.trailing_zeros() as usize;
-        pub const widthX2Half: usize = super::super::widthX2Half.trailing_zeros() as usize;
-        pub const widthXHalf: usize = super::super::widthXHalf.trailing_zeros() as usize;
-        pub const widthIpHalf: usize = super::super::widthIpHalf.trailing_zeros() as usize;
-        pub const widthOpHalf: usize = super::super::widthOpHalf.trailing_zeros() as usize;
-        pub const widthAcc3Half: usize = super::super::widthAcc3Half.trailing_zeros() as usize;
         pub const widthSw3Half: usize = super::super::widthSw3Half.trailing_zeros() as usize;
         pub const widthAi1Half: usize = super::super::widthAi1Half.trailing_zeros() as usize;
         pub const widthAi2Half: usize = super::super::widthAi2Half.trailing_zeros() as usize;
-        pub const widthHoffHalf: usize = super::super::widthHoffHalf.trailing_zeros() as usize;
-        pub const widthM2ptrHalf: usize = super::super::widthM2ptrHalf.trailing_zeros() as usize;
-        pub const widthM2lenHalf: usize = super::super::widthM2lenHalf.trailing_zeros() as usize;
-        pub const widthMl2Half: usize = super::super::widthMl2Half.trailing_zeros() as usize;
-        pub const widthRdHalf: usize = super::super::widthRdHalf.trailing_zeros() as usize;
         pub const widthSeenHalf: usize = super::super::widthSeenHalf.trailing_zeros() as usize;
         pub const widthIendHalf: usize = super::super::widthIendHalf.trailing_zeros() as usize;
         pub const widthObaseHalf: usize = super::super::widthObaseHalf.trailing_zeros() as usize;
-        pub const widthNHalf: usize = super::super::widthNHalf.trailing_zeros() as usize;
-        pub const widthCapHalf: usize = super::super::widthCapHalf.trailing_zeros() as usize;
         pub const widthProfHalf: usize = super::super::widthProfHalf.trailing_zeros() as usize;
         pub const widthLmaskHalf: usize = super::super::widthLmaskHalf.trailing_zeros() as usize;
         pub const widthCmHalf: usize = super::super::widthCmHalf.trailing_zeros() as usize;
@@ -8844,6 +8391,7 @@ pub mod i16 {
     pub const baseIX: i16 = super::baseIX as i16;
     pub const baseST: i16 = super::baseST as i16;
     pub const baseLD: i16 = super::baseLD as i16;
+    pub const wordHalfBytes: i16 = super::wordHalfBytes as i16;
     pub const widthPos: i16 = super::widthPos as i16;
     pub const atPos: i16 = super::atPos as i16;
     pub const widthC4: i16 = super::widthC4 as i16;
@@ -8854,6 +8402,7 @@ pub mod i16 {
     pub const atWordh: i16 = super::atWordh as i16;
     pub const widthWord1: i16 = super::widthWord1 as i16;
     pub const atWord1: i16 = super::atWord1 as i16;
+    pub const wordQuarterBytes: i16 = super::wordQuarterBytes as i16;
     pub const widthC0: i16 = super::widthC0 as i16;
     pub const atC0: i16 = super::atC0 as i16;
     pub const widthBit: i16 = super::widthBit as i16;
@@ -9268,51 +8817,14 @@ pub mod i16 {
     pub const baseSTRLast: i16 = super::baseSTRLast as i16;
     pub const baseSTRHalf: i16 = super::baseSTRHalf as i16;
     pub const baseSTRHalfLast: i16 = super::baseSTRHalfLast as i16;
-    pub const widthPosLast: i16 = super::widthPosLast as i16;
-    pub const widthPosHalf: i16 = super::widthPosHalf as i16;
-    pub const widthC4Last: i16 = super::widthC4Last as i16;
-    pub const widthC4Half: i16 = super::widthC4Half as i16;
-    pub const widthC8Last: i16 = super::widthC8Last as i16;
-    pub const widthC8Half: i16 = super::widthC8Half as i16;
-    pub const widthWordhLast: i16 = super::widthWordhLast as i16;
-    pub const widthWordhHalf: i16 = super::widthWordhHalf as i16;
-    pub const widthWord1Last: i16 = super::widthWord1Last as i16;
-    pub const widthWord1Half: i16 = super::widthWord1Half as i16;
-    pub const widthMptrLast: i16 = super::widthMptrLast as i16;
-    pub const widthMptrHalf: i16 = super::widthMptrHalf as i16;
-    pub const widthMlenLast: i16 = super::widthMlenLast as i16;
-    pub const widthMlenHalf: i16 = super::widthMlenHalf as i16;
     pub const widthRLast: i16 = super::widthRLast as i16;
     pub const widthRHalf: i16 = super::widthRHalf as i16;
-    pub const widthAccLast: i16 = super::widthAccLast as i16;
-    pub const widthAccHalf: i16 = super::widthAccHalf as i16;
-    pub const widthAccHalfLast: i16 = super::widthAccHalfLast as i16;
-    pub const widthSsoLast: i16 = super::widthSsoLast as i16;
-    pub const widthSsoHalf: i16 = super::widthSsoHalf as i16;
     pub const widthSwLast: i16 = super::widthSwLast as i16;
     pub const widthSwHalf: i16 = super::widthSwHalf as i16;
     pub const widthSwHalfLast: i16 = super::widthSwHalfLast as i16;
-    pub const widthAcc2Last: i16 = super::widthAcc2Last as i16;
-    pub const widthAcc2Half: i16 = super::widthAcc2Half as i16;
-    pub const widthAcc2HalfLast: i16 = super::widthAcc2HalfLast as i16;
     pub const widthSw2Last: i16 = super::widthSw2Last as i16;
     pub const widthSw2Half: i16 = super::widthSw2Half as i16;
     pub const widthSw2HalfLast: i16 = super::widthSw2HalfLast as i16;
-    pub const widthMlLast: i16 = super::widthMlLast as i16;
-    pub const widthMlHalf: i16 = super::widthMlHalf as i16;
-    pub const widthX1Last: i16 = super::widthX1Last as i16;
-    pub const widthX1Half: i16 = super::widthX1Half as i16;
-    pub const widthX2Last: i16 = super::widthX2Last as i16;
-    pub const widthX2Half: i16 = super::widthX2Half as i16;
-    pub const widthXLast: i16 = super::widthXLast as i16;
-    pub const widthXHalf: i16 = super::widthXHalf as i16;
-    pub const widthIpLast: i16 = super::widthIpLast as i16;
-    pub const widthIpHalf: i16 = super::widthIpHalf as i16;
-    pub const widthOpLast: i16 = super::widthOpLast as i16;
-    pub const widthOpHalf: i16 = super::widthOpHalf as i16;
-    pub const widthAcc3Last: i16 = super::widthAcc3Last as i16;
-    pub const widthAcc3Half: i16 = super::widthAcc3Half as i16;
-    pub const widthAcc3HalfLast: i16 = super::widthAcc3HalfLast as i16;
     pub const widthSw3Last: i16 = super::widthSw3Last as i16;
     pub const widthSw3Half: i16 = super::widthSw3Half as i16;
     pub const widthSw3HalfLast: i16 = super::widthSw3HalfLast as i16;
@@ -9320,16 +8832,6 @@ pub mod i16 {
     pub const widthAi1Half: i16 = super::widthAi1Half as i16;
     pub const widthAi2Last: i16 = super::widthAi2Last as i16;
     pub const widthAi2Half: i16 = super::widthAi2Half as i16;
-    pub const widthHoffLast: i16 = super::widthHoffLast as i16;
-    pub const widthHoffHalf: i16 = super::widthHoffHalf as i16;
-    pub const widthM2ptrLast: i16 = super::widthM2ptrLast as i16;
-    pub const widthM2ptrHalf: i16 = super::widthM2ptrHalf as i16;
-    pub const widthM2lenLast: i16 = super::widthM2lenLast as i16;
-    pub const widthM2lenHalf: i16 = super::widthM2lenHalf as i16;
-    pub const widthMl2Last: i16 = super::widthMl2Last as i16;
-    pub const widthMl2Half: i16 = super::widthMl2Half as i16;
-    pub const widthRdLast: i16 = super::widthRdLast as i16;
-    pub const widthRdHalf: i16 = super::widthRdHalf as i16;
     pub const widthSeenLast: i16 = super::widthSeenLast as i16;
     pub const widthSeenHalf: i16 = super::widthSeenHalf as i16;
     pub const widthIendLast: i16 = super::widthIendLast as i16;
@@ -9338,10 +8840,6 @@ pub mod i16 {
     pub const widthObaseLast: i16 = super::widthObaseLast as i16;
     pub const widthObaseHalf: i16 = super::widthObaseHalf as i16;
     pub const widthObaseHalfLast: i16 = super::widthObaseHalfLast as i16;
-    pub const widthNLast: i16 = super::widthNLast as i16;
-    pub const widthNHalf: i16 = super::widthNHalf as i16;
-    pub const widthCapLast: i16 = super::widthCapLast as i16;
-    pub const widthCapHalf: i16 = super::widthCapHalf as i16;
     pub const widthProfLast: i16 = super::widthProfLast as i16;
     pub const widthProfHalf: i16 = super::widthProfHalf as i16;
     pub const widthLmaskLast: i16 = super::widthLmaskLast as i16;
@@ -9617,6 +9115,7 @@ pub mod i16 {
         pub const baseSTL: i16 = super::super::baseSTL.trailing_zeros() as i16;
         pub const baseK: i16 = super::super::baseK.trailing_zeros() as i16;
         pub const baseLT: i16 = super::super::baseLT.trailing_zeros() as i16;
+        pub const wordHalfBytes: i16 = super::super::wordHalfBytes.trailing_zeros() as i16;
         pub const widthPos: i16 = super::super::widthPos.trailing_zeros() as i16;
         pub const widthC4: i16 = super::super::widthC4.trailing_zeros() as i16;
         pub const atC4: i16 = super::super::atC4.trailing_zeros() as i16;
@@ -9625,6 +9124,7 @@ pub mod i16 {
         pub const widthWordh: i16 = super::super::widthWordh.trailing_zeros() as i16;
         pub const widthWord1: i16 = super::super::widthWord1.trailing_zeros() as i16;
         pub const atWord1: i16 = super::super::atWord1.trailing_zeros() as i16;
+        pub const wordQuarterBytes: i16 = super::super::wordQuarterBytes.trailing_zeros() as i16;
         pub const widthC0: i16 = super::super::widthC0.trailing_zeros() as i16;
         pub const widthBit: i16 = super::super::widthBit.trailing_zeros() as i16;
         pub const widthMptr: i16 = super::super::widthMptr.trailing_zeros() as i16;
@@ -9843,39 +9343,15 @@ pub mod i16 {
         pub const baseSTLHalf: i16 = super::super::baseSTLHalf.trailing_zeros() as i16;
         pub const baseKHalf: i16 = super::super::baseKHalf.trailing_zeros() as i16;
         pub const baseLTHalf: i16 = super::super::baseLTHalf.trailing_zeros() as i16;
-        pub const widthPosHalf: i16 = super::super::widthPosHalf.trailing_zeros() as i16;
-        pub const widthC4Half: i16 = super::super::widthC4Half.trailing_zeros() as i16;
-        pub const widthC8Half: i16 = super::super::widthC8Half.trailing_zeros() as i16;
-        pub const widthWordhHalf: i16 = super::super::widthWordhHalf.trailing_zeros() as i16;
-        pub const widthWord1Half: i16 = super::super::widthWord1Half.trailing_zeros() as i16;
-        pub const widthMptrHalf: i16 = super::super::widthMptrHalf.trailing_zeros() as i16;
-        pub const widthMlenHalf: i16 = super::super::widthMlenHalf.trailing_zeros() as i16;
         pub const widthRHalf: i16 = super::super::widthRHalf.trailing_zeros() as i16;
-        pub const widthAccHalf: i16 = super::super::widthAccHalf.trailing_zeros() as i16;
-        pub const widthSsoHalf: i16 = super::super::widthSsoHalf.trailing_zeros() as i16;
         pub const widthSwHalf: i16 = super::super::widthSwHalf.trailing_zeros() as i16;
-        pub const widthAcc2Half: i16 = super::super::widthAcc2Half.trailing_zeros() as i16;
         pub const widthSw2Half: i16 = super::super::widthSw2Half.trailing_zeros() as i16;
-        pub const widthMlHalf: i16 = super::super::widthMlHalf.trailing_zeros() as i16;
-        pub const widthX1Half: i16 = super::super::widthX1Half.trailing_zeros() as i16;
-        pub const widthX2Half: i16 = super::super::widthX2Half.trailing_zeros() as i16;
-        pub const widthXHalf: i16 = super::super::widthXHalf.trailing_zeros() as i16;
-        pub const widthIpHalf: i16 = super::super::widthIpHalf.trailing_zeros() as i16;
-        pub const widthOpHalf: i16 = super::super::widthOpHalf.trailing_zeros() as i16;
-        pub const widthAcc3Half: i16 = super::super::widthAcc3Half.trailing_zeros() as i16;
         pub const widthSw3Half: i16 = super::super::widthSw3Half.trailing_zeros() as i16;
         pub const widthAi1Half: i16 = super::super::widthAi1Half.trailing_zeros() as i16;
         pub const widthAi2Half: i16 = super::super::widthAi2Half.trailing_zeros() as i16;
-        pub const widthHoffHalf: i16 = super::super::widthHoffHalf.trailing_zeros() as i16;
-        pub const widthM2ptrHalf: i16 = super::super::widthM2ptrHalf.trailing_zeros() as i16;
-        pub const widthM2lenHalf: i16 = super::super::widthM2lenHalf.trailing_zeros() as i16;
-        pub const widthMl2Half: i16 = super::super::widthMl2Half.trailing_zeros() as i16;
-        pub const widthRdHalf: i16 = super::super::widthRdHalf.trailing_zeros() as i16;
         pub const widthSeenHalf: i16 = super::super::widthSeenHalf.trailing_zeros() as i16;
         pub const widthIendHalf: i16 = super::super::widthIendHalf.trailing_zeros() as i16;
         pub const widthObaseHalf: i16 = super::super::widthObaseHalf.trailing_zeros() as i16;
-        pub const widthNHalf: i16 = super::super::widthNHalf.trailing_zeros() as i16;
-        pub const widthCapHalf: i16 = super::super::widthCapHalf.trailing_zeros() as i16;
         pub const widthProfHalf: i16 = super::super::widthProfHalf.trailing_zeros() as i16;
         pub const widthLmaskHalf: i16 = super::super::widthLmaskHalf.trailing_zeros() as i16;
         pub const widthCmHalf: i16 = super::super::widthCmHalf.trailing_zeros() as i16;
@@ -10130,6 +9606,7 @@ pub mod i32 {
     pub const baseA2: i32 = super::baseA2 as i32;
     pub const baseMT: i32 = super::baseMT as i32;
     pub const baseM2T: i32 = super::baseM2T as i32;
+    pub const wordHalfBytes: i32 = super::wordHalfBytes as i32;
     pub const widthPos: i32 = super::widthPos as i32;
     pub const atPos: i32 = super::atPos as i32;
     pub const widthC4: i32 = super::widthC4 as i32;
@@ -10140,6 +9617,7 @@ pub mod i32 {
     pub const atWordh: i32 = super::atWordh as i32;
     pub const widthWord1: i32 = super::widthWord1 as i32;
     pub const atWord1: i32 = super::atWord1 as i32;
+    pub const wordQuarterBytes: i32 = super::wordQuarterBytes as i32;
     pub const widthC0: i32 = super::widthC0 as i32;
     pub const atC0: i32 = super::atC0 as i32;
     pub const widthBit: i32 = super::widthBit as i32;
@@ -10624,51 +10102,14 @@ pub mod i32 {
     pub const baseM2SHalfLast: i32 = super::baseM2SHalfLast as i32;
     pub const baseRSHalf: i32 = super::baseRSHalf as i32;
     pub const baseRSHalfLast: i32 = super::baseRSHalfLast as i32;
-    pub const widthPosLast: i32 = super::widthPosLast as i32;
-    pub const widthPosHalf: i32 = super::widthPosHalf as i32;
-    pub const widthC4Last: i32 = super::widthC4Last as i32;
-    pub const widthC4Half: i32 = super::widthC4Half as i32;
-    pub const widthC8Last: i32 = super::widthC8Last as i32;
-    pub const widthC8Half: i32 = super::widthC8Half as i32;
-    pub const widthWordhLast: i32 = super::widthWordhLast as i32;
-    pub const widthWordhHalf: i32 = super::widthWordhHalf as i32;
-    pub const widthWord1Last: i32 = super::widthWord1Last as i32;
-    pub const widthWord1Half: i32 = super::widthWord1Half as i32;
-    pub const widthMptrLast: i32 = super::widthMptrLast as i32;
-    pub const widthMptrHalf: i32 = super::widthMptrHalf as i32;
-    pub const widthMlenLast: i32 = super::widthMlenLast as i32;
-    pub const widthMlenHalf: i32 = super::widthMlenHalf as i32;
     pub const widthRLast: i32 = super::widthRLast as i32;
     pub const widthRHalf: i32 = super::widthRHalf as i32;
-    pub const widthAccLast: i32 = super::widthAccLast as i32;
-    pub const widthAccHalf: i32 = super::widthAccHalf as i32;
-    pub const widthAccHalfLast: i32 = super::widthAccHalfLast as i32;
-    pub const widthSsoLast: i32 = super::widthSsoLast as i32;
-    pub const widthSsoHalf: i32 = super::widthSsoHalf as i32;
     pub const widthSwLast: i32 = super::widthSwLast as i32;
     pub const widthSwHalf: i32 = super::widthSwHalf as i32;
     pub const widthSwHalfLast: i32 = super::widthSwHalfLast as i32;
-    pub const widthAcc2Last: i32 = super::widthAcc2Last as i32;
-    pub const widthAcc2Half: i32 = super::widthAcc2Half as i32;
-    pub const widthAcc2HalfLast: i32 = super::widthAcc2HalfLast as i32;
     pub const widthSw2Last: i32 = super::widthSw2Last as i32;
     pub const widthSw2Half: i32 = super::widthSw2Half as i32;
     pub const widthSw2HalfLast: i32 = super::widthSw2HalfLast as i32;
-    pub const widthMlLast: i32 = super::widthMlLast as i32;
-    pub const widthMlHalf: i32 = super::widthMlHalf as i32;
-    pub const widthX1Last: i32 = super::widthX1Last as i32;
-    pub const widthX1Half: i32 = super::widthX1Half as i32;
-    pub const widthX2Last: i32 = super::widthX2Last as i32;
-    pub const widthX2Half: i32 = super::widthX2Half as i32;
-    pub const widthXLast: i32 = super::widthXLast as i32;
-    pub const widthXHalf: i32 = super::widthXHalf as i32;
-    pub const widthIpLast: i32 = super::widthIpLast as i32;
-    pub const widthIpHalf: i32 = super::widthIpHalf as i32;
-    pub const widthOpLast: i32 = super::widthOpLast as i32;
-    pub const widthOpHalf: i32 = super::widthOpHalf as i32;
-    pub const widthAcc3Last: i32 = super::widthAcc3Last as i32;
-    pub const widthAcc3Half: i32 = super::widthAcc3Half as i32;
-    pub const widthAcc3HalfLast: i32 = super::widthAcc3HalfLast as i32;
     pub const widthSw3Last: i32 = super::widthSw3Last as i32;
     pub const widthSw3Half: i32 = super::widthSw3Half as i32;
     pub const widthSw3HalfLast: i32 = super::widthSw3HalfLast as i32;
@@ -10676,16 +10117,6 @@ pub mod i32 {
     pub const widthAi1Half: i32 = super::widthAi1Half as i32;
     pub const widthAi2Last: i32 = super::widthAi2Last as i32;
     pub const widthAi2Half: i32 = super::widthAi2Half as i32;
-    pub const widthHoffLast: i32 = super::widthHoffLast as i32;
-    pub const widthHoffHalf: i32 = super::widthHoffHalf as i32;
-    pub const widthM2ptrLast: i32 = super::widthM2ptrLast as i32;
-    pub const widthM2ptrHalf: i32 = super::widthM2ptrHalf as i32;
-    pub const widthM2lenLast: i32 = super::widthM2lenLast as i32;
-    pub const widthM2lenHalf: i32 = super::widthM2lenHalf as i32;
-    pub const widthMl2Last: i32 = super::widthMl2Last as i32;
-    pub const widthMl2Half: i32 = super::widthMl2Half as i32;
-    pub const widthRdLast: i32 = super::widthRdLast as i32;
-    pub const widthRdHalf: i32 = super::widthRdHalf as i32;
     pub const widthSeenLast: i32 = super::widthSeenLast as i32;
     pub const widthSeenHalf: i32 = super::widthSeenHalf as i32;
     pub const widthIendLast: i32 = super::widthIendLast as i32;
@@ -10694,10 +10125,6 @@ pub mod i32 {
     pub const widthObaseLast: i32 = super::widthObaseLast as i32;
     pub const widthObaseHalf: i32 = super::widthObaseHalf as i32;
     pub const widthObaseHalfLast: i32 = super::widthObaseHalfLast as i32;
-    pub const widthNLast: i32 = super::widthNLast as i32;
-    pub const widthNHalf: i32 = super::widthNHalf as i32;
-    pub const widthCapLast: i32 = super::widthCapLast as i32;
-    pub const widthCapHalf: i32 = super::widthCapHalf as i32;
     pub const widthProfLast: i32 = super::widthProfLast as i32;
     pub const widthProfHalf: i32 = super::widthProfHalf as i32;
     pub const widthLmaskLast: i32 = super::widthLmaskLast as i32;
@@ -10976,6 +10403,7 @@ pub mod i32 {
         pub const baseSTL: i32 = super::super::baseSTL.trailing_zeros() as i32;
         pub const baseK: i32 = super::super::baseK.trailing_zeros() as i32;
         pub const baseLT: i32 = super::super::baseLT.trailing_zeros() as i32;
+        pub const wordHalfBytes: i32 = super::super::wordHalfBytes.trailing_zeros() as i32;
         pub const widthPos: i32 = super::super::widthPos.trailing_zeros() as i32;
         pub const widthC4: i32 = super::super::widthC4.trailing_zeros() as i32;
         pub const atC4: i32 = super::super::atC4.trailing_zeros() as i32;
@@ -10984,6 +10412,7 @@ pub mod i32 {
         pub const widthWordh: i32 = super::super::widthWordh.trailing_zeros() as i32;
         pub const widthWord1: i32 = super::super::widthWord1.trailing_zeros() as i32;
         pub const atWord1: i32 = super::super::atWord1.trailing_zeros() as i32;
+        pub const wordQuarterBytes: i32 = super::super::wordQuarterBytes.trailing_zeros() as i32;
         pub const widthC0: i32 = super::super::widthC0.trailing_zeros() as i32;
         pub const widthBit: i32 = super::super::widthBit.trailing_zeros() as i32;
         pub const widthMptr: i32 = super::super::widthMptr.trailing_zeros() as i32;
@@ -11202,39 +10631,15 @@ pub mod i32 {
         pub const baseSTLHalf: i32 = super::super::baseSTLHalf.trailing_zeros() as i32;
         pub const baseKHalf: i32 = super::super::baseKHalf.trailing_zeros() as i32;
         pub const baseLTHalf: i32 = super::super::baseLTHalf.trailing_zeros() as i32;
-        pub const widthPosHalf: i32 = super::super::widthPosHalf.trailing_zeros() as i32;
-        pub const widthC4Half: i32 = super::super::widthC4Half.trailing_zeros() as i32;
-        pub const widthC8Half: i32 = super::super::widthC8Half.trailing_zeros() as i32;
-        pub const widthWordhHalf: i32 = super::super::widthWordhHalf.trailing_zeros() as i32;
-        pub const widthWord1Half: i32 = super::super::widthWord1Half.trailing_zeros() as i32;
-        pub const widthMptrHalf: i32 = super::super::widthMptrHalf.trailing_zeros() as i32;
-        pub const widthMlenHalf: i32 = super::super::widthMlenHalf.trailing_zeros() as i32;
         pub const widthRHalf: i32 = super::super::widthRHalf.trailing_zeros() as i32;
-        pub const widthAccHalf: i32 = super::super::widthAccHalf.trailing_zeros() as i32;
-        pub const widthSsoHalf: i32 = super::super::widthSsoHalf.trailing_zeros() as i32;
         pub const widthSwHalf: i32 = super::super::widthSwHalf.trailing_zeros() as i32;
-        pub const widthAcc2Half: i32 = super::super::widthAcc2Half.trailing_zeros() as i32;
         pub const widthSw2Half: i32 = super::super::widthSw2Half.trailing_zeros() as i32;
-        pub const widthMlHalf: i32 = super::super::widthMlHalf.trailing_zeros() as i32;
-        pub const widthX1Half: i32 = super::super::widthX1Half.trailing_zeros() as i32;
-        pub const widthX2Half: i32 = super::super::widthX2Half.trailing_zeros() as i32;
-        pub const widthXHalf: i32 = super::super::widthXHalf.trailing_zeros() as i32;
-        pub const widthIpHalf: i32 = super::super::widthIpHalf.trailing_zeros() as i32;
-        pub const widthOpHalf: i32 = super::super::widthOpHalf.trailing_zeros() as i32;
-        pub const widthAcc3Half: i32 = super::super::widthAcc3Half.trailing_zeros() as i32;
         pub const widthSw3Half: i32 = super::super::widthSw3Half.trailing_zeros() as i32;
         pub const widthAi1Half: i32 = super::super::widthAi1Half.trailing_zeros() as i32;
         pub const widthAi2Half: i32 = super::super::widthAi2Half.trailing_zeros() as i32;
-        pub const widthHoffHalf: i32 = super::super::widthHoffHalf.trailing_zeros() as i32;
-        pub const widthM2ptrHalf: i32 = super::super::widthM2ptrHalf.trailing_zeros() as i32;
-        pub const widthM2lenHalf: i32 = super::super::widthM2lenHalf.trailing_zeros() as i32;
-        pub const widthMl2Half: i32 = super::super::widthMl2Half.trailing_zeros() as i32;
-        pub const widthRdHalf: i32 = super::super::widthRdHalf.trailing_zeros() as i32;
         pub const widthSeenHalf: i32 = super::super::widthSeenHalf.trailing_zeros() as i32;
         pub const widthIendHalf: i32 = super::super::widthIendHalf.trailing_zeros() as i32;
         pub const widthObaseHalf: i32 = super::super::widthObaseHalf.trailing_zeros() as i32;
-        pub const widthNHalf: i32 = super::super::widthNHalf.trailing_zeros() as i32;
-        pub const widthCapHalf: i32 = super::super::widthCapHalf.trailing_zeros() as i32;
         pub const widthProfHalf: i32 = super::super::widthProfHalf.trailing_zeros() as i32;
         pub const widthLmaskHalf: i32 = super::super::widthLmaskHalf.trailing_zeros() as i32;
         pub const widthCmHalf: i32 = super::super::widthCmHalf.trailing_zeros() as i32;
@@ -11529,6 +10934,7 @@ pub mod i64 {
     pub const basePL: i64 = super::basePL as i64;
     pub const baseZ: i64 = super::baseZ as i64;
     pub const baseDE: i64 = super::baseDE as i64;
+    pub const wordHalfBytes: i64 = super::wordHalfBytes as i64;
     pub const widthPos: i64 = super::widthPos as i64;
     pub const atPos: i64 = super::atPos as i64;
     pub const widthC4: i64 = super::widthC4 as i64;
@@ -11539,6 +10945,7 @@ pub mod i64 {
     pub const atWordh: i64 = super::atWordh as i64;
     pub const widthWord1: i64 = super::widthWord1 as i64;
     pub const atWord1: i64 = super::atWord1 as i64;
+    pub const wordQuarterBytes: i64 = super::wordQuarterBytes as i64;
     pub const widthC0: i64 = super::widthC0 as i64;
     pub const atC0: i64 = super::atC0 as i64;
     pub const widthBit: i64 = super::widthBit as i64;
@@ -12109,51 +11516,14 @@ pub mod i64 {
     pub const baseDELast: i64 = super::baseDELast as i64;
     pub const baseDEHalf: i64 = super::baseDEHalf as i64;
     pub const baseDEHalfLast: i64 = super::baseDEHalfLast as i64;
-    pub const widthPosLast: i64 = super::widthPosLast as i64;
-    pub const widthPosHalf: i64 = super::widthPosHalf as i64;
-    pub const widthC4Last: i64 = super::widthC4Last as i64;
-    pub const widthC4Half: i64 = super::widthC4Half as i64;
-    pub const widthC8Last: i64 = super::widthC8Last as i64;
-    pub const widthC8Half: i64 = super::widthC8Half as i64;
-    pub const widthWordhLast: i64 = super::widthWordhLast as i64;
-    pub const widthWordhHalf: i64 = super::widthWordhHalf as i64;
-    pub const widthWord1Last: i64 = super::widthWord1Last as i64;
-    pub const widthWord1Half: i64 = super::widthWord1Half as i64;
-    pub const widthMptrLast: i64 = super::widthMptrLast as i64;
-    pub const widthMptrHalf: i64 = super::widthMptrHalf as i64;
-    pub const widthMlenLast: i64 = super::widthMlenLast as i64;
-    pub const widthMlenHalf: i64 = super::widthMlenHalf as i64;
     pub const widthRLast: i64 = super::widthRLast as i64;
     pub const widthRHalf: i64 = super::widthRHalf as i64;
-    pub const widthAccLast: i64 = super::widthAccLast as i64;
-    pub const widthAccHalf: i64 = super::widthAccHalf as i64;
-    pub const widthAccHalfLast: i64 = super::widthAccHalfLast as i64;
-    pub const widthSsoLast: i64 = super::widthSsoLast as i64;
-    pub const widthSsoHalf: i64 = super::widthSsoHalf as i64;
     pub const widthSwLast: i64 = super::widthSwLast as i64;
     pub const widthSwHalf: i64 = super::widthSwHalf as i64;
     pub const widthSwHalfLast: i64 = super::widthSwHalfLast as i64;
-    pub const widthAcc2Last: i64 = super::widthAcc2Last as i64;
-    pub const widthAcc2Half: i64 = super::widthAcc2Half as i64;
-    pub const widthAcc2HalfLast: i64 = super::widthAcc2HalfLast as i64;
     pub const widthSw2Last: i64 = super::widthSw2Last as i64;
     pub const widthSw2Half: i64 = super::widthSw2Half as i64;
     pub const widthSw2HalfLast: i64 = super::widthSw2HalfLast as i64;
-    pub const widthMlLast: i64 = super::widthMlLast as i64;
-    pub const widthMlHalf: i64 = super::widthMlHalf as i64;
-    pub const widthX1Last: i64 = super::widthX1Last as i64;
-    pub const widthX1Half: i64 = super::widthX1Half as i64;
-    pub const widthX2Last: i64 = super::widthX2Last as i64;
-    pub const widthX2Half: i64 = super::widthX2Half as i64;
-    pub const widthXLast: i64 = super::widthXLast as i64;
-    pub const widthXHalf: i64 = super::widthXHalf as i64;
-    pub const widthIpLast: i64 = super::widthIpLast as i64;
-    pub const widthIpHalf: i64 = super::widthIpHalf as i64;
-    pub const widthOpLast: i64 = super::widthOpLast as i64;
-    pub const widthOpHalf: i64 = super::widthOpHalf as i64;
-    pub const widthAcc3Last: i64 = super::widthAcc3Last as i64;
-    pub const widthAcc3Half: i64 = super::widthAcc3Half as i64;
-    pub const widthAcc3HalfLast: i64 = super::widthAcc3HalfLast as i64;
     pub const widthSw3Last: i64 = super::widthSw3Last as i64;
     pub const widthSw3Half: i64 = super::widthSw3Half as i64;
     pub const widthSw3HalfLast: i64 = super::widthSw3HalfLast as i64;
@@ -12161,16 +11531,6 @@ pub mod i64 {
     pub const widthAi1Half: i64 = super::widthAi1Half as i64;
     pub const widthAi2Last: i64 = super::widthAi2Last as i64;
     pub const widthAi2Half: i64 = super::widthAi2Half as i64;
-    pub const widthHoffLast: i64 = super::widthHoffLast as i64;
-    pub const widthHoffHalf: i64 = super::widthHoffHalf as i64;
-    pub const widthM2ptrLast: i64 = super::widthM2ptrLast as i64;
-    pub const widthM2ptrHalf: i64 = super::widthM2ptrHalf as i64;
-    pub const widthM2lenLast: i64 = super::widthM2lenLast as i64;
-    pub const widthM2lenHalf: i64 = super::widthM2lenHalf as i64;
-    pub const widthMl2Last: i64 = super::widthMl2Last as i64;
-    pub const widthMl2Half: i64 = super::widthMl2Half as i64;
-    pub const widthRdLast: i64 = super::widthRdLast as i64;
-    pub const widthRdHalf: i64 = super::widthRdHalf as i64;
     pub const widthSeenLast: i64 = super::widthSeenLast as i64;
     pub const widthSeenHalf: i64 = super::widthSeenHalf as i64;
     pub const widthIendLast: i64 = super::widthIendLast as i64;
@@ -12179,10 +11539,6 @@ pub mod i64 {
     pub const widthObaseLast: i64 = super::widthObaseLast as i64;
     pub const widthObaseHalf: i64 = super::widthObaseHalf as i64;
     pub const widthObaseHalfLast: i64 = super::widthObaseHalfLast as i64;
-    pub const widthNLast: i64 = super::widthNLast as i64;
-    pub const widthNHalf: i64 = super::widthNHalf as i64;
-    pub const widthCapLast: i64 = super::widthCapLast as i64;
-    pub const widthCapHalf: i64 = super::widthCapHalf as i64;
     pub const widthProfLast: i64 = super::widthProfLast as i64;
     pub const widthProfHalf: i64 = super::widthProfHalf as i64;
     pub const widthLmaskLast: i64 = super::widthLmaskLast as i64;
@@ -12464,6 +11820,7 @@ pub mod i64 {
         pub const baseSTL: i64 = super::super::baseSTL.trailing_zeros() as i64;
         pub const baseK: i64 = super::super::baseK.trailing_zeros() as i64;
         pub const baseLT: i64 = super::super::baseLT.trailing_zeros() as i64;
+        pub const wordHalfBytes: i64 = super::super::wordHalfBytes.trailing_zeros() as i64;
         pub const widthPos: i64 = super::super::widthPos.trailing_zeros() as i64;
         pub const widthC4: i64 = super::super::widthC4.trailing_zeros() as i64;
         pub const atC4: i64 = super::super::atC4.trailing_zeros() as i64;
@@ -12472,6 +11829,7 @@ pub mod i64 {
         pub const widthWordh: i64 = super::super::widthWordh.trailing_zeros() as i64;
         pub const widthWord1: i64 = super::super::widthWord1.trailing_zeros() as i64;
         pub const atWord1: i64 = super::super::atWord1.trailing_zeros() as i64;
+        pub const wordQuarterBytes: i64 = super::super::wordQuarterBytes.trailing_zeros() as i64;
         pub const widthC0: i64 = super::super::widthC0.trailing_zeros() as i64;
         pub const widthBit: i64 = super::super::widthBit.trailing_zeros() as i64;
         pub const widthMptr: i64 = super::super::widthMptr.trailing_zeros() as i64;
@@ -12690,39 +12048,15 @@ pub mod i64 {
         pub const baseSTLHalf: i64 = super::super::baseSTLHalf.trailing_zeros() as i64;
         pub const baseKHalf: i64 = super::super::baseKHalf.trailing_zeros() as i64;
         pub const baseLTHalf: i64 = super::super::baseLTHalf.trailing_zeros() as i64;
-        pub const widthPosHalf: i64 = super::super::widthPosHalf.trailing_zeros() as i64;
-        pub const widthC4Half: i64 = super::super::widthC4Half.trailing_zeros() as i64;
-        pub const widthC8Half: i64 = super::super::widthC8Half.trailing_zeros() as i64;
-        pub const widthWordhHalf: i64 = super::super::widthWordhHalf.trailing_zeros() as i64;
-        pub const widthWord1Half: i64 = super::super::widthWord1Half.trailing_zeros() as i64;
-        pub const widthMptrHalf: i64 = super::super::widthMptrHalf.trailing_zeros() as i64;
-        pub const widthMlenHalf: i64 = super::super::widthMlenHalf.trailing_zeros() as i64;
         pub const widthRHalf: i64 = super::super::widthRHalf.trailing_zeros() as i64;
-        pub const widthAccHalf: i64 = super::super::widthAccHalf.trailing_zeros() as i64;
-        pub const widthSsoHalf: i64 = super::super::widthSsoHalf.trailing_zeros() as i64;
         pub const widthSwHalf: i64 = super::super::widthSwHalf.trailing_zeros() as i64;
-        pub const widthAcc2Half: i64 = super::super::widthAcc2Half.trailing_zeros() as i64;
         pub const widthSw2Half: i64 = super::super::widthSw2Half.trailing_zeros() as i64;
-        pub const widthMlHalf: i64 = super::super::widthMlHalf.trailing_zeros() as i64;
-        pub const widthX1Half: i64 = super::super::widthX1Half.trailing_zeros() as i64;
-        pub const widthX2Half: i64 = super::super::widthX2Half.trailing_zeros() as i64;
-        pub const widthXHalf: i64 = super::super::widthXHalf.trailing_zeros() as i64;
-        pub const widthIpHalf: i64 = super::super::widthIpHalf.trailing_zeros() as i64;
-        pub const widthOpHalf: i64 = super::super::widthOpHalf.trailing_zeros() as i64;
-        pub const widthAcc3Half: i64 = super::super::widthAcc3Half.trailing_zeros() as i64;
         pub const widthSw3Half: i64 = super::super::widthSw3Half.trailing_zeros() as i64;
         pub const widthAi1Half: i64 = super::super::widthAi1Half.trailing_zeros() as i64;
         pub const widthAi2Half: i64 = super::super::widthAi2Half.trailing_zeros() as i64;
-        pub const widthHoffHalf: i64 = super::super::widthHoffHalf.trailing_zeros() as i64;
-        pub const widthM2ptrHalf: i64 = super::super::widthM2ptrHalf.trailing_zeros() as i64;
-        pub const widthM2lenHalf: i64 = super::super::widthM2lenHalf.trailing_zeros() as i64;
-        pub const widthMl2Half: i64 = super::super::widthMl2Half.trailing_zeros() as i64;
-        pub const widthRdHalf: i64 = super::super::widthRdHalf.trailing_zeros() as i64;
         pub const widthSeenHalf: i64 = super::super::widthSeenHalf.trailing_zeros() as i64;
         pub const widthIendHalf: i64 = super::super::widthIendHalf.trailing_zeros() as i64;
         pub const widthObaseHalf: i64 = super::super::widthObaseHalf.trailing_zeros() as i64;
-        pub const widthNHalf: i64 = super::super::widthNHalf.trailing_zeros() as i64;
-        pub const widthCapHalf: i64 = super::super::widthCapHalf.trailing_zeros() as i64;
         pub const widthProfHalf: i64 = super::super::widthProfHalf.trailing_zeros() as i64;
         pub const widthLmaskHalf: i64 = super::super::widthLmaskHalf.trailing_zeros() as i64;
         pub const widthCmHalf: i64 = super::super::widthCmHalf.trailing_zeros() as i64;
@@ -13017,6 +12351,7 @@ pub mod i128 {
     pub const basePL: i128 = super::basePL as i128;
     pub const baseZ: i128 = super::baseZ as i128;
     pub const baseDE: i128 = super::baseDE as i128;
+    pub const wordHalfBytes: i128 = super::wordHalfBytes as i128;
     pub const widthPos: i128 = super::widthPos as i128;
     pub const atPos: i128 = super::atPos as i128;
     pub const widthC4: i128 = super::widthC4 as i128;
@@ -13027,6 +12362,7 @@ pub mod i128 {
     pub const atWordh: i128 = super::atWordh as i128;
     pub const widthWord1: i128 = super::widthWord1 as i128;
     pub const atWord1: i128 = super::atWord1 as i128;
+    pub const wordQuarterBytes: i128 = super::wordQuarterBytes as i128;
     pub const widthC0: i128 = super::widthC0 as i128;
     pub const atC0: i128 = super::atC0 as i128;
     pub const widthBit: i128 = super::widthBit as i128;
@@ -13597,51 +12933,14 @@ pub mod i128 {
     pub const baseDELast: i128 = super::baseDELast as i128;
     pub const baseDEHalf: i128 = super::baseDEHalf as i128;
     pub const baseDEHalfLast: i128 = super::baseDEHalfLast as i128;
-    pub const widthPosLast: i128 = super::widthPosLast as i128;
-    pub const widthPosHalf: i128 = super::widthPosHalf as i128;
-    pub const widthC4Last: i128 = super::widthC4Last as i128;
-    pub const widthC4Half: i128 = super::widthC4Half as i128;
-    pub const widthC8Last: i128 = super::widthC8Last as i128;
-    pub const widthC8Half: i128 = super::widthC8Half as i128;
-    pub const widthWordhLast: i128 = super::widthWordhLast as i128;
-    pub const widthWordhHalf: i128 = super::widthWordhHalf as i128;
-    pub const widthWord1Last: i128 = super::widthWord1Last as i128;
-    pub const widthWord1Half: i128 = super::widthWord1Half as i128;
-    pub const widthMptrLast: i128 = super::widthMptrLast as i128;
-    pub const widthMptrHalf: i128 = super::widthMptrHalf as i128;
-    pub const widthMlenLast: i128 = super::widthMlenLast as i128;
-    pub const widthMlenHalf: i128 = super::widthMlenHalf as i128;
     pub const widthRLast: i128 = super::widthRLast as i128;
     pub const widthRHalf: i128 = super::widthRHalf as i128;
-    pub const widthAccLast: i128 = super::widthAccLast as i128;
-    pub const widthAccHalf: i128 = super::widthAccHalf as i128;
-    pub const widthAccHalfLast: i128 = super::widthAccHalfLast as i128;
-    pub const widthSsoLast: i128 = super::widthSsoLast as i128;
-    pub const widthSsoHalf: i128 = super::widthSsoHalf as i128;
     pub const widthSwLast: i128 = super::widthSwLast as i128;
     pub const widthSwHalf: i128 = super::widthSwHalf as i128;
     pub const widthSwHalfLast: i128 = super::widthSwHalfLast as i128;
-    pub const widthAcc2Last: i128 = super::widthAcc2Last as i128;
-    pub const widthAcc2Half: i128 = super::widthAcc2Half as i128;
-    pub const widthAcc2HalfLast: i128 = super::widthAcc2HalfLast as i128;
     pub const widthSw2Last: i128 = super::widthSw2Last as i128;
     pub const widthSw2Half: i128 = super::widthSw2Half as i128;
     pub const widthSw2HalfLast: i128 = super::widthSw2HalfLast as i128;
-    pub const widthMlLast: i128 = super::widthMlLast as i128;
-    pub const widthMlHalf: i128 = super::widthMlHalf as i128;
-    pub const widthX1Last: i128 = super::widthX1Last as i128;
-    pub const widthX1Half: i128 = super::widthX1Half as i128;
-    pub const widthX2Last: i128 = super::widthX2Last as i128;
-    pub const widthX2Half: i128 = super::widthX2Half as i128;
-    pub const widthXLast: i128 = super::widthXLast as i128;
-    pub const widthXHalf: i128 = super::widthXHalf as i128;
-    pub const widthIpLast: i128 = super::widthIpLast as i128;
-    pub const widthIpHalf: i128 = super::widthIpHalf as i128;
-    pub const widthOpLast: i128 = super::widthOpLast as i128;
-    pub const widthOpHalf: i128 = super::widthOpHalf as i128;
-    pub const widthAcc3Last: i128 = super::widthAcc3Last as i128;
-    pub const widthAcc3Half: i128 = super::widthAcc3Half as i128;
-    pub const widthAcc3HalfLast: i128 = super::widthAcc3HalfLast as i128;
     pub const widthSw3Last: i128 = super::widthSw3Last as i128;
     pub const widthSw3Half: i128 = super::widthSw3Half as i128;
     pub const widthSw3HalfLast: i128 = super::widthSw3HalfLast as i128;
@@ -13649,16 +12948,6 @@ pub mod i128 {
     pub const widthAi1Half: i128 = super::widthAi1Half as i128;
     pub const widthAi2Last: i128 = super::widthAi2Last as i128;
     pub const widthAi2Half: i128 = super::widthAi2Half as i128;
-    pub const widthHoffLast: i128 = super::widthHoffLast as i128;
-    pub const widthHoffHalf: i128 = super::widthHoffHalf as i128;
-    pub const widthM2ptrLast: i128 = super::widthM2ptrLast as i128;
-    pub const widthM2ptrHalf: i128 = super::widthM2ptrHalf as i128;
-    pub const widthM2lenLast: i128 = super::widthM2lenLast as i128;
-    pub const widthM2lenHalf: i128 = super::widthM2lenHalf as i128;
-    pub const widthMl2Last: i128 = super::widthMl2Last as i128;
-    pub const widthMl2Half: i128 = super::widthMl2Half as i128;
-    pub const widthRdLast: i128 = super::widthRdLast as i128;
-    pub const widthRdHalf: i128 = super::widthRdHalf as i128;
     pub const widthSeenLast: i128 = super::widthSeenLast as i128;
     pub const widthSeenHalf: i128 = super::widthSeenHalf as i128;
     pub const widthIendLast: i128 = super::widthIendLast as i128;
@@ -13667,10 +12956,6 @@ pub mod i128 {
     pub const widthObaseLast: i128 = super::widthObaseLast as i128;
     pub const widthObaseHalf: i128 = super::widthObaseHalf as i128;
     pub const widthObaseHalfLast: i128 = super::widthObaseHalfLast as i128;
-    pub const widthNLast: i128 = super::widthNLast as i128;
-    pub const widthNHalf: i128 = super::widthNHalf as i128;
-    pub const widthCapLast: i128 = super::widthCapLast as i128;
-    pub const widthCapHalf: i128 = super::widthCapHalf as i128;
     pub const widthProfLast: i128 = super::widthProfLast as i128;
     pub const widthProfHalf: i128 = super::widthProfHalf as i128;
     pub const widthLmaskLast: i128 = super::widthLmaskLast as i128;
@@ -13952,6 +13237,7 @@ pub mod i128 {
         pub const baseSTL: i128 = super::super::baseSTL.trailing_zeros() as i128;
         pub const baseK: i128 = super::super::baseK.trailing_zeros() as i128;
         pub const baseLT: i128 = super::super::baseLT.trailing_zeros() as i128;
+        pub const wordHalfBytes: i128 = super::super::wordHalfBytes.trailing_zeros() as i128;
         pub const widthPos: i128 = super::super::widthPos.trailing_zeros() as i128;
         pub const widthC4: i128 = super::super::widthC4.trailing_zeros() as i128;
         pub const atC4: i128 = super::super::atC4.trailing_zeros() as i128;
@@ -13960,6 +13246,7 @@ pub mod i128 {
         pub const widthWordh: i128 = super::super::widthWordh.trailing_zeros() as i128;
         pub const widthWord1: i128 = super::super::widthWord1.trailing_zeros() as i128;
         pub const atWord1: i128 = super::super::atWord1.trailing_zeros() as i128;
+        pub const wordQuarterBytes: i128 = super::super::wordQuarterBytes.trailing_zeros() as i128;
         pub const widthC0: i128 = super::super::widthC0.trailing_zeros() as i128;
         pub const widthBit: i128 = super::super::widthBit.trailing_zeros() as i128;
         pub const widthMptr: i128 = super::super::widthMptr.trailing_zeros() as i128;
@@ -14178,39 +13465,15 @@ pub mod i128 {
         pub const baseSTLHalf: i128 = super::super::baseSTLHalf.trailing_zeros() as i128;
         pub const baseKHalf: i128 = super::super::baseKHalf.trailing_zeros() as i128;
         pub const baseLTHalf: i128 = super::super::baseLTHalf.trailing_zeros() as i128;
-        pub const widthPosHalf: i128 = super::super::widthPosHalf.trailing_zeros() as i128;
-        pub const widthC4Half: i128 = super::super::widthC4Half.trailing_zeros() as i128;
-        pub const widthC8Half: i128 = super::super::widthC8Half.trailing_zeros() as i128;
-        pub const widthWordhHalf: i128 = super::super::widthWordhHalf.trailing_zeros() as i128;
-        pub const widthWord1Half: i128 = super::super::widthWord1Half.trailing_zeros() as i128;
-        pub const widthMptrHalf: i128 = super::super::widthMptrHalf.trailing_zeros() as i128;
-        pub const widthMlenHalf: i128 = super::super::widthMlenHalf.trailing_zeros() as i128;
         pub const widthRHalf: i128 = super::super::widthRHalf.trailing_zeros() as i128;
-        pub const widthAccHalf: i128 = super::super::widthAccHalf.trailing_zeros() as i128;
-        pub const widthSsoHalf: i128 = super::super::widthSsoHalf.trailing_zeros() as i128;
         pub const widthSwHalf: i128 = super::super::widthSwHalf.trailing_zeros() as i128;
-        pub const widthAcc2Half: i128 = super::super::widthAcc2Half.trailing_zeros() as i128;
         pub const widthSw2Half: i128 = super::super::widthSw2Half.trailing_zeros() as i128;
-        pub const widthMlHalf: i128 = super::super::widthMlHalf.trailing_zeros() as i128;
-        pub const widthX1Half: i128 = super::super::widthX1Half.trailing_zeros() as i128;
-        pub const widthX2Half: i128 = super::super::widthX2Half.trailing_zeros() as i128;
-        pub const widthXHalf: i128 = super::super::widthXHalf.trailing_zeros() as i128;
-        pub const widthIpHalf: i128 = super::super::widthIpHalf.trailing_zeros() as i128;
-        pub const widthOpHalf: i128 = super::super::widthOpHalf.trailing_zeros() as i128;
-        pub const widthAcc3Half: i128 = super::super::widthAcc3Half.trailing_zeros() as i128;
         pub const widthSw3Half: i128 = super::super::widthSw3Half.trailing_zeros() as i128;
         pub const widthAi1Half: i128 = super::super::widthAi1Half.trailing_zeros() as i128;
         pub const widthAi2Half: i128 = super::super::widthAi2Half.trailing_zeros() as i128;
-        pub const widthHoffHalf: i128 = super::super::widthHoffHalf.trailing_zeros() as i128;
-        pub const widthM2ptrHalf: i128 = super::super::widthM2ptrHalf.trailing_zeros() as i128;
-        pub const widthM2lenHalf: i128 = super::super::widthM2lenHalf.trailing_zeros() as i128;
-        pub const widthMl2Half: i128 = super::super::widthMl2Half.trailing_zeros() as i128;
-        pub const widthRdHalf: i128 = super::super::widthRdHalf.trailing_zeros() as i128;
         pub const widthSeenHalf: i128 = super::super::widthSeenHalf.trailing_zeros() as i128;
         pub const widthIendHalf: i128 = super::super::widthIendHalf.trailing_zeros() as i128;
         pub const widthObaseHalf: i128 = super::super::widthObaseHalf.trailing_zeros() as i128;
-        pub const widthNHalf: i128 = super::super::widthNHalf.trailing_zeros() as i128;
-        pub const widthCapHalf: i128 = super::super::widthCapHalf.trailing_zeros() as i128;
         pub const widthProfHalf: i128 = super::super::widthProfHalf.trailing_zeros() as i128;
         pub const widthLmaskHalf: i128 = super::super::widthLmaskHalf.trailing_zeros() as i128;
         pub const widthCmHalf: i128 = super::super::widthCmHalf.trailing_zeros() as i128;
@@ -14395,6 +13658,7 @@ pub mod bits {
     pub const baseSTL: u32 = super::baseSTL.trailing_zeros();
     pub const baseK: u32 = super::baseK.trailing_zeros();
     pub const baseLT: u32 = super::baseLT.trailing_zeros();
+    pub const wordHalfBytes: u32 = super::wordHalfBytes.trailing_zeros();
     pub const widthPos: u32 = super::widthPos.trailing_zeros();
     pub const widthC4: u32 = super::widthC4.trailing_zeros();
     pub const atC4: u32 = super::atC4.trailing_zeros();
@@ -14403,6 +13667,7 @@ pub mod bits {
     pub const widthWordh: u32 = super::widthWordh.trailing_zeros();
     pub const widthWord1: u32 = super::widthWord1.trailing_zeros();
     pub const atWord1: u32 = super::atWord1.trailing_zeros();
+    pub const wordQuarterBytes: u32 = super::wordQuarterBytes.trailing_zeros();
     pub const widthC0: u32 = super::widthC0.trailing_zeros();
     pub const widthBit: u32 = super::widthBit.trailing_zeros();
     pub const widthMptr: u32 = super::widthMptr.trailing_zeros();
@@ -14621,39 +13886,15 @@ pub mod bits {
     pub const baseSTLHalf: u32 = super::baseSTLHalf.trailing_zeros();
     pub const baseKHalf: u32 = super::baseKHalf.trailing_zeros();
     pub const baseLTHalf: u32 = super::baseLTHalf.trailing_zeros();
-    pub const widthPosHalf: u32 = super::widthPosHalf.trailing_zeros();
-    pub const widthC4Half: u32 = super::widthC4Half.trailing_zeros();
-    pub const widthC8Half: u32 = super::widthC8Half.trailing_zeros();
-    pub const widthWordhHalf: u32 = super::widthWordhHalf.trailing_zeros();
-    pub const widthWord1Half: u32 = super::widthWord1Half.trailing_zeros();
-    pub const widthMptrHalf: u32 = super::widthMptrHalf.trailing_zeros();
-    pub const widthMlenHalf: u32 = super::widthMlenHalf.trailing_zeros();
     pub const widthRHalf: u32 = super::widthRHalf.trailing_zeros();
-    pub const widthAccHalf: u32 = super::widthAccHalf.trailing_zeros();
-    pub const widthSsoHalf: u32 = super::widthSsoHalf.trailing_zeros();
     pub const widthSwHalf: u32 = super::widthSwHalf.trailing_zeros();
-    pub const widthAcc2Half: u32 = super::widthAcc2Half.trailing_zeros();
     pub const widthSw2Half: u32 = super::widthSw2Half.trailing_zeros();
-    pub const widthMlHalf: u32 = super::widthMlHalf.trailing_zeros();
-    pub const widthX1Half: u32 = super::widthX1Half.trailing_zeros();
-    pub const widthX2Half: u32 = super::widthX2Half.trailing_zeros();
-    pub const widthXHalf: u32 = super::widthXHalf.trailing_zeros();
-    pub const widthIpHalf: u32 = super::widthIpHalf.trailing_zeros();
-    pub const widthOpHalf: u32 = super::widthOpHalf.trailing_zeros();
-    pub const widthAcc3Half: u32 = super::widthAcc3Half.trailing_zeros();
     pub const widthSw3Half: u32 = super::widthSw3Half.trailing_zeros();
     pub const widthAi1Half: u32 = super::widthAi1Half.trailing_zeros();
     pub const widthAi2Half: u32 = super::widthAi2Half.trailing_zeros();
-    pub const widthHoffHalf: u32 = super::widthHoffHalf.trailing_zeros();
-    pub const widthM2ptrHalf: u32 = super::widthM2ptrHalf.trailing_zeros();
-    pub const widthM2lenHalf: u32 = super::widthM2lenHalf.trailing_zeros();
-    pub const widthMl2Half: u32 = super::widthMl2Half.trailing_zeros();
-    pub const widthRdHalf: u32 = super::widthRdHalf.trailing_zeros();
     pub const widthSeenHalf: u32 = super::widthSeenHalf.trailing_zeros();
     pub const widthIendHalf: u32 = super::widthIendHalf.trailing_zeros();
     pub const widthObaseHalf: u32 = super::widthObaseHalf.trailing_zeros();
-    pub const widthNHalf: u32 = super::widthNHalf.trailing_zeros();
-    pub const widthCapHalf: u32 = super::widthCapHalf.trailing_zeros();
     pub const widthProfHalf: u32 = super::widthProfHalf.trailing_zeros();
     pub const widthLmaskHalf: u32 = super::widthLmaskHalf.trailing_zeros();
     pub const widthCmHalf: u32 = super::widthCmHalf.trailing_zeros();

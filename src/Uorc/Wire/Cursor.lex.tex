@@ -146,7 +146,7 @@ theorem{
   name: empty_cursor,
   parameters: [],
   statement: ((readStep (start (nil Bytes))) = (ctor ReadEvent.end (start (nil Bytes)))),
-  proof: reflexivity{},
+  proof: evaluation{},
   axioms: []
 }
 
@@ -154,7 +154,7 @@ theorem{
   name: empty_chunk_advances,
   parameters: [],
   statement: ((readStep (start (cons 0x (nil Bytes)))) = (ctor ReadEvent.advanced (start (nil Bytes)))),
-  proof: reflexivity{},
+  proof: evaluation{},
   axioms: []
 }
 
@@ -162,7 +162,7 @@ theorem{
   name: uleb_0,
   parameters: [],
   statement: ((runUleb 30 (startUleb (start (cons 0x00 (nil Bytes))))) = (ctor UlebEvent.done 0 (record Cursor {parts := (cons 0x00 (nil Bytes)), offset := 1, position := 1}))),
-  proof: reflexivity{},
+  proof: evaluation{},
   axioms: [Quot.sound, propext]
 }
 
@@ -170,7 +170,7 @@ theorem{
   name: uleb_1,
   parameters: [],
   statement: ((runUleb 30 (startUleb (start (cons 0x01 (nil Bytes))))) = (ctor UlebEvent.done 1 (record Cursor {parts := (cons 0x01 (nil Bytes)), offset := 1, position := 1}))),
-  proof: reflexivity{},
+  proof: evaluation{},
   axioms: [Quot.sound, propext]
 }
 
@@ -178,7 +178,7 @@ theorem{
   name: uleb_127,
   parameters: [],
   statement: ((runUleb 30 (startUleb (start (cons 0x7f (nil Bytes))))) = (ctor UlebEvent.done 127 (record Cursor {parts := (cons 0x7f (nil Bytes)), offset := 1, position := 1}))),
-  proof: reflexivity{},
+  proof: evaluation{},
   axioms: [Quot.sound, propext]
 }
 
@@ -186,7 +186,7 @@ theorem{
   name: uleb_128,
   parameters: [],
   statement: ((runUleb 30 (startUleb (start (cons 0x8001 (nil Bytes))))) = (ctor UlebEvent.done 128 (record Cursor {parts := (cons 0x8001 (nil Bytes)), offset := 2, position := 2}))),
-  proof: reflexivity{},
+  proof: evaluation{},
   axioms: [Quot.sound, propext]
 }
 
@@ -194,7 +194,7 @@ theorem{
   name: uleb_16384,
   parameters: [],
   statement: ((runUleb 30 (startUleb (start (cons 0x808001 (nil Bytes))))) = (ctor UlebEvent.done 16384 (record Cursor {parts := (cons 0x808001 (nil Bytes)), offset := 3, position := 3}))),
-  proof: reflexivity{},
+  proof: evaluation{},
   axioms: [Quot.sound, propext]
 }
 
@@ -202,7 +202,7 @@ theorem{
   name: uleb_18446744073709551615,
   parameters: [],
   statement: ((runUleb 30 (startUleb (start (cons 0xffffffffffffffffff01 (nil Bytes))))) = (ctor UlebEvent.done 18446744073709551615 (record Cursor {parts := (cons 0xffffffffffffffffff01 (nil Bytes)), offset := 10, position := 10}))),
-  proof: reflexivity{},
+  proof: evaluation{},
   axioms: [Quot.sound, propext]
 }
 
@@ -210,7 +210,7 @@ theorem{
   name: uleb_across_empty_partitions,
   parameters: [],
   statement: ((runUleb 30 (startUleb (start (cons 0x (cons 0x80 (cons 0x (cons 0x01 (nil Bytes)))))))) = (ctor UlebEvent.done 128 (record Cursor {parts := (cons 0x01 (nil Bytes)), offset := 1, position := 2}))),
-  proof: reflexivity{},
+  proof: evaluation{},
   axioms: [Quot.sound, propext]
 }
 
@@ -218,7 +218,7 @@ theorem{
   name: truncated,
   parameters: [],
   statement: ((runUleb 40 (startUleb (start (cons 0x (nil Bytes))))) = (ctor UlebEvent.failed (record LocatedError {kind := (ctor ReadError.truncated), offset := 0}))),
-  proof: reflexivity{},
+  proof: evaluation{},
   axioms: [Quot.sound, propext]
 }
 
@@ -226,7 +226,7 @@ theorem{
   name: truncated_continuation,
   parameters: [],
   statement: ((runUleb 40 (startUleb (start (cons 0x80 (nil Bytes))))) = (ctor UlebEvent.failed (record LocatedError {kind := (ctor ReadError.truncated), offset := 1}))),
-  proof: reflexivity{},
+  proof: evaluation{},
   axioms: [Quot.sound, propext]
 }
 
@@ -234,7 +234,7 @@ theorem{
   name: overlong,
   parameters: [],
   statement: ((runUleb 40 (startUleb (start (cons 0x8000 (nil Bytes))))) = (ctor UlebEvent.failed (record LocatedError {kind := (ctor ReadError.nonShortest), offset := 1}))),
-  proof: reflexivity{},
+  proof: evaluation{},
   axioms: [Quot.sound, propext]
 }
 
@@ -242,7 +242,7 @@ theorem{
   name: terminal_overflow,
   parameters: [],
   statement: ((runUleb 40 (startUleb (start (cons 0xffffffffffffffffff02 (nil Bytes))))) = (ctor UlebEvent.failed (record LocatedError {kind := (ctor ReadError.overflow), offset := 9}))),
-  proof: reflexivity{},
+  proof: evaluation{},
   axioms: [Quot.sound, propext]
 }
 
@@ -250,7 +250,7 @@ theorem{
   name: continuation_overflow,
   parameters: [],
   statement: ((runUleb 40 (startUleb (start (cons 0x80808080808080808080 (nil Bytes))))) = (ctor UlebEvent.failed (record LocatedError {kind := (ctor ReadError.overflow), offset := 10}))),
-  proof: reflexivity{},
+  proof: evaluation{},
   axioms: [Quot.sound, propext]
 }
 \end{semanticmodule}

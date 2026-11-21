@@ -250,6 +250,7 @@ class Machine:
             elif k == 'set':
                 v = int(self.ev(s[2], env))
                 assert v < 1 << (8 * self.p.globals[s[1]]), (s[1], v)
+                assert v < getattr(self.p, 'bounds', {}).get(s[1], v + 1), (s[1], v, 'outside its domain')
                 self.g[s[1]] = v
             elif k == 'store':
                 key = self.ev(s[3], env); v = int(self.ev(s[4], env)); w = s[2]
