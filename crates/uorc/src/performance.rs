@@ -426,8 +426,14 @@ mod tests {
     fn page_worker_is_the_pages_host_rule() {
         let per_gib = stated("../../src/Uorc/Page.lex.tex", "pageWorker", "workersPerGiB");
         assert_eq!(super::WORKERS_PER_GIB, per_gib);
-        let client = stated("../../client/src/Uorc/Client.lex.tex", "hostMemory", "");
-        assert_eq!(super::PAGE_WORKER.memory, client);
+        // the client states the same workers per GiB and gives a worker
+        // 1 GiB over them (`Client.hostMemory`)
+        let client = stated(
+            "../../client/src/Uorc/Client.lex.tex",
+            "pageWorkersPerGiB",
+            "",
+        );
+        assert_eq!(super::WORKERS_PER_GIB, client);
         let gate = stated("../../src/Uorc/Page.lex.tex", "workerMemory", "threshold");
         assert_eq!(super::PAGE_WORKER.memory, gate << 20);
         let threads = stated("../../src/Uorc/Page.lex.tex", "pageWorker", "frameThreads");
