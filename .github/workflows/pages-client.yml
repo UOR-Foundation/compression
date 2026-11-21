@@ -30,7 +30,7 @@ jobs:
       route: ${{ steps.route.outputs.route }}
       identity: ${{ steps.route.outputs.identity }}
     steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           fetch-depth: 0
           persist-credentials: false
@@ -45,7 +45,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           fetch-depth: 0
           persist-credentials: false
@@ -59,7 +59,7 @@ jobs:
           for f in bench.html bench.json bench.md; do printf 'benchmarks are published with each release\n' > ".tmp/bench/$f"; done
           node scripts/site.mjs .tmp/site --wasm target/wasm32-unknown-unknown/release/uorc_wasm.wasm --version "$(git describe --tags --always)-dev" --bench .tmp/bench
           node scripts/page-acceptance.mjs .tmp/site --chrome "$(command -v google-chrome)" --report .tmp/page-acceptance.json
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
         if: always()
         with:
           name: page-acceptance
@@ -72,7 +72,7 @@ jobs:
           IDENTITY: ${{ needs.route.outputs.identity }}
           OUTCOME: ${{ steps.run.outcome }}
         run: node scripts/factory.mjs outcome pages "$IDENTITY" "$OUTCOME" .tmp/factory
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
         if: always() && (steps.run.outcome == 'success' || steps.run.outcome == 'failure')
         with:
           name: factory-outcome-pages
