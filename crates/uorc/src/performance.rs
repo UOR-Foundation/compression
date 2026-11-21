@@ -109,13 +109,58 @@ impl Host {
     /// Whether this host holds the decoder of a frame cut into `streams`
     /// streams: [`Host::footprint`] and one set of working tables for each
     /// thread the streams run on ([`crate::ncm::table_bytes`]).
-    pub fn holds_streams(self, n: u64, history: u64, profile: u32, streams: u64) -> bool {
-        let working = crate::ncm::table_bytes(n, history, false, profile)
+    pub fn holds_streams(
+        self,
+        n: u64,
+        history: u64,
+        warm: bool,
+        profile: u32,
+        streams: u64,
+    ) -> bool {
+        let working = crate::ncm::table_bytes(n, history, warm, profile)
             .saturating_mul(streams.min(self.threads).max(1));
-        self.footprint(n, history, false, profile)
+        self.footprint(n, history, warm, profile)
             .saturating_add(working)
             .saturating_mul(self.workers.max(1))
             <= self.memory
+    }
+
+    /// `profile` at the largest tables, no larger than the ones it codes
+    /// (recorded, or the length's own), at which this host
+    /// [`Host::holds_streams`] for `streams` streams: the context table and
+    /// the match tables stepped down together, the larger first (the one
+    /// whose halving frees the most), down to the smallest each may record.
+    /// `None` when no tables fit.
+    pub fn streams_profile(
+        self,
+        n: u64,
+        history: u64,
+        warm: bool,
+        profile: u32,
+        streams: u64,
+    ) -> Option<u32> {
+        let modelled = if warm { n.saturating_add(history) } else { n };
+        let mut tb = crate::ncm::table_bits(modelled, profile);
+        let mut mb = crate::ncm::match_bits(modelled, profile);
+        loop {
+            let w = crate::ncm::with_match_bits(crate::ncm::with_table_bits(profile, tb), mb);
+            if self.holds_streams(n, history, warm, w, streams) {
+                return Some(w);
+            }
+            // the context table holds 4 bytes a slot, each match table 4 an
+            // entry: step down the one holding more
+            let matches = 1 + u32::from(profile & crate::ncm::F_SHORT != 0);
+            let context_larger = tb >= mb + matches.ilog2();
+            if context_larger && tb > crate::ncm::TABLE_MIN {
+                tb -= 1;
+            } else if mb > crate::ncm::MATCH_MIN {
+                mb -= 1;
+            } else if tb > crate::ncm::TABLE_MIN {
+                tb -= 1;
+            } else {
+                return None;
+            }
+        }
     }
 
     /// Whether this host holds a frame of `n` bytes read after `history`

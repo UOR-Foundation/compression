@@ -594,12 +594,12 @@ plan = [s for s in nm.word_fields(V('pf')) if s[1] != 'cb'] + [('set', 'sk', add
 
 def lanes_start(decoding):
     """Every stream's scalars from the base's, its private tables, its first byte's model (streams after the first)."""
-    b = [('set', 'seen', 0)]
+    b = [('set', 'seen', G('coded'))]
     b += spaces() + [('set', 'osp', add(mul(RADIX, G('sr')), SLACK))]
     b += [('set', 'ofin', add(mul(LENGTH, G('sk')), mul(G('sk'), G('osp'))))]
     b += [('loop', G('sk'), 'j', [('call', 'laneSave', [V('j')]), ('call', 'laneInit', [V('j')])])]
     st = [('let', 'jj', add(V('j'), 1)), ('call', 'laneLoad', [V('jj')]), ('set', 'lane', V('jj')),
-          ('set', 'hoff', add(G('before'), stream_start(V('jj')))), ('call', 'newByte', []), ('call', 'laneCommit', []),
+          ('set', 'hoff', sub(add(G('before'), stream_start(V('jj'))), G('pos'))), ('call', 'newByte', []), ('call', 'laneCommit', []),
           ('call', 'laneSave', [V('jj')])]
     b += [('loop', sub(G('sk'), 1), 'j', st)]
     if decoding:
@@ -635,15 +635,25 @@ def epochs(byte_call):
     return [('set', 'at', 0), ('loop', div(add(G('sr'), sub(G('ep'), 1)), G('ep')), 'e', ep)]
 
 
-# decodeStreams h pf: the frame after the h history bytes H holds, from a streams payload, under frame word pf
-dec = [('set', 'n', be32(0))] + plan + [('set', 'hoff', V('h')), ('set', 'before', V('h')), ('call', 'setup', [])]
+# The base model a frame's streams start from, after the h history bytes H holds (a window, read in place)
+# and the w bytes of a kappa-named model state after them (a state frame: no history), which the whole model
+# codes first as the serial coder does (decodeWarm; stamp 0 logs nothing), with the tables sized for w + n
+# bytes; coded counts the bytes the shared state learned (the state's, then each epoch's), the streams'
+# clock. A window frame has w = 0, a state frame h = 0.
+def base_model():
+    return [('set', 'hoff', V('h')), ('set', 'before', add(V('h'), V('w'))), ('let', 'nn', G('n')),
+            ('set', 'n', add(V('nn'), V('w'))), ('call', 'setup', []), ('set', 'n', V('nn')),
+            ('set', 'stamp', 0), ('call', 'warmState', [V('w')]), ('set', 'stamp', 1), ('set', 'coded', V('w'))]
+
+
+# decodeStreams h w pf: the frame after the h + w bytes H holds, from a streams payload, under frame word pf
+dec = [('set', 'n', be32(0))] + plan + base_model()
 dec += lanes_start(True)
 dec += epochs(lambda i: [('call', 'decodeByte', [])])
-P.func('decodeStreams', ['h', 'pf'], dec)
+P.func('decodeStreams', ['h', 'w', 'pf'], dec)
 
-# encodeStreams size h pf: the streams payload of the size input bytes after h history bytes, in OUT
-enc = [('set', 'n', V('size')), ('set', 'cap', M32)] + plan + [('set', 'hoff', V('h')), ('set', 'before', V('h')),
-                                                                   ('call', 'setup', [])]
+# encodeStreams size h w pf: the streams payload of the size input bytes after the h + w bytes H holds, in OUT
+enc = [('set', 'n', V('size')), ('set', 'cap', M32)] + plan + base_model()
 enc += lanes_start(False)
 enc += epochs(lambda i: [('call', 'encodeByte', [i])])
 # every coder's last byte, then the payload: n, the lengths of every stream's output but the last, the outputs
@@ -658,7 +668,8 @@ cpo = [('call', 'laneLoad', [V('j')]), ('let', 'oj', G('op')),
        ('loop', V('oj'), 'q', [('store', 'OUT', 1, add(G('flen'), V('q')), ld('OUT', 1, add(add(G('ofin'), mul(V('j'), G('osp'))), V('q'))))]),
        ('set', 'flen', add(G('flen'), V('oj')))]
 enc += [('loop', G('sk'), 'j', cpo)]
-P.func('encodeStreams', ['size', 'h', 'pf'], enc)
+P.func('encodeStreams', ['size', 'h', 'w', 'pf'], enc)
+
 
 
 # ---- grouped regions ----
@@ -759,14 +770,31 @@ def py_encode_streams(data, history=b'', prof=nm.FULL, k=2, epoch=4096, bits=12)
     m = Machine(P, data)
     for i, b in enumerate(history):
         m.t['H'][i] = b
-    m.call('encodeStreams', len(data), len(history), word(prof, k, epoch, bits))
+    m.call('encodeStreams', len(data), len(history), 0, word(prof, k, epoch, bits))
     return bytes(m.t['OUT'].get(i, 0) for i in range(m.g['flen']))
+
+
+def py_encode_warm_streams(data, state, prof=nm.FULL, k=2, epoch=4096):
+    m = Machine(P, data)
+    for i, b in enumerate(state):
+        m.t['H'][i] = b
+    m.call('encodeStreams', len(data), 0, len(state), word(prof, k, epoch))
+    return bytes(m.t['OUT'].get(i, 0) for i in range(m.g['flen']))
+
+
+def py_decode_warm_streams(payload, state, prof=nm.FULL, k=2, epoch=4096):
+    m = Machine(P, payload)
+    for i, b in enumerate(state):
+        m.t['H'][i] = b
+    m.call('decodeStreams', 0, len(state), word(prof, k, epoch))
+    w = len(state)
+    return bytes(m.t['H'].get(w + i, 0) for i in range(m.g['n']))
 
 
 def py_decode_streams(payload, history=b'', prof=nm.FULL, k=2, epoch=4096, bits=12):
     m = Machine(P, payload)
     for i, b in enumerate(history):
         m.t['H'][i] = b
-    m.call('decodeStreams', len(history), word(prof, k, epoch, bits))
+    m.call('decodeStreams', len(history), 0, word(prof, k, epoch, bits))
     h = len(history)
     return bytes(m.t['H'].get(h + i, 0) for i in range(m.g['n']))

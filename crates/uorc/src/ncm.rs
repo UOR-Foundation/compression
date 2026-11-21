@@ -219,6 +219,9 @@ const TABLE_FIELD: u32 = 63;
 pub const MATCH_FIELD: u32 = 31;
 /// Fewest table bits a frame may record: one bucket pair (two 16-slot buckets).
 pub const TABLE_MIN: u32 = 5;
+/// Fewest match table bits a frame may record: the field's least nonzero
+/// value (0 names the length's own size, [`MATCH_SHIFT`]).
+pub const MATCH_MIN: u32 = 1;
 /// Most table bits a frame may record: a slot index is a 32-bit hash's low bits.
 pub const TABLE_MAX: u32 = 32;
 /// Domain: len: mapPoints
@@ -3806,6 +3809,21 @@ pub fn encode_warm_learning_below(
         return None;
     }
     warm_encoder(state, data, learning.point(profile), stop).map(|(p, _)| p)
+}
+
+/// [`encode_warm_learning_below`] under a one-stream `plan` (its
+/// probability bits and learning): the serial warm coder.
+pub fn encode_warm_plan_below(
+    state: &[u8],
+    data: &[u8],
+    profile: u32,
+    plan: streams::Plan,
+    stop: usize,
+) -> Option<Vec<u8>> {
+    if state.is_empty() {
+        return None;
+    }
+    warm_encoder(state, data, at_plan(profile, plan)?, stop).map(|(p, _)| p)
 }
 
 /// The output length a payload declares, if it has its 4-byte header.

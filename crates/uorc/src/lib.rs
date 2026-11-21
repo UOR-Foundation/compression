@@ -601,9 +601,16 @@ pub fn step_table(
 /// host whose frame decoder runs on more than one thread, the coding is cut
 /// into streams over one shared state ([`ncm::streams::derive`]): the stream
 /// count steps while the counted longest chain of decode steps on the host
-/// falls, and the epoch is the least archive, then steps. On a one-thread
-/// host (the page's worker, the default) one stream is the derivation. Raw
-/// frames, state frames and the fixed v0.3 entries are kept byte for byte.
+/// falls, and the epoch is the least archive, then steps. A frame that
+/// continues a model state is cut the same way, every stream starting from
+/// the warmed model (its replay is one chain before the streams whatever
+/// their count, so it orders no counts). Each count is coded at the largest
+/// context and match tables, no larger than the chosen ones, at which the
+/// declared host holds the decoder of that many streams
+/// ([`performance::Host::holds_streams`]): the chosen tables were stepped
+/// for one stream. On a one-thread host (the page's worker, the default)
+/// one stream is the derivation. Raw frames and the fixed v0.3 entries are
+/// kept byte for byte.
 pub fn step_streams(
     frame: &[u8],
     lengths: &[u64],
@@ -611,13 +618,24 @@ pub fn step_streams(
     chosen: Vec<u8>,
     host: performance::Host,
 ) -> Vec<u8> {
-    if archive::state_frame(&chosen).is_some() {
-        return chosen;
-    }
-    let (x86, word) = match archive::frame_codec(&chosen) {
-        Some(archive::Codec::Profile(w)) => (false, w),
-        Some(archive::Codec::ProfileX86(w)) => (true, w),
-        _ => return chosen,
+    let host_threads = usize::try_from(host.threads).unwrap_or(usize::MAX).max(1);
+    // (state, x86, word) of the chosen frame
+    let (state, x86, word) = if let Some(f) = archive::state_frame(&chosen) {
+        // a state frame steps no probability field: only streams
+        if host_threads <= 1 || f.plan != ncm::streams::Plan::ONE {
+            return chosen;
+        }
+        let word = ncm::streams::word(f.profile, f.plan);
+        match word {
+            Some(w) => (f.state, f.x86, w),
+            None => return chosen,
+        }
+    } else {
+        match archive::frame_codec(&chosen) {
+            Some(archive::Codec::Profile(w)) => (0, false, w),
+            Some(archive::Codec::ProfileX86(w)) => (0, true, w),
+            _ => return chosen,
+        }
     };
     let Some((profile, plan)) = ncm::streams::split(word) else {
         return chosen;
@@ -625,43 +643,63 @@ pub fn step_streams(
     if !plan.serial() {
         return chosen;
     }
-    let history = window.concat();
+    let joined;
+    let history: &[u8] = if state != 0 {
+        match states::state(state) {
+            Some(s) => s,
+            None => return chosen,
+        }
+    } else {
+        joined = window.concat();
+        &joined
+    };
     let filtered;
     let (data, past) = if x86 {
         filtered = (
             x86::filter(frame, false, history.len() as u64).0,
-            x86::filter(&history, false, 0).0,
+            x86::filter(history, false, 0).0,
         );
         (&filtered.0[..], &filtered.1[..])
     } else {
-        (frame, &history[..])
+        (frame, history)
     };
     let codec = if x86 {
         archive::Codec::NcmX86
     } else {
         archive::Codec::Ncm
     };
-    let identity = (!window.is_empty()).then(|| archive::window_identity(window));
-    let archive_of = |plan: ncm::streams::Plan, payload: &[u8]| {
+    let identity = if state != 0 {
+        states::identity(state)
+    } else {
+        (!window.is_empty()).then(|| archive::window_identity(window))
+    };
+    let archive_of_profile = |profile: u32, plan: ncm::streams::Plan, payload: &[u8]| {
+        if state != 0 {
+            let id = identity.as_ref()?;
+            return archive::state_archive_plan(x86, profile, plan, id, lengths, payload);
+        }
         let w = ncm::streams::word(profile, plan)?;
         match &identity {
             None => archive::linked_archive_profile(codec, w, lengths, payload),
             Some(id) => archive::window_archive_profile(codec, w, window, id, lengths, payload),
         }
     };
-    let host_threads = usize::try_from(host.threads).unwrap_or(usize::MAX).max(1);
-    // the probability field, by bytes (the steps are equal)
-    let wide = ncm::streams::Plan {
-        bits: 16,
-        ..ncm::streams::Plan::ONE
-    };
     let mut best = chosen;
     let mut bits = ncm::streams::Plan::ONE.bits;
-    // one stream is the serial coder's payload, as v0.6 frames carry it
-    if let Some(payload) = ncm::encode_plan_below(past, data, profile, wide, best.len()) {
-        if let Some(a) = archive_of(wide, &payload).filter(|a| a.len() < best.len()) {
-            best = a;
-            bits = wide.bits;
+    if state == 0 {
+        // the probability field, by bytes (the steps are equal)
+        let wide = ncm::streams::Plan {
+            bits: 16,
+            ..ncm::streams::Plan::ONE
+        };
+        // one stream is the serial coder's payload, as v0.6 frames carry it
+        if let Some(payload) = ncm::encode_plan_below(past, data, profile, wide, best.len()) {
+            if let Some(a) =
+                archive_of_profile(profile, wide, &payload).filter(|a| a.len() < best.len())
+            {
+                best = a;
+                bits = wide.bits;
+            }
         }
     }
     if host_threads <= 1 {
@@ -669,13 +707,20 @@ pub fn step_streams(
     }
     let n = frame.len() as u64;
     let h = history.len() as u64;
+    let warm = state != 0;
     let coding = performance::trial_steps(profile, n);
-    let holds = |k: usize| host.holds_streams(n, h, profile, k as u64);
-    let Some(d) = ncm::streams::derive(past, data, profile, bits, host_threads, coding, holds)
-    else {
+    // the profile at the largest tables, no larger than the chosen ones, at
+    // which the declared host holds the decoder of `k` streams
+    let fit = |k: usize| host.streams_profile(n, h, warm, profile, k as u64);
+    let derived = if warm {
+        ncm::streams::derive_warm(past, data, profile, host_threads, coding, fit)
+    } else {
+        ncm::streams::derive(past, data, profile, bits, host_threads, coding, fit)
+    };
+    let Some(d) = derived else {
         return best;
     };
-    archive_of(d.plan, &d.payload).unwrap_or(best)
+    archive_of_profile(d.profile, d.plan, &d.payload).unwrap_or(best)
 }
 
 /// The consolidation facet stepped last on the frame's chosen archive
@@ -698,11 +743,7 @@ pub fn step_consolidation(
 ) -> Vec<u8> {
     // (state, x86, profile, plan) of the chosen frame
     let (state, x86, profile, plan) = if let Some(f) = archive::state_frame(&chosen) {
-        let plan = ncm::streams::Plan {
-            learning: f.learning,
-            ..ncm::streams::Plan::ONE
-        };
-        (f.state, f.x86, f.profile, plan)
+        (f.state, f.x86, f.profile, f.plan)
     } else {
         let (x86, word) = match archive::frame_codec(&chosen) {
             Some(archive::Codec::Profile(w)) => (false, w),

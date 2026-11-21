@@ -122,11 +122,15 @@ wbody = (n + "(let w : Nat := (prim length state : Nat); "
          f"(let s0 : {dec.St} := {dec.L.make(tables(dec, '(w + n)', {}, 'state'), scalars(dec.L, 'input'))}; "
          f"(let s1 : {dec.St} := (decodeWarm s0 w profile); (match (prim slice {dec.L.P('s1', 'H')} w n : (Option Bytes))\n    | Option.none => 0x\n    | Option.some b => b)))))")
 dec.D('runWarm', ['state : Bytes', 'input : Bytes', 'profile : Nat'], 'Bytes', f"(if ((prim length input : Nat) <? 4) then 0x else {wbody})")
-# a streams frame (ncm::streams::decode): the payload's streams decoded over the shared state
-sbody = (n + "(let h : Nat := (prim length history : Nat); "
-         f"(let s0 : {dec.St} := {dec.L.make(tables(dec, 'n', {}, 'history', 'word', 'h', True), scalars(dec.L, 'input'))}; "
-         f"(let s1 : {dec.St} := (decodeStreams s0 h word); (match (prim slice {dec.L.P('s1', 'H')} h n : (Option Bytes))\n    | Option.none => 0x\n    | Option.some b => b)))))")
-dec.D('runStreams', ['history : Bytes', 'input : Bytes', 'word : Nat'], 'Bytes', f"(if ((prim length input : Nat) <? {LEN}) then 0x else {sbody})")
+# a streams frame (ncm::streams::decode): the payload's streams decoded over the shared state, after a window
+# (history) or from a kappa-named model state the whole model codes first (state; the other one empty): H
+# starts holding both, the tables are sized for the state and the frame
+sbody = (n + "(let h : Nat := (prim length history : Nat); (let w : Nat := (prim length state : Nat); "
+         f"(let s0 : {dec.St} := {dec.L.make(tables(dec, '(w + n)', {}, '(prim append history state : Bytes)', 'word', 'h', True), scalars(dec.L, 'input'))}; "
+         f"(let s1 : {dec.St} := (decodeStreams s0 h w word); (match (prim slice {dec.L.P('s1', 'H')} (h + w) n : (Option Bytes))\n    | Option.none => 0x\n    | Option.some b => b))))))")
+dec.D('streamsFrom', ['history : Bytes', 'state : Bytes', 'input : Bytes', 'word : Nat'], 'Bytes', f"(if ((prim length input : Nat) <? {LEN}) then 0x else {sbody})")
+dec.D('runStreams', ['history : Bytes', 'input : Bytes', 'word : Nat'], 'Bytes', "(streamsFrom history 0x input word)")
+dec.D('runWarmStreams', ['state : Bytes', 'input : Bytes', 'word : Nat'], 'Bytes', "(streamsFrom 0x state input word)")
 open(os.path.join(OUTDIR, 'NcmDecode.lex.tex'), 'w').write(dec.source([TB]))
 
 # encoder
@@ -159,19 +163,20 @@ enc.D('run', ['input : Bytes'], 'Bytes', "(runWith 0x input)")
 # the payload's room, then every stream's output
 cap = (f"((prim multiply {enc.need(ncm_streams.LENGTH)} (streamsOf word) : Nat) + (prim multiply (prim multiply 2 (streamsOf word) : Nat) "
        f"((prim multiply 2 (strideOf n (streamsOf word)) : Nat) + {enc.need(ncm_streams.SLACK)}) : Nat))")
-st = enc.L.make(tables(enc, 'n', {'OUT': f'(zeros (depthFor {enc.need(ncm_streams.WORD_BITS)} {cap} 0))'}, 'history', 'word', 'h', True), scalars(enc.L, 'input'))
-senc = ("(let n : Nat := (prim length input : Nat); (let h : Nat := (prim length history : Nat); "
-        f"(let s1 : {enc.St} := (encodeStreams {st} n h word); "
-        f"(if (0 <? {enc.gread('s1', 'ovf')}) then 0x else (match (prim slice {enc.L.P('s1', 'OUT')} 0 {enc.gread('s1', 'flen')} : (Option Bytes))\n    | Option.none => 0x\n"
-        f"    | Option.some b => b)))))")
+# after a window (history) or from a model state (state; the other one empty), as the decoder
+st = enc.L.make(tables(enc, '(w + n)', {'OUT': f'(zeros (depthFor {enc.need(ncm_streams.WORD_BITS)} {cap} 0))'}, '(prim append history state : Bytes)', 'word', 'h', True), scalars(enc.L, 'input'))
 frame_range = enc.need(ncm_streams.FRAME_RANGE)
-enc.D('runStreams', ['history : Bytes', 'input : Bytes', 'word : Nat'], 'Bytes', f"(if ((prim length input : Nat) <? {frame_range}) then {senc} else 0x)")
 # the payload and the merge's steps (ncm::streams::encode_counted): one for every bucket, match table entry, and mixer
-# weight or map entry a stream changed in an epoch, summed over the epochs and streams
-cnt = ("(let n : Nat := (prim length input : Nat); (let h : Nat := (prim length history : Nat); "
-       f"(let s1 : {enc.St} := (encodeStreams {st} n h word); "
+# weight or map entry a stream changed in an epoch, summed over the epochs and streams; no payload when a
+# stream's coder passes its bound
+cnt = ("(let n : Nat := (prim length input : Nat); (let h : Nat := (prim length history : Nat); (let w : Nat := (prim length state : Nat); "
+       f"(let s1 : {enc.St} := (encodeStreams {st} n h w word); "
        f"(if (0 <? {enc.gread('s1', 'ovf')}) then (0x, 0) else (match (prim slice {enc.L.P('s1', 'OUT')} 0 {enc.gread('s1', 'flen')} : (Option Bytes))\n    | Option.none => (0x, 0)\n"
-       f"    | Option.some b => (b, {enc.gread('s1', 'msteps')}))))))")
-enc.D('countStreams', ['history : Bytes', 'input : Bytes', 'word : Nat'], '(Bytes * Nat)', f"(if ((prim length input : Nat) <? {frame_range}) then {cnt} else (0x, 0))")
+       f"    | Option.some b => (b, {enc.gread('s1', 'msteps')})))))))")
+enc.D('streamsFrom', ['history : Bytes', 'state : Bytes', 'input : Bytes', 'word : Nat'], '(Bytes * Nat)', f"(if ((prim length input : Nat) <? {frame_range}) then {cnt} else (0x, 0))")
+enc.D('runStreams', ['history : Bytes', 'input : Bytes', 'word : Nat'], 'Bytes', "(first (streamsFrom history 0x input word))")
+enc.D('countStreams', ['history : Bytes', 'input : Bytes', 'word : Nat'], '(Bytes * Nat)', "(streamsFrom history 0x input word)")
+enc.D('runWarmStreams', ['state : Bytes', 'input : Bytes', 'word : Nat'], 'Bytes', "(first (streamsFrom 0x state input word))")
+enc.D('countWarmStreams', ['state : Bytes', 'input : Bytes', 'word : Nat'], '(Bytes * Nat)', "(streamsFrom 0x state input word)")
 open(os.path.join(OUTDIR, 'NcmEncode.lex.tex'), 'w').write(enc.source([TB]))
 print('ok')

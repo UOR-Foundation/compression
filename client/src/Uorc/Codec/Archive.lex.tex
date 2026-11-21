@@ -966,7 +966,7 @@ definition{
   name: stateWord,
   parameters: [word : Nat],
   result: Bool,
-  body: (((prim remainder (planField word) (prim multiply (probBase) (streamsBase) : Nat) 0 : Nat) =? 0) && (((deltaField word) =? 0) && ((learningWord word) && (profileWord (prim remainder word (profileBase) 0 : Nat))))),
+  body: (((prim remainder (prim remainder (planField word) (deltaBase) 0 : Nat) (probBase) 0 : Nat) =? 0) && (((deltaField word) =? 0) && ((profileWord (prim remainder word (profileBase) 0 : Nat)) && (if ((streamsOf word) =? 0) then (learningWord word) else true)))),
   executable: true,
   axioms: []
 }
@@ -1934,10 +1934,28 @@ definition{
 }
 
 definition{
+  name: warmDecoder,
+  parameters: [state : Bytes, payload : Bytes, word : Nat],
+  result: Bytes,
+  body: (if ((streamsOf word) =? 0) then (Uorc.Codec.NcmDecode::runWarm state payload word) else (Uorc.Codec.NcmDecode::runWarmStreams state payload word)),
+  executable: true,
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: warmEncoder,
+  parameters: [state : Bytes, input : Bytes, word : Nat],
+  result: Bytes,
+  body: (if ((streamsOf word) =? 0) then (Uorc.Codec.NcmEncode::runWarm state input word) else (Uorc.Codec.NcmEncode::runWarmStreams state input word)),
+  executable: true,
+  axioms: [Quot.sound, propext]
+}
+
+definition{
   name: stateDecoder,
   parameters: [x : Nat, state : Bytes, payload : Bytes, profile : Nat],
   result: Bytes,
-  body: (if (x =? 0) then (Uorc.Codec.NcmDecode::runWarm state payload profile) else (Uorc.Codec.X86::run 1 (prim length state : Nat) (Uorc.Codec.NcmDecode::runWarm (Uorc.Codec.X86::run 0 0 state) payload profile))),
+  body: (if (x =? 0) then (warmDecoder state payload profile) else (Uorc.Codec.X86::run 1 (prim length state : Nat) (warmDecoder (Uorc.Codec.X86::run 0 0 state) payload profile))),
   executable: true,
   axioms: [Quot.sound, propext]
 }
@@ -1946,7 +1964,7 @@ definition{
   name: stateEncoder,
   parameters: [x : Nat, state : Bytes, input : Bytes, profile : Nat],
   result: Bytes,
-  body: (if (x =? 0) then (Uorc.Codec.NcmEncode::runWarm state input profile) else (let h : Bytes := (Uorc.Codec.X86::run 0 0 state); (let f : Bytes := (Uorc.Codec.X86::run 0 (prim length state : Nat) input); (Uorc.Codec.NcmEncode::runWarm h f profile)))),
+  body: (if (x =? 0) then (warmEncoder state input profile) else (let h : Bytes := (Uorc.Codec.X86::run 0 0 state); (let f : Bytes := (Uorc.Codec.X86::run 0 (prim length state : Nat) input); (warmEncoder h f profile)))),
   executable: true,
   axioms: [Quot.sound, propext]
 }
